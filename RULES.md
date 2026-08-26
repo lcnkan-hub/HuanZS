@@ -10,6 +10,7 @@
 8. **新功能加新积木** — 不往现有大文件里塞代码，拆成新 composable + 新组件
 9. **数据兼容** — 新加功能不能破坏已有 localStorage 数据
 10. **修改前读** — 先读要改的文件，再读它引用的 composables/constants，禁止全量扫描
+11. **危机系统冻结纪律** — 修改 `src/constants/crisis.js`、`src/constants/crisisContextPatterns.js`、Risk Signal Object 结构、状态机迁移规则中任意一项，同一提交必须附带 `npm run test:crisis` 运行结果；文案微调（只改文字不改结构）至少跑 A/B 类相关用例，结构性改动（字段/状态定义/路由表）必须跑 A/B/C/D 全量矩阵
 
 ## 产品宪法（硬规则 · 2026-08-05 从 Obsidian 抄入）
 

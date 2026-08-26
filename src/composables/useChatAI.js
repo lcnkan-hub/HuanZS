@@ -4,6 +4,7 @@
  * 纯逻辑积木，不依赖组件；消息结构沿用 { role, content }
  */
 import { ref } from 'vue'
+import { handleMessage } from '../services/crisisResponse'
 
 const API_URL = 'https://api.deepseek.com/chat/completions'
 const MODEL = 'deepseek-v4-flash' // 省钱模式（deepseek-chat 已并入 v4 体系，勿用旧名）
@@ -44,6 +45,23 @@ export function useChatAI() {
   async function ask(messages, extraSystemNote = '') {
     isThinking.value = true
     error.value = null
+
+    // ── 危机响应管线（R3 代码层落地）：检测→状态机→路由，命中即短路主 LLM ──
+    try {
+      const recentContext = (messages || []).slice(-4).map(m => ({ role: m.role, content: m.content }))
+      const crisis = await handleMessage(
+        messages?.[messages.length - 1]?.content || '',
+        recentContext.slice(0, -1)
+      )
+      if (crisis) {
+        isThinking.value = false
+        return crisis.reply
+      }
+    } catch {
+      // 危机管线自身故障由其内部兜底处理；此处不吞 ask() 的正常错误流
+    }
+    // ── 管线结束（未命中 → 走原主对话流程）──
+
     const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
