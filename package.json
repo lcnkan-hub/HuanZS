@@ -1,0 +1,23 @@
+{
+  "name": "huan-zhong-shu",
+  "version": "1.0.0",
+  "description": "寰中枢 - 属于你的多维核心枢纽百科系统",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
+    "pngjs": "^7.0.0",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^5.0.0"
+  }
+}

@@ -1,0 +1,79 @@
+/**
+ * 寰中枢 CSS 变量体系
+ * 全局视觉令牌，组件通过 var() 引用，换肤只需修改此文件
+ */
+
+:root {
+  /* === 色彩系统 === */
+  --color-bg-primary:    #f5f5f7;
+  --color-bg-card:       #ffffff;
+  --color-bg-input:      #f0f0f2;
+  --color-bg-modal:      #f9f9fc;
+  --color-bg-subtle:     #f8f9fa;
+
+  --color-text-primary:  #1d1d1f;
+  --color-text-secondary:#3a3a3c;
+  --color-text-muted:    #8e8e93;
+  --color-text-light:    #aeaeae;
+
+  --color-accent:        #007aff;
+  --color-accent-light:  #f0f4f8;
+  --color-danger:        #ff3b30;
+  --color-danger-bg:     #ffeef0;
+
+  --color-border:        #e5e5e5;
+  --color-border-light:  #f2f2f7;
+  --color-border-input:  #e5e5ea;
+
+  --color-progress-game: #5ac8fa;
+  --color-progress-note: #ffcc00;
+  --color-progress-life: #4cd964;
+
+  --color-markdown-blue: #2f6497;
+  --color-markdown-brown:#9c6843;
+  --color-markdown-green:#3b7a57;
+
+  --color-toolbar-blue-bg:  #eef4fa;
+  --color-toolbar-brown-bg: #fdf5ee;
+  --color-toolbar-green-bg: #eefaf2;
+
+  /* === 圆角 === */
+  --radius-sm:    6px;
+  --radius-md:    8px;
+  --radius-lg:    10px;
+  --radius-xl:    12px;
+  --radius-2xl:   14px;
+  --radius-3xl:   16px;
+
+  /* === 阴影 === */
+  --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-card-md: 0 4px 14px rgba(0, 0, 0, 0.04);
+  --shadow-modal:   0 10px 30px rgba(0, 0, 0, 0.15);
+  --shadow-nav:     0 2px 6px rgba(0, 122, 255, 0.08);
+
+  /* === 动画 === */
+  --ease-out:  cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-pop:  cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-slide:cubic-bezier(0.32, 0.94, 0.6, 1);
+
+  /* === 间距 === */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* === 字体 === */
+  /* 苹方优先：Apple 设备原生渲染，非 Apple 设备自动 fallback 到高质量系统字体 */
+  --font-system: "PingFang SC", "PingFang TC", "Helvetica Neue", "Microsoft YaHei", "Hiragino Sans GB", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono:   "SF Mono", "Menlo", "Consolas", "PingFang SC", -apple-system, monospace;
+
+  /* === 尺寸 === */
+  --header-height: 55px;
+  --nav-height:    75px;
+
+  /* === 王冠主题（2026-08-14 收敛版：金色只留给记忆信号，头像金色保留=王冠身份锚点） === */
+  --crown-avatar-bg: linear-gradient(135deg, #f7c948, #f5a623);
+  --crown-avatar-shadow: 0 2px 6px rgba(245, 166, 35, 0.25);
+  --crown-avatar-icon: #ffffff;
+  /* 记忆信号专用色（低饱和暖金，仅记忆浮现时使用，P2 后启用；平时绝不用） */
+  --memory-signal: #C9A24B;
+  /* 王冠界面背景（深夜书房米白，与入场动画"照亮"后的暖氛围适配） */
+  --crown-bg: #F7F6F3;
+}

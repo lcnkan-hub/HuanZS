@@ -1,0 +1,275 @@
+<!--
+  主词条详情页积木
+  展示主词条的子词条列表，支持添加/删除子词条，点击子词条进入编辑器
+  Props: openedItem(主词条对象), currentUser(当前用户名)
+  Emits: close, add-child(name), save-child(childId, wiki), delete-child(childId)
+-->
+<template>
+  <div class="detail-page-wrapper">
+    <!-- 子词条编辑器叠加层 -->
+    <SubEntryEditor
+      v-if="editingChild"
+      :childItem="editingChild"
+      :parentName="openedItem.name"
+      @back="editingChild = null"
+      @save="(wiki) => handleChildSave(wiki)"
+      @delete="handleChildDelete"
+    />
+
+    <!-- 主词条列表视图 -->
+    <template v-else>
+      <!-- 顶部栏 -->
+      <div class="detail-header">
+        <button class="back-link-btn" @click="$emit('close')">
+          <AppIcon name="back" :size="16" /> 返回
+        </button>
+        <span class="detail-page-title">
+          <AppIcon name="book-open" :size="18" /> {{ openedItem.name }}
+        </span>
+        <button class="add-child-btn" @click="showAddChildModal = true">
+          <AppIcon name="plus" :size="14" /> 添加子词条
+        </button>
+      </div>
+
+      <!-- 主体 -->
+      <div class="detail-body">
+        <!-- 元信息条 -->
+        <div class="meta-info-strip">
+          <span class="meta-badge">
+            <AppIcon name="tag" :size="12" /> 主词条
+          </span>
+          <span class="meta-author">
+            <AppIcon name="author" :size="12" /> {{ openedItem.creator }}
+          </span>
+          <span class="meta-time" v-if="openedItem.time">
+            <AppIcon name="clock" :size="12" /> {{ openedItem.time }}
+          </span>
+          <span class="meta-count">
+            <AppIcon name="list" :size="12" /> {{ children.length }} 个子词条
+          </span>
+        </div>
+
+        <!-- 子词条列表 -->
+        <div class="child-list">
+          <div v-if="children.length === 0" class="empty-tip">
+            暂无子词条，点击右上角「添加子词条」创建第一个吧！
+          </div>
+          <div
+            v-for="(child, index) in children"
+            :key="child.id"
+            class="child-card"
+            :style="{ animationDelay: index * 60 + 'ms' }"
+            @click="editingChild = child"
+          >
+            <div class="child-card-left">
+              <span class="child-name">
+                <AppIcon name="doc" :size="15" /> {{ child.name }}
+              </span>
+              <span class="child-meta">
+                <span v-if="child.creator">
+                  <AppIcon name="author" :size="11" /> {{ child.creator }}
+                </span>
+                <span v-if="child.time">
+                  <AppIcon name="clock" :size="11" /> {{ child.time }}
+                </span>
+                <span v-if="child.wiki" class="child-has-content">
+                  <AppIcon name="has-content" :size="10" /> 有内容
+                </span>
+              </span>
+            </div>
+            <AppIcon name="forward" :size="18" class="child-arrow" />
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- 添加子词条弹窗 -->
+    <div v-if="showAddChildModal" class="modal-overlay" @click.self="showAddChildModal = false">
+      <div class="modal-box">
+        <h3>添加子词条</h3>
+        <input
+          type="text"
+          v-model="newChildName"
+          placeholder="请输入子词条名称"
+          class="modal-input"
+          @keyup.enter="handleAddChild"
+        />
+        <div class="modal-actions">
+          <button class="cancel-btn" @click="showAddChildModal = false">取消</button>
+          <button class="save-btn" @click="handleAddChild">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import AppIcon from '../common/AppIcon.vue'
+import SubEntryEditor from './SubEntryEditor.vue'
+
+const props = defineProps({
+  openedItem:  { type: Object, required: true },
+  currentUser: { type: String, required: true }
+})
+const emit = defineEmits(['close', 'add-child', 'save-child', 'delete-child'])
+
+const editingChild      = ref(null)
+const showAddChildModal = ref(false)
+const newChildName      = ref('')
+
+// 计算子词条列表
+const children = computed(() => props.openedItem.children || [])
+
+// 添加子词条
+const handleAddChild = () => {
+  if (!newChildName.value.trim()) return alert('名称不能为空')
+  emit('add-child', newChildName.value.trim())
+  newChildName.value = ''
+  showAddChildModal.value = false
+}
+
+// 保存子词条内容
+const handleChildSave = (wiki) => {
+  if (editingChild.value) {
+    emit('save-child', editingChild.value.id, wiki)
+    editingChild.value = { ...editingChild.value, wiki }
+    editingChild.value = null
+  }
+}
+
+// 删除子词条
+const handleChildDelete = () => {
+  if (editingChild.value && confirm('确定要删除这个子词条吗？')) {
+    emit('delete-child', editingChild.value.id)
+    editingChild.value = null
+  }
+}
+</script>
+
+<style scoped>
+.detail-page-wrapper {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background-color: #ffffff; z-index: 100; display: flex; flex-direction: column;
+  animation: slideInPage 0.28s var(--ease-slide);
+}
+.detail-header {
+  height: var(--header-height); border-bottom: 1px solid var(--color-border-light);
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 16px; background: #ffffff;
+  -webkit-user-select: none; user-select: none;
+}
+.back-link-btn {
+  background: none; border: none; color: var(--color-accent);
+  font-size: 15px; font-weight: 500; cursor: pointer; padding: 5px 0;
+  display: flex; align-items: center; gap: 4px;
+}
+.detail-page-title {
+  font-size: 16px; font-weight: 600; color: var(--color-text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 38%;
+  display: flex; align-items: center; gap: 4px;
+}
+.add-child-btn {
+  background-color: var(--color-accent); color: white;
+  border: none; border-radius: var(--radius-md); padding: 6px 14px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  white-space: nowrap; display: flex; align-items: center; gap: 4px;
+}
+.add-child-btn:active { opacity: 0.8; }
+
+.detail-body {
+  flex: 1; overflow-y: auto; padding: 16px 20px 40px 20px;
+  display: flex; flex-direction: column; -webkit-overflow-scrolling: touch;
+}
+.meta-info-strip {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  font-size: 11px; color: var(--color-text-muted); margin-bottom: 20px;
+  padding-bottom: 12px; border-bottom: 1px dashed var(--color-border-input);
+}
+.meta-badge {
+  background-color: var(--color-bg-input); color: var(--color-text-secondary);
+  font-weight: 600; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 11px;
+  display: flex; align-items: center; gap: 3px;
+}
+.meta-count {
+  background-color: var(--color-toolbar-blue-bg); color: var(--color-markdown-blue);
+  font-weight: 500; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 11px;
+  margin-left: auto; display: flex; align-items: center; gap: 3px;
+}
+.meta-author, .meta-time {
+  display: flex; align-items: center; gap: 3px;
+}
+
+/* 子词条列表 */
+.child-list {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.empty-tip {
+  text-align: center; color: var(--color-text-muted);
+  margin-top: 40px; font-size: 14px; line-height: 1.6;
+}
+.child-card {
+  background: var(--color-bg-primary); border-radius: var(--radius-lg);
+  padding: 14px 16px; display: flex; justify-content: space-between;
+  align-items: center; cursor: pointer;
+  box-shadow: var(--shadow-card);
+  animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.child-card:active { transform: scale(0.98); box-shadow: none; }
+.child-card-left { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
+.child-name {
+  font-size: 15px; font-weight: 600; color: var(--color-text-primary);
+  display: flex; align-items: center; gap: 4px;
+}
+.child-meta {
+  display: flex; gap: 10px; font-size: 11px; color: var(--color-text-muted);
+  align-items: center; flex-wrap: wrap;
+}
+.child-meta span {
+  display: flex; align-items: center; gap: 2px;
+}
+.child-has-content {
+  background-color: #e8f5e9; color: #2e7d32;
+  padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 500;
+  display: flex; align-items: center; gap: 2px;
+}
+.child-arrow { color: #c7c7cc; flex-shrink: 0; }
+
+/* 弹窗 */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.4); display: flex; justify-content: center;
+  align-items: center; z-index: 999; backdrop-filter: blur(2px);
+}
+.modal-box {
+  background: white; border-radius: var(--radius-3xl, 16px);
+  width: 85%; max-width: 340px; padding: 22px;
+  box-shadow: var(--shadow-modal);
+  animation: popModal 0.25s var(--ease-pop);
+}
+.modal-box h3 {
+  margin-top: 0; margin-bottom: 18px; font-size: 18px;
+  text-align: center; font-weight: 600;
+}
+.modal-input {
+  width: 100%; border: 1px solid var(--color-border);
+  background: var(--color-bg-modal); border-radius: var(--radius-md);
+  padding: 10px 12px; box-sizing: border-box; font-size: 14px;
+}
+.modal-actions {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;
+}
+.cancel-btn { background: var(--color-border-light); color: #515154; border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
+.save-btn   { background: var(--color-accent); color: white; border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
+
+@keyframes slideInPage { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes cardFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes popModal {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+</style>

@@ -1,0 +1,11 @@
+{
+  "appId": "com.huanzhongshu.app",
+  "appName": "寰中枢",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

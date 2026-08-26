@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- 底色 -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  
+  <!-- 中心圆 — 寰（圆环+点） -->
+  <circle cx="256" cy="220" r="120" fill="none" stroke="white" stroke-width="28" stroke-linecap="round"/>
+  <circle cx="256" cy="220" r="20" fill="white"/>
+  
+  <!-- 中轴线 -->
+  <line x1="256" y1="340" x2="256" y2="440" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  
+  <!-- 分支线 — 中枢发散 -->
+  <line x1="256" y1="370" x2="170" y2="410" stroke="white" stroke-width="14" stroke-linecap="round"/>
+  <line x1="256" y1="370" x2="342" y2="410" stroke="white" stroke-width="14" stroke-linecap="round"/>
+  <line x1="256" y1="400" x2="150" y2="450" stroke="white" stroke-width="12" stroke-linecap="round"/>
+  <line x1="256" y1="400" x2="362" y2="450" stroke="white" stroke-width="12" stroke-linecap="round"/>
+  
+  <!-- 渐变色 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="50%" stop-color="#16213e"/>
+      <stop offset="100%" stop-color="#0f3460"/>
+    </linearGradient>
+  </defs>
+</svg>
