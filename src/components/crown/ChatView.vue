@@ -9,6 +9,11 @@
     <!-- 入场动画「灯醒」（冷启动第一次进王冠播一次） -->
     <CrownEntrance v-if="showEntrance" :quick="introQuick" :mode="introMode" @done="handleEntranceDone" />
 
+    <!-- 返回按钮（左上角）：王冠是全屏界面且隐藏底栏，需要一个显式出口 -->
+    <button class="back-btn" aria-label="返回" @click="$emit('back')">
+      <AppIcon name="back" :size="20" />
+    </button>
+
     <!-- 记忆入口胶囊（顶部悬浮，克制：静态数字） -->
     <button
       class="memory-entry"
@@ -104,6 +109,9 @@ import CrownEntrance from './CrownEntrance.vue'
 import { useChat } from '../../composables/useChat'
 import { useChatAI } from '../../composables/useChatAI'
 import { useMemory } from '../../composables/useMemory'
+
+// 事件：back —— 左上角返回按钮触发，具体回到哪个 Tab 由 App.vue 决定
+defineEmits(['back'])
 
 // 入场动画：内存态标志——冷启动后第一次进王冠播一次，热切换不播，杀 app 内存清空才重置
 let entrancePlayed = false
@@ -223,6 +231,42 @@ function formatTime(timeStr) {
   flex-direction: column;
   height: 100%;
   background: var(--crown-bg);
+}
+
+/* ===== 返回按钮（左上角，与记忆胶囊同材质：磨砂白 + 轻描边 + 卡片阴影） ===== */
+.back-btn {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 5;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-light);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s ease-out, opacity 0.2s ease;
+}
+.back-btn:active {
+  transform: scale(0.95);
+}
+/* 触控目标扩展 ≥44px */
+.back-btn::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+}
+/* 左向箭头光学纠偏：几何居中会显得偏左，右移 1px 视觉才正 */
+.back-btn :deep(.app-icon) {
+  transform: translateX(1px);
 }
 
 /* ===== 记忆入口胶囊（顶部悬浮，iOS 风格） ===== */

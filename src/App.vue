@@ -21,7 +21,7 @@
     <!-- 主内容区（页面叠层，动画只操作 transform + opacity） -->
     <div class="main-content">
       <!-- 王冠 AI 伙伴（全屏聊天界面） -->
-      <ChatView v-if="currentTab === 'crown'" />
+      <ChatView v-if="currentTab === 'crown'" @back="handleCrownBack" />
 
       <!-- 百科叠层（非王冠 Tab 时显示） -->
       <div v-if="currentTab !== 'crown'" class="page-stack">
@@ -91,7 +91,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 // 组件积木
 import SplashScreen from './components/common/SplashScreen.vue'
@@ -118,6 +118,11 @@ const { dbData } = wikiData
 const { syncCreatorName } = wikiData
 
 const currentTab     = ref('game')
+// 王冠为全屏界面（隐藏底栏），进入前先记住来源 Tab，左上角返回按钮据此决定回哪
+const lastNonCrownTab = ref('game')
+watch(currentTab, (val, oldVal) => {
+  if (val === 'crown' && oldVal && oldVal !== 'crown') lastNonCrownTab.value = oldVal
+})
 const searchQueries  = ref({ game: '', note: '', life: '' })
 const isSplashActive = ref(true)
 const showAddModal   = ref(false)
@@ -136,6 +141,12 @@ const filteredItems = computed(() =>
 )
 
 // ========== 操作函数 ==========
+
+/** 王冠返回：回到进入王冠之前所在的 Tab（底栏在王冠页隐藏，这是唯一出口） */
+const handleCrownBack = () => {
+  currentTab.value = lastNonCrownTab.value
+}
+
 const openAddModal = () => {
   newItemName.value = ''
   showAddModal.value = true
