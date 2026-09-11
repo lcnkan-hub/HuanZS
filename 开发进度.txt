@@ -1,7 +1,7 @@
 ══════════════════════════════════════════════════════════════
   寰中枢 (Huan Zhong Shu) — 个人百科知识库 App · 开发进度文档
 ══════════════════════════════════════════════════════════════
-  最后更新: 2026-07-05
+  最后更新: 2026-08-26 (v2.5)
   路径: F:\寰中枢\开发进度.txt
 ══════════════════════════════════════════════════════════════
 
@@ -10,54 +10,67 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   寰中枢 是一个移动端优先的 Vue 3 个人知识库 App。
-  纯前端 SPA，零后端依赖，数据存储在浏览器 localStorage。
+  纯前端 SPA，零后端依赖；AI 聊天直连 DeepSeek API。
 
   技术栈：
     · Vue 3 (Composition API + <script setup>)
     · Vite 5 构建工具
     · 纯 CSS (CSS Variables 主题体系)
-    · localStorage 持久化 (5MB 上限)
+    · localStorage 持久化 (百科数据/聊天/记忆)
+    · IndexedDB (图片仓库，避开 5MB 上限)
+    · Capacitor 8 (Android 打包)
 
   页面结构 (底部 Tab 导航)：
-    ┌──────────┬──────────┬──────────┬──────────┐
-    │ 🎮 游戏  │ 📝 笔记  │ 🍀 生活  │ 👤 我的  │
-    └──────────┴──────────┴──────────┴──────────┘
+    ┌──────────┬──────────┬──────────┬──────────┬──────────┐
+    │ 🎮 游戏  │ 📝 笔记  │ 🍀 生活  │ 👑 王冠  │ 👤 我的  │
+    └──────────┴──────────┴──────────┴──────────┴──────────┘
+    (王冠 Tab 为全屏聊天界面，隐藏底部导航)
 
   启动方式：
     cd F:\寰中枢
-    npm install     # 首次
-    npm run dev     # 启动开发服务器
+    npm install          # 首次
+    npm run dev          # 启动开发服务器
+    npm run test:crisis  # 危机系统测试 (改危机结构必跑)
 
 
 二、开发进度总览
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ✅ 已完成 — 核心功能 (100%)
+  ✅ 已完成 — 百科基础 (v1, 100%)
   ──────────────────────────────────────────────
   [OK] 百科条目 CRUD (增删改查)
   [OK] 三大分类：游戏 / 笔记 / 生活
   [OK] 搜索过滤 (按分类 + 关键词)
   [OK] Markdown 渲染 (标题/加粗/代码/颜色标签)
-  [OK] 移动端工具栏 (快速插入语法)
   [OK] 个人中心 (足迹统计、条目管理)
   [OK] 数据备份导出/导入 (含沙箱校验)
   [OK] 开屏动画 + 欢迎引导
-  [OK] 修改个人资料 (头像/昵称)
-  [OK] 用户改名同步到条目 creator
+  [OK] 修改个人资料 (头像/昵称) + 改名同步到条目 creator
   [OK] localStorage 自动持久化
 
-  🔲 待开发 — Phase 1 (编辑器增强)
+  ✅ 已完成 — 编辑器增强 (Phase 1, 部分)
   ──────────────────────────────────────────────
-  [   ] 图片插入功能 (IndexedDB 存储 → Markdown 标记)
-  [   ] 图片放大查看
+  [OK] 主词条-子词条二级结构 (WikiDetail + SubEntryEditor)
+  [OK] 子词条编辑器：阅读/编辑双模式 + 发布
+  [OK] 图片插入 (IndexedDB 存储 → Markdown id://img-xxx 引用 + 缩略图预览)
+  [   ] 图片放大查看 (缩略图已就绪，缺点击放大 lightbox)
   [   ] 思维导图编辑 (嵌入 mind-elixir)
   [   ] BaseButton 通用按钮积木
 
-  🔲 待开发 — Phase 2 (AI 能力)
+  ✅ 已完成 — AI 能力 (v2.0, 核心打通)
+  ──────────────────────────────────────────────
+  [OK] 王冠 AI 聊天 (DeepSeek API, 30s 超时, 最近 10 条控 Token)
+  [OK] 王冠人格系统 (SYSTEM_PROMPT: 反油腻/被骂应对/收尾规则/情绪分层)
+  [OK] 王冠记忆模块 (fact/goal/event/preference 白名单四类 + 情绪状态机
+        + 沉默阈值 + C 档留门式开口)
+  [OK] 隐私边界 (情感依赖请求回应不落库；"记住"私密事件固定话术)
+  [OK] 危机响应系统 (五层管线 + 风险状态机 + 12356 转介 + 测试矩阵)
+
+  🔲 待开发 — Phase 2 (AI 能力剩余)
   ──────────────────────────────────────────────
   [   ] AI 检索面板 (DeepSeek API)
-  [   ] AI 百科条目自动完善
-  [   ] AI 问答搜索
+  [   ] AI 百科条目自动完善 (王冠读百科 + 补全)
+  [   ] AI 问答搜索 (基于百科数据回答)
 
   🔲 待开发 — Phase 3 (辩论模式)
   ──────────────────────────────────────────────
@@ -71,8 +84,8 @@
   [   ] 浏览历史记录
   [   ] 收藏夹
   [   ] 子条目搜索
-  [   ] 一键发布为静态 HTML
-  [   ] PWA 离线支持
+  [   ] 一键发布为静态 HTML (现有 dist 仅为构建产物)
+  [   ] PWA 离线支持 (已有 manifest，缺 Service Worker)
 
 
 三、文件清单与职责
@@ -84,244 +97,186 @@
 
   package.json
     项目元信息 + 依赖声明。
-    依赖: vue@3.4, vite@5, @vitejs/plugin-vue@5。
-    命令: npm run dev(开发) / build(构建) / preview(预览)。
+    依赖: vue@3.4, vite@5, @capacitor/*@8, pngjs。
+    命令: dev / build / preview / test:crisis。
 
-  vite.config.js
-    Vite 构建配置。仅注册 Vue 插件，无额外配置。
+  capacitor.config.json + android/
+    Capacitor 8 配置 + Android 工程目录。
 
-  index.html
-    HTML 入口。设置中文 lang="zh-CN"，挂载 #app。
-
-  README.md
-    项目文档：架构理念、目录结构、快速启动、功能概览。
+  scripts/ (run-crisis-tests.mjs / crisis.test.mjs / resolve-hook.mjs)
+    危机响应系统 A/B/C/D 用例矩阵运行器。
+    resolve-hook.mjs: ESM 解析钩子，让原生 node 解析无扩展名相对导入。
 
   CLAUDE.md / PROJECT.md / RULES.md / TASKS.md
-    Claude Code AI 协作文件。
-    · CLAUDE.md — AI 工作指引
-    · PROJECT.md — 技术规格 (数据结构/组件清单)
-    · RULES.md   — 编码规范
-    · TASKS.md   — 开发路线图 (与上方进度表一致)
-
-  .gitignore ★ (2026-07-05 新增)
-    排除: node_modules/、dist/、.vite/、*.local
+    AI 协作文件：工作指引 / 技术规格 / 编码规范 / 开发路线图。
 
   ┌─────────────────────────────────────────────────────────┐
-  │ 3.2  入口层                                              │
+  │ 3.2  入口层 + 根组件                                     │
   └─────────────────────────────────────────────────────────┘
 
-  src/main.js                          (122 B)
+  src/main.js
     应用入口。createApp(App).mount('#app')，导入全局样式。
 
-  src/App.vue                          (5,595 B)
-    根组件。职责：页面路由编排 + 全局状态持有。
+  src/App.vue
+    根组件。职责：页面叠层编排 + 全局状态持有 + 王冠 Tab 调度。
     组装: SplashScreen / AppHeader / WikiList / WikiDetail
-          / MinePage / ModalBox / BottomNav
+          / MinePage / ModalBox / BottomNav / ChatView
     持有: currentTab / searchQueries / openedItem / showAddModal
-    导入: useUserProfile / useWikiData / categories.js
+    逻辑: useUserProfile / useWikiData / usePageRouter
 
   ┌─────────────────────────────────────────────────────────┐
   │ 3.3  常量层 (constants/)                                 │
   └─────────────────────────────────────────────────────────┘
 
-  src/constants/categories.js          (1,001 B)
-    分类配置中心。所有分类相关硬编码统一管理。
-    导出:
-      · TAB_ICONS      — Tab 图标映射 (game→🎮, note→📝, ...)
-      · TAB_NAMES      — Tab 中文名映射
-      · ALL_CATEGORIES — 内容分类列表 (不含 mine)
-      · NAV_ITEMS      — 底部导航项配置
-      · AVAILABLE_AVATARS — 可选头像列表 (15 个 emoji)
-      · STORAGE_KEYS   — localStorage 存储键名
+  categories.js
+    分类配置中心。Tab/图标/分类/头像/存储键统一管理。
+    导出: TAB_ICONS / TAB_NAMES / ALL_CATEGORIES / NAV_ITEMS
+          / AVAILABLE_AVATARS / STORAGE_KEYS
+
+  icons.js
+    SVG 图标库。统一 viewBox=24 / stroke=2 / currentColor，
+    含 <title> 无障碍标签，由 AppIcon.vue 渲染。
+
+  crisis.js + crisisContextPatterns.js
+    危机信号定义 + 上下文模式（危机子系统输入侧）。
 
   ┌─────────────────────────────────────────────────────────┐
   │ 3.4  工具层 (utils/)                                     │
   └─────────────────────────────────────────────────────────┘
 
-  src/utils/markdownParser.js          (1,322 B)
-    Markdown 编译器。纯函数，无副作用。
-    支持: #标题 / ##中标题 / ###小标题 / **加粗** / `代码`
-          <blue>/<brown>/<green> 颜色标签
-    安全: 先全量 HTML 转义 → 局部安全还原
+  markdownParser.js
+    Markdown 编译器。纯函数。
+    支持: 标题/加粗/代码/颜色标签/图片引用 (id://img-xxx)。
+    安全: 先全量 HTML 转义 → 局部安全还原。
 
-  src/utils/uniqueId.js                (991 B)
-    ID 生成 + 时间格式化。
-    导出:
-      · generateUniqueId()       — 6位不重复数字ID
-      · generateDefaultUsername() — 4位随机数字默认用户名
-      · getCurrentTimeString()   — "YYYY/MM/DD HH:mm"
+  uniqueId.js
+    ID 生成 + 时间格式化。generateUniqueId / getCurrentTimeString。
 
   ┌─────────────────────────────────────────────────────────┐
   │ 3.5  样式层 (styles/)                                    │
   └─────────────────────────────────────────────────────────┘
 
-  src/styles/variables.css             (1,892 B)
-    CSS 变量体系。所有组件通过 var() 引用。
-    分类:
-      · 色彩 — bg/card/text/accent/danger/border/progress/...
-      · 圆角 — sm(6px) → 3xl(16px)
-      · 阴影 — card / modal / nav
-      · 动画 — ease-out / ease-pop / ease-slide
-      · 间距 — safe-bottom
-      · 字体 — system / monospace
-      · 尺寸 — header-height(55px) / nav-height(75px)
+  variables.css
+    CSS 变量体系（色彩/圆角/阴影/动画/间距/字体/尺寸）。
 
   ┌─────────────────────────────────────────────────────────┐
   │ 3.6  逻辑层 (composables/)                               │
   └─────────────────────────────────────────────────────────┘
 
-  src/composables/useLocalStorage.js   (656 B)
-    本地持久化积木。自动同步 localStorage。
-    用法: const data = useLocalStorage('key', defaultVal)
-    特性: deep watch 自动写入，异常静默处理。
+  useLocalStorage.js
+    本地持久化积木。deep watch 自动写入，异常静默处理。
 
-  src/composables/useUserProfile.js    (786 B)
-    用户档案积木。管理用户创建/读取/修改。
-    功能:
-      · 首次访问自动生成 (6位ID + 4位用户名 + 🐱头像)
-      · updateProfile({name, avatar}) 更新
-    依赖: useLocalStorage、uniqueId、categories
+  useUserProfile.js
+    用户档案积木。首次自动生成 (6位ID + 用户名 + 头像)，updateProfile。
 
-  src/composables/useWikiData.js       (2,722 B)
-    百科数据库积木。管理完整 CRUD + 搜索 + 导入导出。
-    功能:
-      · searchItems(category, query)  — 按分类+关键词搜索
-      · getMyItems(userName)          — 获取当前用户条目
-      · addItem(cat, name, creator)   — 添加条目
-      · deleteItem(cat, id)           — 删除条目
-      · updateItemWiki(cat, id, wiki) — 更新百科正文
-      · syncCreatorName(old, new)     — 用户名变更后同步
-      · exportData() / importData()   — 导入导出
-      · validateImportData(data)      — 导入格式校验
-    依赖: useLocalStorage、uniqueId、categories
+  useWikiData.js
+    百科数据库积木。完整 CRUD + 搜索 + 导入导出校验。
+    扩展: addChildItem / updateChildWiki / deleteChildItem (子词条)。
+
+  usePageRouter.js
+    页面路由积木。详情面板打开/关闭 + 叠层动画状态机 + 来源页恢复。
+
+  useChat.js
+    王冠聊天积木。消息增删 + localStorage 持久化 + 欢迎语。
+
+  useChatAI.js
+    王冠 AI 请求积木。DeepSeek API 调用 + 人格系统提示词 +
+    危机管线短路 (命中即不走主 LLM)。
+
+  useMemory.js
+    王冠记忆积木。白名单四类写入 + 情绪打标状态机 + 沉默阈值 +
+    C 档留门式开口 + 隐私话术 (情感依赖不落库 / 私密事件固定回应)。
+
+  useImageStore.js
+    图片存储积木。IndexedDB 仓库，saveImage / getImageUrl /
+    deleteImage / dropUnused，生成持久 blob URL。
 
   ┌─────────────────────────────────────────────────────────┐
-  │ 3.7  组件层 (components/)                                │
+  │ 3.7  服务层 (services/)                                  │
+  └─────────────────────────────────────────────────────────┘
+
+  crisisDetection.js
+    危机检测。五层管线检测层，识别直接表达/具体计划/告别/情绪突变。
+
+  riskStateMachine.js
+    风险状态机。状态迁移规则 (A/B/C 档位)。
+
+  crisisResponse.js
+    危机响应。接住情绪 → 识别信号 → 让位转介 (12356/120)，轻量确认。
+
+  storageAdapter.js
+    存储适配器。localStorage 读写；node 测试环境自动降级内存 Map。
+
+  ┌─────────────────────────────────────────────────────────┐
+  │ 3.8  组件层 (components/)                                │
   ├─────────────────────────────────────────────────────────┤
-  │ 3.7.1  通用组件 (common/)                                │
+  │ 3.8.1  通用组件 (common/)                                │
   └─────────────────────────────────────────────────────────┘
 
-  components/common/SplashScreen.vue   (2,134 B)
-    开屏动画。显示 "欢迎使用寰中枢" + 加载条。
-    特性: 同会话只显示一次 (sessionStorage 标记)。
-    2秒后自动淡出关闭。
-
-  components/common/ModalBox.vue       (1,485 B)
-    通用弹窗积木。覆盖层 + 居中卡片。
-    插槽: default(内容) / actions(底部按钮)
-    Props: title (标题文字)
-    点击遮罩层关闭。
-
-  components/common/HelloGuide.vue     (2,096 B)
-    欢迎引导页。首次进入时的使用指南。
-    展示: 欢迎卡片 + 两个功能引导项。
+  SplashScreen.vue   开屏动画。同会话只显示一次。
+  AppIcon.vue        SVG 图标渲染 (name + size)。
+  ModalBox.vue       通用弹窗 (default/actions 插槽)。
+  HelloGuide.vue     欢迎引导页。
 
   ┌─────────────────────────────────────────────────────────┐
-  │ 3.7.2  布局组件 (layout/)                                │
+  │ 3.8.2  王冠组件 (crown/)                                 │
   └─────────────────────────────────────────────────────────┘
 
-  components/layout/AppHeader.vue      (1,277 B)
-    顶部搜索/添加栏。
-    Props: tabName / modelValue (搜索词 v-model)
-    Emits: add(添加按钮)
-    在 "百科列表页" 且 "未打开详情" 时显示。
-
-  components/layout/BottomNav.vue      (1,510 B)
-    底部导航栏。4 个 Tab (🎮/📝/🍀/👤)。
-    Props: modelValue (当前Tab，v-model)
-    数据: 来自 categories.js 的 NAV_ITEMS
-    样式: 激活态蓝色高亮 + 上移效果。
+  ChatView.vue       王冠聊天页编排。全屏聊天 + 记忆查看入口。
+  CrownEntrance.vue  王冠入场动画。夜晚「灯醒」/ 白天「光启」双模式。
+  MemorySheet.vue    记忆查看面板。展示白名单四类记忆。
 
   ┌─────────────────────────────────────────────────────────┐
-  │ 3.7.3  百科组件 (wiki/)                                  │
+  │ 3.8.3  布局组件 (layout/)                                │
   └─────────────────────────────────────────────────────────┘
 
-  components/wiki/WikiList.vue         (1,416 B)
-    百科列表页。展示分类标题 + 卡片列表。
-    Props: icon / tabName / items / currentUser
-    空状态: 引导用户添加。
-    依赖: WikiCard 子组件。
-
-  components/wiki/WikiCard.vue         (1,276 B)
-    单张百科卡片。展示名称 + 贡献者。
-    Props: item / isOwner(显示删除按钮)
-    Emits: open(点击卡片) / delete(点击删除)
-
-  components/wiki/WikiDetail.vue       (8,810 B)  ★ 最大组件
-    百科详情页。包含阅读模式 + 编辑模式。
-    · 阅读模式: Markdown 渲染显示
-    · 编辑模式: 工具栏(语法插入) + textarea
-    · 依赖: markdownParser.js
-    · 功能: 光标位置插入语法、编辑/发布切换
-    · 权限: 仅创建者可编辑
+  AppHeader.vue      顶部搜索/添加栏。
+  BottomNav.vue      底部导航栏。5 个 Tab (游戏/笔记/生活/王冠/我的)。
 
   ┌─────────────────────────────────────────────────────────┐
-  │ 3.7.4  用户中心组件 (user/)                              │
+  │ 3.8.4  百科组件 (wiki/)                                  │
   └─────────────────────────────────────────────────────────┘
 
-  components/user/MinePage.vue         (4,061 B)
-    个人中心编排页。组装所有用户子组件。
-    计算: myFilteredData (当前用户的条目)
-    组装: UserProfileCard + FootprintSummary
-          + CategoryGroup×3 + DataBackup + EditProfileModal
+  WikiDetail.vue     详情页。子词条列表 + 添加/删除/编辑入口。
+  SubEntryEditor.vue 子词条编辑器。阅读/编辑双模式 + 图片插入
+                     + 缩略图预览 (最大组件)。
+  WikiList.vue       列表页。分类标题 + 卡片列表 + 空状态引导。
+  WikiCard.vue       单张百科卡片。
 
-  components/user/UserProfileCard.vue  (1,289 B)
-    用户名片。展示头像(大号emoji) + 用户名 + 枢纽ID。
+  ┌─────────────────────────────────────────────────────────┐
+  │ 3.8.5  用户中心组件 (user/)                              │
+  └─────────────────────────────────────────────────────────┘
 
-  components/user/FootprintSummary.vue (3,878 B)
-    创造力足迹统计。
-    指标: 累计创建条目数 / 编写总字数 / 分类占比进度条。
-    数据: 来自 myFilteredData (MinePage 传入)。
-
-  components/user/CategoryGroup.vue    (3,236 B)  ★ 核心复用
-    分类条目折叠面板。3 个分类复用同一个组件。
-    · 点击展开/折叠
-    · 显示该分类下当前用户创建的所有条目
-    · 点击条目跳转详情
-    · 替代了原代码 3×18 行的重复 HTML
-
-  components/user/DataBackup.vue       (3,083 B)
-    数据备份保险箱。导出 JSON / 导入恢复。
-    · 导出: 浏览器下载 .json 文件
-    · 导入: 文件选择 → 格式校验 → 确认覆盖
-    · 校验: 验证 data.game/note/life 是数组
-
-  components/user/EditProfileModal.vue (2,596 B)
-    修改资料弹窗。内嵌 ModalBox。
-    功能: 头像选择(5列网格) / 用户名编辑(最长12字)
+  MinePage.vue          个人中心编排页。
+  UserProfileCard.vue   用户名片 (头像 + 用户名 + 枢纽ID)。
+  FootprintSummary.vue  创造力足迹统计。
+  CategoryGroup.vue     分类条目折叠面板 (×3 复用)。
+  DataBackup.vue        数据备份保险箱 (导出/导入/校验)。
+  EditProfileModal.vue  修改资料弹窗。
 
 
 四、文件依赖关系图
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   main.js
-   └─ App.vue ─────────────────────────────────────────────┐
-       ├─ [组件] SplashScreen.vue                          │
-       ├─ [组件] AppHeader.vue                             │
-       ├─ [组件] WikiList.vue                              │
-       │    └─ [组件] WikiCard.vue                         │
-       ├─ [组件] WikiDetail.vue                            │
-       │    └─ [工具] markdownParser.js                    │
-       ├─ [组件] MinePage.vue ──────────────────────────┐  │
-       │    ├─ [组件] UserProfileCard.vue                │  │
-       │    ├─ [组件] FootprintSummary.vue               │  │
-       │    ├─ [组件] CategoryGroup.vue (×3 复用)        │  │
-       │    ├─ [组件] DataBackup.vue                     │  │
-       │    └─ [组件] EditProfileModal.vue               │  │
-       │         └─ [组件] ModalBox.vue                  │  │
-       ├─ [组件] ModalBox.vue                            │  │
-       ├─ [组件] BottomNav.vue                           │  │
-       ├─ [逻辑] useUserProfile.js ───────────────┐      │  │
-       │    ├─ [逻辑] useLocalStorage.js           │      │  │
-       │    └─ [工具] uniqueId.js                  │      │  │
-       ├─ [逻辑] useWikiData.js ──────────────────┤      │  │
-       │    ├─ [逻辑] useLocalStorage.js           │      │  │
-       │    └─ [工具] uniqueId.js                  │      │  │
-       └─ [常量] categories.js ←──── 被以上所有引用 ┘      │  │
-                                                            │  │
-   ┌────────────────────────────────────────────────────────┘  │
-   │   [样式] variables.css ──→ 被所有组件通过 var() 引用      │
-   └───────────────────────────────────────────────────────────┘
+   └─ App.vue ─────────────────────────────────────────────────┐
+       ├─ [组件] SplashScreen / AppHeader / ModalBox / BottomNav│
+       ├─ [组件] WikiList ─ WikiCard                           │
+       ├─ [组件] WikiDetail ─ SubEntryEditor ──┐                │
+       │     └─ [工具] markdownParser.js       │                │
+       │     └─ [逻辑] useImageStore.js        │                │
+       ├─ [组件] MinePage ─ UserProfileCard / FootprintSummary /│
+       │     CategoryGroup / DataBackup / EditProfileModal      │
+       ├─ [组件] ChatView ─ CrownEntrance / MemorySheet         │
+       │     └─ [逻辑] useChat / useChatAI / useMemory          │
+       │           ├─ [服务] crisisDetection / riskStateMachine /│
+       │           │         crisisResponse / storageAdapter    │
+       │           └─ [常量] crisis.js / crisisContextPatterns  │
+       ├─ [逻辑] useUserProfile / useWikiData / usePageRouter   │
+       │     └─ [逻辑] useLocalStorage ── [工具] uniqueId        │
+       └─ [常量] categories.js / icons.js ←── 以上所有引用      │
+
+  [样式] variables.css ──→ 被所有组件通过 var() 引用
 
 
 五、操作方法
@@ -332,153 +287,73 @@
     cd F:\寰中枢
     npm run dev        启动开发服务器 (localhost:5173)
     npm run build      构建生产版本
+    npm run test:crisis  危机系统用例 (改危机结构必跑)
 
-  5.2  添加新分类
-  ──────────────────────────────────────────
-    只需修改 src/constants/categories.js：
-      1. TAB_ICONS 加新 key
-      2. TAB_NAMES 加新 key
-      3. ALL_CATEGORIES 加新 key
-      4. NAV_ITEMS 加新项
-      5. STORAGE_KEYS.DB 初始值加新空数组
-    即可 —— 所有组件自动适配。
-
-  5.3  添加新功能 (积木规范)
+  5.2  添加新功能 (积木规范)
   ──────────────────────────────────────────
     1. 业务逻辑 → 新建 src/composables/useXxx.js
     2. UI 组件  → 新建 src/components/xxx/Xxx.vue
     3. 配置数据 → 放在 constants/ 中
     4. App.vue 编排组装
+    5. 更新本文件 + TASKS.md
 
-  5.4  数据操作
+  5.3  数据操作
   ──────────────────────────────────────────
     导出备份: 个人中心 → 导出全量数据备份
     导入恢复: 个人中心 → 导入备份恢复数据
-    清除数据: 浏览器 DevTools → Application → Local Storage
+    清除数据: DevTools → Application → Local Storage
               → 删除 huan_zhong_shu_db / huan_zhong_shu_user
+    (图片存 IndexedDB 库 huan_zhong_shu_images)
 
 
 六、优化建议 (按优先级)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ★★★ 建议立即做
-  ──────────────────────────────────────────
-  1. 安装 Git + 初始化版本控制
-     安装: winget install Git.Git 或 git-scm.com
-     初始化: cd F:\寰中枢 && git init && git add . && git commit -m "init"
-     .gitignore 已创建，可直接使用
-
-  2. 用 pnpm 替代 npm (节省磁盘)
-     npm install -g pnpm
-     rm -rf node_modules package-lock.json
-     pnpm install (node_modules 从 37MB → ~20MB)
-
   ★★ 建议近期做
   ──────────────────────────────────────────
-  3. WikiDetail.vue 拆分为阅读/编辑两个子组件
-     当前 197 行是最大文件，逻辑混杂
-
-  4. 提取 BaseButton 通用按钮积木
-     多处按钮样式重复 (cancel-btn / save-btn / tool-btn)
-
-  5. 添加 <Transition> 页面切换动画
-     当前 v-if 切换无过渡，与现有 slideInPage 风格一致
+  1. 图片放大查看 (lightbox) — 缩略图已就绪，差最后一环
+  2. AI 百科条目自动完善 — 王冠已能聊天，读百科补全是质变
+  3. BaseButton 通用按钮积木 — 多处按钮样式重复
 
   ★ 后续优化
   ──────────────────────────────────────────
-  6. 分类空状态差异化提示
-  7. import 路径使用 @/ 别名 (替代 ../../)
+  4. 用 pnpm 替代 npm (节省磁盘)
+  5. 分类空状态差异化提示
+  6. import 路径使用 @/ 别名 (替代 ../../)
 
-
-七、项目文件完整列表
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  F:\寰中枢\
-  ├── .gitignore                       ★ 2026-07-05 新增
-  ├── package.json                     (374 B)
-  ├── package-lock.json                (39.9 KB)
-  ├── vite.config.js                   (126 B)
-  ├── index.html                       (299 B)
-  ├── README.md                        (4.5 KB)
-  ├── CLAUDE.md                        (498 B)
-  ├── PROJECT.md                       (1.8 KB)
-  ├── RULES.md                         (959 B)
-  ├── TASKS.md                         (847 B)
-  ├── 开发进度.txt                     ★ 本文档
-  ├── .skills\                         (5 技能定义)
-  └── src\
-      ├── main.js                      (122 B)
-      ├── App.vue                      (5.6 KB)
-      ├── constants\categories.js      (1.0 KB)
-      ├── utils\
-      │   ├── markdownParser.js        (1.3 KB)
-      │   └── uniqueId.js              (991 B)
-      ├── styles\variables.css         (1.9 KB)
-      ├── composables\
-      │   ├── useLocalStorage.js       (656 B)
-      │   ├── useUserProfile.js        (786 B)
-      │   └── useWikiData.js           (2.7 KB)
-      └── components\
-          ├── common\SplashScreen.vue  (2.1 KB)
-          ├── common\ModalBox.vue      (1.5 KB)
-          ├── common\HelloGuide.vue    (2.1 KB)
-          ├── layout\AppHeader.vue     (1.3 KB)
-          ├── layout\BottomNav.vue     (1.5 KB)
-          ├── wiki\WikiCard.vue        (1.3 KB)
-          ├── wiki\WikiDetail.vue      (8.8 KB)  ★ 最大
-          ├── wiki\WikiList.vue        (1.4 KB)
-          ├── user\MinePage.vue        (4.1 KB)
-          ├── user\UserProfileCard.vue (1.3 KB)
-          ├── user\FootprintSummary.vue(3.9 KB)
-          ├── user\CategoryGroup.vue   (3.2 KB)  ★ 核心复用
-          ├── user\DataBackup.vue      (3.1 KB)
-          └── user\EditProfileModal.vue(2.6 KB)
-
-  文件总数: 30 个 (不含 node_modules)
-  源文件总行数: ~2,200 行
+  ✅ 已解决的历史建议
+  ──────────────────────────────────────────
+  · Git 版本控制 — 已初始化 (2026-07-05)
+  · WikiDetail 拆分 — 编辑器已独立为 SubEntryEditor
+  · 页面切换动画 — 已实现叠层动画状态机 (usePageRouter)
 
 
 ══════════════════════════════════════════════════════════════
 附录：如何让此文档随 App 同步更新
 ══════════════════════════════════════════════════════════════
 
-  每次更新 app 后希望这个文档自动反映最新状态，
-  有以下方式：
-
   ──────────────────────────────────────────
-  ✅ 推荐方式：对 Claude 说"更新进度文档"
+  ✅ 推荐方式：对 AI 说"更新进度文档"
   ──────────────────────────────────────────
-    每次你完成一个功能开发后，说一句：
+    每次完成一个功能开发后，说一句：
       "更新进度文档"
-    我就会：
+    AI 就会：
       1. 读取 F:\寰中枢\开发进度.txt
       2. 把已完成的 [   ] 改为 [OK]
       3. 如果新增了文件，补充到文件清单
       4. 更新依赖关系图
       5. 保存并告诉你更新了哪些部分
 
-    不需要任何额外配置，直接在对话中说就行。
-
-  ──────────────────────────────────────────
-  📌 进阶：保存为长期记忆
-  ──────────────────────────────────────────
-    如果想让"更新进度文档"变成每次启动都记得的操作，
-    可以对我说：
-      "记住：每次我完成一个功能开发后，要自动更新
-       F:\寰中枢\开发进度.txt 的进度表和文件职责"
-
-    我会写入记忆文件，后续会话中自动记住这个规则。
-
   ──────────────────────────────────────────
   ⚠️ 重要提示
   ──────────────────────────────────────────
     这个 txt 是静态文件，不会自动感知代码变化。
-    必须你主动触发，我才会同步更新。
+    必须主动触发，AI 才会同步更新。
 
     推荐流程：
       1. 开发功能 → 完成
       2. 对我说 "更新进度文档"
-      3. 我更新完毕 → 你确认
+      3. AI 更新完毕 → 你确认
       4. 继续下一个功能
 
 ══════════════════════════════════════════════════════════════

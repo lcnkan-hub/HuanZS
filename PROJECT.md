@@ -1,58 +1,88 @@
 # 寰中枢 — 个人百科知识库
 
+> 更新：2026-08-26（v2.5，对齐代码现状）
+
 ## 技术栈
 - Vue 3（Composition API + `<script setup>`）
 - Vite 5 构建
-- localStorage 持久化（5MB 上限）
+- localStorage 持久化（百科数据/聊天/记忆）+ IndexedDB（图片仓库，避开 5MB 上限）
 - 纯 CSS（CSS Variables 主题体系）
-- 零后端依赖（纯前端 SPA）
+- 零后端依赖（纯前端 SPA；王冠 AI 直连 DeepSeek API）
+- Capacitor 8（Android 打包，`android/` 目录）
 
 ## 页面结构（Tab 导航）
-| Tab | 路径 | 说明 |
-|-----|------|------|
-| 🎮 游戏 | categories.game | 游戏百科列表 |
-| 📝 笔记 | categories.note | 笔记百科列表 |
-| 🍀 生活 | categories.life | 生活百科列表 |
+| Tab | key | 说明 |
+|-----|-----|------|
+| 🎮 游戏 | game | 游戏百科列表 |
+| 📝 笔记 | note | 笔记百科列表 |
+| 🍀 生活 | life | 生活百科列表 |
+| 👑 王冠 | crown | AI 伙伴聊天（全屏，隐藏底部导航） |
 | 👤 我的 | mine | 个人中心 |
 
 ## 数据结构
 ```js
 dbData = {
-  game: [
-    { id: string, name: string, wiki: string(Markdown),
-      creator: string, time: string("YYYY/MM/DD HH:mm") }
+  game: [ /* note/life 同构 */
+    {
+      id: string, name: string, wiki: string(Markdown),
+      creator: string, time: string("YYYY/MM/DD HH:mm"),
+      children: [ /* 子词条，可选 */
+        { id: string, name: string, wiki: string, creator: string, time: string }
+      ]
+    }
   ],
   note: [ /* 同上 */ ],
   life: [ /* 同上 */ ]
 }
 
-userProfile = {
-  id: string(6位数字), name: string, avatar: string(emoji)
-}
+userProfile = { id: string(6位数字), name: string, avatar: string(emoji) }
+chatMessages = [ { id, role: 'user'|'assistant', content, time } ]  // huan_zhong_shu_chat
+memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]  // huan_zhong_shu_memory_v1
 ```
 
 ## 核心功能
-1. 百科条目 CRUD（增删改查）
-2. 搜索过滤（按分类+关键词）
-3. Markdown 渲染（标题/加粗/代码/颜色标签）
-4. 个人中心（足迹统计、条目管理、数据备份导入导出）
-5. 开屏动画
-
-## 设计风格
-- Apple 风格（白底、圆角、浅阴影）
-- 移动端优先（`-webkit-overflow-scrolling: touch`）
-- CSS 变量体系（`variables.css`），换肤改一处
+1. 百科条目 CRUD + 主词条-子词条二级结构
+2. 搜索过滤（按分类 + 关键词）
+3. Markdown 渲染（标题/加粗/代码/颜色标签/图片引用 `id://img-xxx`）
+4. 子词条编辑器（阅读/编辑双模式 + IndexedDB 图片插入 + 缩略图预览）
+5. 个人中心（足迹统计、条目管理、数据备份导入导出）
+6. 王冠 AI 聊天（DeepSeek API + 人格系统 + 隐私边界）
+7. 王冠记忆（白名单四类 + 情绪状态机 + C 档留门式开口）
+8. 危机响应系统（五层管线 + 风险状态机 + 12356 转介）
+9. 开屏动画 + 王冠入场动画（夜晚灯醒/白天光启双模式）
 
 ## 积木清单
 | 目录 | 文件 | 职责 |
 |------|------|------|
 | common | SplashScreen.vue | 开屏动画 |
+| common | AppIcon.vue | SVG 图标渲染（替代 emoji） |
 | common | ModalBox.vue | 通用弹窗 |
 | common | HelloGuide.vue | 欢迎引导 |
-| layout | BottomNav.vue | 底部导航 |
+| crown | ChatView.vue | 王冠聊天页编排 |
+| crown | CrownEntrance.vue | 王冠入场动画（昼夜双模式） |
+| crown | MemorySheet.vue | 记忆查看面板 |
+| layout | BottomNav.vue | 底部导航（5 Tab） |
 | layout | AppHeader.vue | 顶部搜索栏 |
-| wiki | WikiDetail.vue | 详情+编辑器 |
-| wiki | WikiList.vue | 列表+搜索 |
+| wiki | WikiDetail.vue | 详情页（子词条列表 + 添加/删除） |
+| wiki | WikiList.vue | 列表 + 搜索 |
 | wiki | WikiCard.vue | 单张卡片 |
+| wiki | SubEntryEditor.vue | 子词条编辑器（阅读/编辑/图片插入） |
 | user | MinePage.vue | 个人中心编排 |
-| user | 5 个子组件 | 名片/足迹/面板/备份/弹窗 |
+| user | UserProfileCard / FootprintSummary / CategoryGroup / DataBackup / EditProfileModal | 名片/足迹/面板/备份/弹窗 |
+| composables | useLocalStorage.js | localStorage 封装（deep watch 同步） |
+| composables | useUserProfile.js | 用户档案（创建/读取/修改） |
+| composables | useWikiData.js | 百科 CRUD + 子词条 + 导入导出校验 |
+| composables | usePageRouter.js | 页面叠层路由 + 动画状态机 |
+| composables | useChat.js | 聊天消息管理（增删/持久化/欢迎语） |
+| composables | useChatAI.js | DeepSeek 请求 + 危机管线短路 |
+| composables | useMemory.js | 记忆写入/注入/状态机/隐私话术 |
+| composables | useImageStore.js | IndexedDB 图片仓库（增删查/清理） |
+| constants | categories.js | Tab/分类/存储键统一配置 |
+| constants | icons.js | SVG 图标库（统一 viewBox/描边） |
+| constants | crisis.js + crisisContextPatterns.js | 危机信号定义 + 上下文模式 |
+| services | crisisDetection / crisisResponse / riskStateMachine / storageAdapter | 危机五层管线 + 存储适配 |
+| utils | markdownParser.js / uniqueId.js | Markdown 编译 / ID 生成 |
+| styles | variables.css | 主题变量体系（换肤改一处） |
+
+## 测试
+- `npm run test:crisis` — 危机响应系统 A/B/C/D 用例矩阵（修改危机结构必跑，见 RULES.md 第 11 条）
