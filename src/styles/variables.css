@@ -76,4 +76,22 @@
   --memory-signal: #C9A24B;
   /* 王冠界面背景（深夜书房米白，与入场动画"照亮"后的暖氛围适配） */
   --crown-bg: #F7F6F3;
+
+  /* === 王冠玻璃材质（昼）—— 提取为变量：夜板只需换值，全页材质自动跟随 === */
+  --crown-glass-bg:  rgba(255, 255, 255, 0.85); /* 顶部悬浮件（返回键 / 记忆胶囊） */
+  --crown-glass-bar: rgba(255, 255, 255, 0.92); /* 底部输入栏 */
+
+  /* === 王冠夜晚板（2026-09-12）===
+     时间同步：与入场动画「灯醒」共用同一判定（useTimeMode：6:00–18:00 白天，其余夜晚）
+     用途：夜晚时聊天界面的基底 + 材质换值，让界面与「灯醒」落在同一个空间里 */
+  --crown-night-bg:             #18181f; /* 与入场暗室同色：动画散开时看不出"换场" */
+  /* 夜板残光的色标序列写在 CrownBackdrop.vue 内（与入场光晕的配方并排可比对），此处不重复定义 */
+  --crown-night-surface:        rgba(255, 255, 255, 0.07); /* 夜里助手气泡 / 卡片 */
+  --crown-night-surface-input:  rgba(255, 255, 255, 0.08); /* 夜里输入框底 */
+  --crown-night-glass:          rgba(255, 255, 255, 0.10); /* 夜里玻璃（悬浮件 / 输入栏） */
+  --crown-night-border:         rgba(255, 255, 255, 0.10);
+  --crown-night-text:           #ECEAE3;
+  --crown-night-text-secondary: #C7C4BC;
+  --crown-night-text-muted:     #9A968C;
+  --crown-night-accent:         #0A84FF; /* Apple 深色模式蓝（比 #007AFF 亮一档，夜里才够亮） */
 }

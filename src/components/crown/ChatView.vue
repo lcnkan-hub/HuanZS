@@ -5,7 +5,10 @@
   支持键盘发送、自动滚动、清空对话
 -->
 <template>
-  <div class="chat-container">
+  <div class="chat-container" :class="{ night: timeMode === 'night' }">
+    <!-- 夜晚背景板（时间与入场动画「灯醒」同源；白天不显示） -->
+    <CrownBackdrop :mode="timeMode" />
+
     <!-- 入场动画「灯醒」（冷启动第一次进王冠播一次） -->
     <CrownEntrance v-if="showEntrance" :quick="introQuick" :mode="introMode" @done="handleEntranceDone" />
 
@@ -106,9 +109,11 @@ import { ref, nextTick, watch, onMounted, computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import MemorySheet from './MemorySheet.vue'
 import CrownEntrance from './CrownEntrance.vue'
+import CrownBackdrop from './CrownBackdrop.vue'
 import { useChat } from '../../composables/useChat'
 import { useChatAI } from '../../composables/useChatAI'
 import { useMemory } from '../../composables/useMemory'
+import { useTimeMode } from '../../composables/useTimeMode'
 
 // 事件：back —— 左上角返回按钮触发，具体回到哪个 Tab 由 App.vue 决定
 defineEmits(['back'])
@@ -129,6 +134,8 @@ const memory = useMemory()
 
 // 记忆面板：入口（克制：静态数字，不做计数动画——验收工具克制优先于好看）
 const showMemory = ref(false)
+// 时间模式：与入场动画共用同一判定（6:00–18:00 白天），背景板靠它保持时间同步
+const timeMode = useTimeMode()
 const memoryList = computed(() => memory.memories.value || [])
 const count = computed(() => memoryList.value.length)
 
@@ -164,16 +171,10 @@ onMounted(() => {
     let seen = false
     try { seen = !!localStorage.getItem(INTRO_KEY) } catch {}
     introQuick.value = seen
-    introMode.value = getIntroMode() // 按系统时间决定白天/夜晚版
+    introMode.value = timeMode.value // 进入这一刻的时段定档（与背景板同源），播放中不再变
     showEntrance.value = true
   }
 })
-
-/** 按系统时间决定入场动画模式：6:00–18:00 白天版「光启」，其余夜晚版「灯醒」 */
-function getIntroMode() {
-  const h = new Date().getHours()
-  return (h >= 6 && h < 18) ? 'day' : 'night'
-}
 
 /** 发送消息：先存用户消息，再请王冠回话 */
 async function handleSend() {
@@ -227,10 +228,29 @@ function formatTime(timeStr) {
 
 <style scoped>
 .chat-container {
+  position: relative; /* 夜板（绝对定位层）的包含块 */
   display: flex;
   flex-direction: column;
   height: 100%;
   background: var(--crown-bg);
+  /* 跨过 6:00 / 18:00 边界时柔和换底，不突切 */
+  transition: background-color 0.8s ease;
+}
+
+/* ===== 夜晚板：只换语义变量的值，所有子元素自动跟随（不写第二套子元素规则） ===== */
+.chat-container.night {
+  --crown-bg: var(--crown-night-bg);
+  --color-bg-card: var(--crown-night-surface);
+  --color-bg-input: var(--crown-night-surface-input);
+  --color-border-light: var(--crown-night-border);
+  --color-text-primary: var(--crown-night-text);
+  --color-text-secondary: var(--crown-night-text-secondary);
+  --color-text-muted: var(--crown-night-text-muted);
+  --color-accent: var(--crown-night-accent);
+  --color-danger: #FF6961;
+  --color-danger-bg: rgba(255, 69, 58, 0.14);
+  --crown-glass-bg: var(--crown-night-glass);
+  --crown-glass-bar: var(--crown-night-glass);
 }
 
 /* ===== 返回按钮（左上角，与记忆胶囊同材质：磨砂白 + 轻描边 + 卡片阴影） ===== */
@@ -247,7 +267,7 @@ function formatTime(timeStr) {
   justify-content: center;
   border: 1px solid var(--color-border-light);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--crown-glass-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   color: var(--color-text-secondary);
@@ -283,7 +303,7 @@ function formatTime(timeStr) {
   padding: 0 14px;
   border: 1px solid var(--color-border-light);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
+  background: var(--crown-glass-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   color: var(--color-text-secondary);
@@ -315,6 +335,8 @@ function formatTime(timeStr) {
 /* ===== 消息列表（可滚动区域） ===== */
 .message-list {
   flex: 1;
+  position: relative; /* 夜板是定位元素，会画在非定位内容之上，这里必须压过它 */
+  z-index: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -466,12 +488,14 @@ function formatTime(timeStr) {
 /* ===== 输入栏 ===== */
 .input-bar {
   display: flex;
+  position: relative;
+  z-index: 1;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
   padding-bottom: calc(8px + var(--safe-bottom));
   border-top: 1px solid var(--color-border-light);
-  background: rgba(255,255,255,0.92);
+  background: var(--crown-glass-bar);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
@@ -569,6 +593,8 @@ function formatTime(timeStr) {
 
 /* ===== 错误提示 ===== */
 .error-hint {
+  position: relative;
+  z-index: 1;
   padding: 6px 12px;
   font-size: 12px;
   color: var(--color-danger);
