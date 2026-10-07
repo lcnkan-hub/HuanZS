@@ -16,10 +16,10 @@
  * 时间格式：ISO 8601 字符串；验收构造数据时用 new Date(Date.now()-X*86400000).toISOString() 生成"X天前"
  */
 import { useLocalStorage } from './useLocalStorage'
-import { STORAGE_KEYS } from '../constants/categories'
+import { STORAGE_KEYS, TAB_NAMES } from '../constants/categories'
 import { generateUniqueId } from '../utils/uniqueId'
 import { askStructured } from './useChatAI'
-import { writeWikiItems } from './useWikiWriter'
+import { writeWikiItems, listWikiTitles } from './useWikiWriter'
 
 // —— 白名单常量 ——
 export const MEMORY_TYPES = ['fact', 'goal', 'event', 'preference'] // v1 白名单四类
@@ -228,6 +228,11 @@ export function useMemory() {
   function buildExtractPrompt() {
     const list = getInjectableMemories()
     const memLines = list.map(m => `${m.id}：${m.content}`).join('\n') || '（暂无）'
+    // 百科清单：只给「分类｜标题｜日期」，不给正文（控 Token）。
+    // 没这份清单，模型无从判断该新建还是补进已有条目 —— 那是「只会新建」的根因。
+    const wikiLines = listWikiTitles()
+      .map(w => `${TAB_NAMES[w.category] || w.category}｜${w.parent ? `${w.parent} › ${w.name}` : w.name}｜${w.time}`)
+      .join('\n') || '（暂无）'
     return `你是记忆提取器，根据本轮回合（用户消息 + 王冠回复）判断是否有值得写入长期记忆的信息。
 只允许以下白名单四类，其余一律不提取：
 - fact：用户明确陈述的稳定事实（职业、常驻城市、长期习惯、明确爱好），不带情绪评价。
@@ -242,6 +247,15 @@ export function useMemory() {
 - 不写：关于用户本人的事（那属于记忆）、闲聊、情绪、一次性的临时信息、一句话就说完的小事
 - 保守：**不确定就不写**。宁可漏记，也不能把百科变成垃圾桶（垃圾会毁掉以后检索的质量）
 - title 用简短名词短语（≤20 字）；content 写清要点、可含步骤，不要写成对话口吻
+- **三种动作**：
+  · 全新内容 → mode: "new"，自拟 title 并给 category
+  · 补充/续写已有条目（主条目或子词条都算）→ mode: "append"，title 只写**该条目名本身**（不要带 " › " 前缀），content 只写新增的部分（不要重复或重抄已有内容）。用户说"给 XX 那条补一句""XX 再记一点""接着记"这类，一律走 append
+  · 内容由**多个并列小主题**组成、挂到某个主题条目下面更清楚 → mode: "child"，parent 填主条目名、title 填子条目名，category 可省略
+- **分层判据（别硬套壳）**：
+  · 多个并列小主题（"几条攻略""几个要点"这种）→ 先用 new 建一个主题主条目（如「塞尔达老玩家攻略」），再对每个主题 child 一个子词条
+  · 一整段连续的说明 → 主条目正文就够，别拆
+  · 单条小知识 → 直接 new 一个主条目，不要造父子
+  · wiki 数组**按顺序执行**，所以「先 new 主条目、再 child 挂子词条」在同一个数组里就能完成
 
 规则：
 1. content 用骨架化一句话，不含逐字引用、不含隐私细节，不超过 120 字。
@@ -252,10 +266,14 @@ export function useMemory() {
 已有记忆（id：内容）：
 ${memLines}
 
+已有百科条目（分类｜标题｜日期）：
+${wikiLines}
+
 请判断本轮回合用户是否提到了某条已有记忆（内容相近即可），把对应 id 放进 mentioned_ids。
 
 只返回一个 JSON 对象，不要输出其他文字：
-{ "writes": [{ "type": "...", "content": "...", "source": "...", "sentiment": "..." }], "mentioned_ids": ["..."], "wiki": [{ "title": "...", "category": "game|note|life", "content": "..." }] }
+{ "writes": [{ "type": "...", "content": "...", "source": "...", "sentiment": "..." }], "mentioned_ids": ["..."], "wiki": [{ "mode": "new|append|child", "title": "...", "category": "game|note|life", "parent": "主条目名（仅 child 用）", "content": "..." }] }
+append / child 时 category 可省略（都按名字在库里找）。
 writes 与 wiki 都可以是空数组 —— 大多数轮次两个都应该是空的。`
   }
 
