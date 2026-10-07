@@ -7,10 +7,17 @@ import { useLocalStorage } from './useLocalStorage'
 import { ALL_CATEGORIES, STORAGE_KEYS } from '../constants/categories'
 import { getCurrentTimeString } from '../utils/uniqueId'
 
+/**
+ * 模块级单例：全项目共享同一份响应式百科数据。
+ * 必须这么做 —— useLocalStorage 的 ref 不感知「外部对 localStorage 的直接写入」，
+ * 一旦出现第二个 useWikiData() 调用点（王冠自动记笔记就是第二个），
+ * 两边各持一份快照，后写必然覆盖先写，静默丢数据。
+ */
+const { data: dbData, error: storageError } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
+
 export function useWikiData() {
   let _idCounter = 0
   function genItemId(){return Date.now().toString(36)+('_'+(_idCounter++))}
-  const { data: dbData, error: storageError } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
 
   // ========== 查询 ==========
 
@@ -40,7 +47,8 @@ export function useWikiData() {
       name: name.trim(),
       wiki: '',
       creator,
-      time: getCurrentTimeString()
+      time: getCurrentTimeString(),
+      origin: 'user' // 来源：user = 用户手建；crown = 王冠代记（旧数据无此字段，按 user 看待）
     }
     dbData.value[category].push(newItem)
     return newItem

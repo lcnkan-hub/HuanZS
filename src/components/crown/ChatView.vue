@@ -68,6 +68,12 @@
       </div>
     </div>
 
+    <!-- 未配置密钥提示条（BYOK）：王冠没有钥匙时给唯一入口，别让用户对着不会回话的输入框发呆 -->
+    <div v-if="!aiConfigured" class="setup-bar">
+      <span class="setup-text">王冠还没拿到钥匙 —— 先配置 AI 密钥</span>
+      <button class="setup-btn" @click="showAiSettings = true">去配置</button>
+    </div>
+
     <!-- 错误提示 -->
     <div v-if="error" class="error-hint">{{ error }}</div>
 
@@ -101,6 +107,9 @@
     </div>
     <!-- 记忆面板（底部滑出） -->
     <MemorySheet :open="showMemory" :memories="memoryList" @close="showMemory = false" />
+
+    <!-- AI 设置弹窗（与「我的」页是同一个组件；没钥匙时的配置入口） -->
+    <AiSettingsModal v-if="showAiSettings" @close="showAiSettings = false" />
   </div>
 </template>
 
@@ -114,6 +123,9 @@ import { useChat } from '../../composables/useChat'
 import { useChatAI } from '../../composables/useChatAI'
 import { useMemory } from '../../composables/useMemory'
 import { useTimeMode } from '../../composables/useTimeMode'
+import { useAIConfig } from '../../composables/useApiKey'
+import { buildWikiContext } from '../../composables/useWikiContext'
+import AiSettingsModal from '../user/AiSettingsModal.vue'
 
 // 事件：back —— 左上角返回按钮触发，具体回到哪个 Tab 由 App.vue 决定
 defineEmits(['back'])
@@ -148,6 +160,11 @@ const inputText = ref('')
 const inputRef = ref(null)
 const listRef = ref(null)
 
+// AI 密钥状态（BYOK 单例，与「我的」页共享同一份）：没有钥匙就显示配置入口
+const showAiSettings = ref(false)
+const { config: aiConfig } = useAIConfig()
+const aiConfigured = computed(() => !!(aiConfig.value?.apiKey || '').trim())
+
 /** 自动滚动到底部 */
 async function scrollToBottom() {
   await nextTick()
@@ -180,6 +197,11 @@ onMounted(() => {
 async function handleSend() {
   const text = inputText.value.trim()
   if (!text || isThinking.value) return
+  // 没配密钥就不进对话流程：就地打开设置（避免"正在输入"转圈，最后只等到一句报错）
+  if (!aiConfigured.value) {
+    showAiSettings.value = true
+    return
+  }
   sendMessage(text)
   inputText.value = ''
   // 聚焦输入框
@@ -192,7 +214,9 @@ async function handleSend() {
       await memory.finishTurn(text, turn.fixedReply)
       return
     }
-    const reply = await ask(messages.value, turn.note)
+    // 百科上下文注入：命中提问就给他相关条目全文，没命中就给最近记的清单
+    const note = [turn.note, buildWikiContext(text)].filter(Boolean).join('\n\n')
+    const reply = await ask(messages.value, note)
     addReply(reply)
     await memory.finishTurn(text, reply)
   } catch (e) {
@@ -590,6 +614,30 @@ function formatTime(timeStr) {
   0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
   40% { opacity: 1; transform: translateY(-2px); }
 }
+
+/* ===== 未配置密钥提示条（BYOK）===== */
+.setup-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 12px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-card);
+  box-shadow: var(--shadow-card);
+}
+.setup-text { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; }
+.setup-btn {
+  flex-shrink: 0; border: none; border-radius: var(--radius-md);
+  padding: 6px 12px; font-size: 12px; font-weight: 500;
+  background: var(--color-accent); color: white; cursor: pointer;
+  transition: transform 0.15s ease-out;
+}
+.setup-btn:active { transform: scale(0.96); }
 
 /* ===== 错误提示 ===== */
 .error-hint {

@@ -19,6 +19,7 @@ import { useLocalStorage } from './useLocalStorage'
 import { STORAGE_KEYS } from '../constants/categories'
 import { generateUniqueId } from '../utils/uniqueId'
 import { askStructured } from './useChatAI'
+import { writeWikiItems } from './useWikiWriter'
 
 // —— 白名单常量 ——
 export const MEMORY_TYPES = ['fact', 'goal', 'event', 'preference'] // v1 白名单四类
@@ -235,6 +236,13 @@ export function useMemory() {
 - preference：关于王冠该怎么表现的交互设置（称呼方式、回复长度、语气风格、功能偏好）。
 明确不存（一律不提取）：情感依赖/陪伴期待/主动关心要求（如"你以后多关心我""你要一直陪着我""不要忘记我"）、要求"记住"某段内容的请求、第三方具体行为描述、隐私细节、健康归因猜测、危机信号内容（自伤/伤人/告别等）。
 
+同时判断一次「百科」（与记忆的区别：记忆是关于用户**本人**的，百科是关于**世界的知识**）：
+- 类别只有三个：game（游戏相关：攻略/机制/地图）、note（知识/学习/读书/工作方法）、life（生活经验：居家/健康常识/办事流程）
+- 判据：**可复用、以后可能想再查**的方法或事实。用户说"帮我记一下…"，或明确讲了某个做法/知识时，优先考虑
+- 不写：关于用户本人的事（那属于记忆）、闲聊、情绪、一次性的临时信息、一句话就说完的小事
+- 保守：**不确定就不写**。宁可漏记，也不能把百科变成垃圾桶（垃圾会毁掉以后检索的质量）
+- title 用简短名词短语（≤20 字）；content 写清要点、可含步骤，不要写成对话口吻
+
 规则：
 1. content 用骨架化一句话，不含逐字引用、不含隐私细节，不超过 120 字。
 2. sentiment 仅 event/goal 有意义，取 negative/open/neutral；fact/preference 一律 neutral。
@@ -247,8 +255,8 @@ ${memLines}
 请判断本轮回合用户是否提到了某条已有记忆（内容相近即可），把对应 id 放进 mentioned_ids。
 
 只返回一个 JSON 对象，不要输出其他文字：
-{ "writes": [{ "type": "...", "content": "...", "source": "...", "sentiment": "..." }], "mentioned_ids": ["..."] }
-writes 可为空数组。`
+{ "writes": [{ "type": "...", "content": "...", "source": "...", "sentiment": "..." }], "mentioned_ids": ["..."], "wiki": [{ "title": "...", "category": "game|note|life", "content": "..." }] }
+writes 与 wiki 都可以是空数组 —— 大多数轮次两个都应该是空的。`
   }
 
   /** 提取并写入（模型失败 → 静默跳过，不写入；字段缺失 → 丢弃该条，防止污染库） */
@@ -262,13 +270,17 @@ writes 可为空数组。`
         buildExtractPrompt(),
         `【用户消息】\n${userText}\n\n【王冠回复】\n${assistantReply}`
       )
-      if (!result || !Array.isArray(result.writes)) return
+      if (!result) return
+
+      // 一次调用两件事：writes = 记忆（关于用户本人），wiki = 百科（关于世界的知识）
+      const memWrites = Array.isArray(result.writes) ? result.writes : []
+      const wikiWrites = Array.isArray(result.wiki) ? result.wiki : []
 
       const list = [...(memories.value || [])]
       let changed = false
 
       // 白名单写入（逐条校验；情感依赖/"记住"内容即使被模型输出也在此兜底拦下）
-      for (const raw of result.writes) {
+      for (const raw of memWrites) {
         const entry = normalizeEntry(raw)
         if (!entry) continue
         if (matchEmotional(entry.content) || matchRememberPrivate(entry.content)) continue
@@ -288,6 +300,9 @@ writes 可为空数组。`
       }
 
       if (changed) memories.value = list
+
+      // 百科落库：类别白名单/标题/正文长度/同名去重 的校验在 useWikiWriter 里做；失败静默
+      if (wikiWrites.length > 0) writeWikiItems(wikiWrites)
     } catch (e) {
       // 提取失败 = 本轮不写入，不污染库，不影响对话
     } finally {
