@@ -36,8 +36,12 @@
       @import-success="(data) => $emit('import-db-success', data)"
     />
 
-    <!-- 修改资料按钮 -->
+    <!-- 底部操作：AI 设置（BYOK 密钥）+ 修改资料 -->
     <div class="profile-action-wrapper">
+      <button class="edit-data-trigger-btn" @click="showAiSettings = true">
+        <AppIcon name="key" :size="14" /> AI 设置
+        <span class="ai-state" :class="{ configured: aiConfigured }">{{ aiConfigured ? '已配置' : '未配置' }}</span>
+      </button>
       <button class="edit-data-trigger-btn" @click="showEditModal = true">
         <AppIcon name="settings" :size="14" /> 修改资料
       </button>
@@ -51,6 +55,9 @@
       @close="showEditModal = false"
       @save="(data) => { $emit('save-profile', data); showEditModal = false }"
     />
+
+    <!-- AI 设置弹窗（用户自带密钥，只存本机） -->
+    <AiSettingsModal v-if="showAiSettings" @close="showAiSettings = false" />
   </div>
 </template>
 
@@ -62,7 +69,9 @@ import FootprintSummary  from './FootprintSummary.vue'
 import CategoryGroup     from './CategoryGroup.vue'
 import DataBackup        from './DataBackup.vue'
 import EditProfileModal  from './EditProfileModal.vue'
+import AiSettingsModal   from './AiSettingsModal.vue'
 import { ALL_CATEGORIES, TAB_ICONS, TAB_NAMES } from '../../constants/categories'
+import { useAIConfig } from '../../composables/useApiKey'
 
 const props = defineProps({
   userProfile: { type: Object, required: true },
@@ -71,6 +80,11 @@ const props = defineProps({
 const emit = defineEmits(['open-item', 'save-profile', 'import-db-success'])
 
 const showEditModal = ref(false)
+const showAiSettings = ref(false)
+
+// AI 密钥状态（BYOK 单例，与王冠页共享同一份）：入口上显示「已配置 / 未配置」
+const { config: aiConfig } = useAIConfig()
+const aiConfigured = computed(() => !!(aiConfig.value?.apiKey || '').trim())
 
 // 分类配置（驱动 CategoryGroup 复用的数据源）
 const categories = ALL_CATEGORIES.map(key => ({
@@ -110,7 +124,16 @@ const validateImportData = (data) => {
   box-shadow: 0 2px 8px rgba(0,0,0,0.03); border: 1px solid var(--color-border-light);
 }
 
-.profile-action-wrapper { margin-top: auto; padding: 25px 0 10px 0; display: flex; justify-content: center; }
+.profile-action-wrapper {
+  margin-top: auto; padding: 25px 0 10px 0;
+  display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+/* 密钥状态徽标（已配置 / 未配置） */
+.ai-state {
+  font-size: 11px; padding: 1px 6px; border-radius: 999px;
+  background: var(--color-border-light); color: var(--color-text-muted);
+}
+.ai-state.configured { background: rgba(46, 158, 91, 0.12); color: #2e9e5b; }
 .edit-data-trigger-btn {
   background-color: #ffffff; color: var(--color-text-muted);
   border: 1px solid var(--color-border-input); border-radius: var(--radius-lg);

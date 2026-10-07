@@ -1,13 +1,17 @@
 /**
  * 王冠 AI 请求积木
- * 职责：调用 DeepSeek API，把聊天历史发给模型，取回王冠的回复文本
+ * 职责：调用 AI 接口（服务商由用户在本机选择），把聊天历史发给模型，取回王冠的回复文本
  * 纯逻辑积木，不依赖组件；消息结构沿用 { role, content }
+ *
+ * BYOK（2026-09-28）：密钥改由用户在本机配置（composables/useApiKey.js），
+ * 本文件不得再引用构建期环境变量 —— 那是编译期内联，会把密钥打进产物。
  */
 import { ref } from 'vue'
 import { handleMessage } from '../services/crisisResponse'
+import { getAIConfig } from './useApiKey'
+import { AI_PROVIDERS } from '../constants/aiProviders'
 
-const API_URL = 'https://api.deepseek.com/chat/completions'
-const MODEL = 'deepseek-v4-flash' // 省钱模式（deepseek-chat 已并入 v4 体系，勿用旧名）
+// 接口地址与模型名统一由 constants/aiProviders.js 提供（用户在「我的 → AI 设置」切换服务商）
 const MAX_HISTORY = 10 // 只传最近 10 条，控制 Token 成本
 const REQUEST_TIMEOUT = 30000 // 30 秒超时，避免请求挂起让界面卡死
 
@@ -32,12 +36,15 @@ const SYSTEM_PROMPT = `你是王冠 👑，用户的 AI 伙伴。语气温暖、
    危机信号（自伤/伤人/告别/情绪突变）：当务之急是稳定对方情绪、不做过激的事，按第 1 条接住+识别+转介；此时禁止任何断言式定性（"你其实…""你已经…"这类没商量余地的解读）
    日常情绪：像朋友一样可以有理解力的回应，可以说出自己的判断，但表达要带不确定、留余地，让对方能纠正你`
 
+/** 未配置密钥时的统一引导文案（不发起请求） */
+const NO_KEY_HINT = '还没有配置密钥。去「我的 → AI 设置」填一个，或先选智谱免费模型。'
+
 export function useChatAI() {
   const isThinking = ref(false) // 请求中，用于显示"王冠正在输入…"
   const error = ref(null) // 最近一次错误信息（用户可读的友好提示）
 
   /**
-   * 发送聊天历史给 DeepSeek，返回王冠的回复文本
+   * 发送聊天历史给 AI 接口，返回王冠的回复文本
    * @param {Array} messages 本地消息数组 [{ id, role, content, time }]
    * @param {string} [extraSystemNote] 本轮额外注入的系统提示（记忆积木用，缺省为空）
    * @returns {Promise<string>} 回复文本
@@ -62,12 +69,13 @@ export function useChatAI() {
     }
     // ── 管线结束（未命中 → 走原主对话流程）──
 
-    const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY
+    // 密钥与服务商取自本机配置（BYOK）；没有密钥就引导用户去配置，不发起请求
+    const { baseUrl, model, apiKey } = getAIConfig()
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
     try {
       if (!apiKey) {
-        throw new Error('还没有配置 DeepSeek 密钥，请在 .env 里填写 VITE_DEEPSEEK_API_KEY')
+        throw new Error(NO_KEY_HINT)
       }
       // 映射成 API 消息格式，丢弃 id/time，只留最近 N 条
       const history = (messages || [])
@@ -77,28 +85,28 @@ export function useChatAI() {
       // 记忆积木注入的本轮上下文拼在系统提示词末尾
       const systemContent = extraSystemNote ? `${SYSTEM_PROMPT}\n\n${extraSystemNote}` : SYSTEM_PROMPT
 
-      const res = await fetch(API_URL, {
+      const res = await fetch(baseUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: MODEL,
+          model,
           messages: [{ role: 'system', content: systemContent }, ...history],
           stream: false
         }),
         signal: controller.signal
       })
       if (!res.ok) {
-        // 把服务端错误原文带回来，便于排查（模型名、配额等问题）
+        // 把服务端错误原文带回来，便于排查（模型名、配额等问题）；错误信息不包含密钥
         const detail = await res.text().catch(() => '')
-        throw new Error(`DeepSeek 接口返回 ${res.status}${detail ? '：' + detail : ''}`)
+        throw new Error(`AI 接口返回 ${res.status}${detail ? '：' + detail : ''}`)
       }
       const data = await res.json()
       const reply = data?.choices?.[0]?.message?.content
       if (!reply) {
-        throw new Error('DeepSeek 没有返回内容，请稍后再试')
+        throw new Error('AI 没有返回内容，请稍后再试')
       }
       return reply
     } catch (e) {
@@ -124,19 +132,19 @@ export function useChatAI() {
  * @returns {Promise<Object|null>} 解析后的 JSON 对象，失败为 null
  */
 export async function askStructured(systemPrompt, userContent) {
-  const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY
+  const { baseUrl, model, apiKey } = getAIConfig()
   if (!apiKey) return null
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch(baseUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userContent }
@@ -155,6 +163,56 @@ export async function askStructured(systemPrompt, userContent) {
   } catch {
     // 网络/超时/JSON 解析失败统一视为"提取失败"，由调用方静默跳过写入
     return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * 验证一组密钥配置能否调通（供「AI 设置」弹窗的"测试连接"按钮用）
+ * 发一次最小请求（max_tokens: 1）；任何失败都返回人话，不抛异常
+ * @param {{ provider: string, apiKey: string }} param0 待验证的服务商与密钥（可能是尚未保存的）
+ * @returns {Promise<{ ok: boolean, message: string }>}
+ */
+export async function verifyAIConfig({ provider, apiKey }) {
+  const meta = AI_PROVIDERS[provider]
+  if (!meta) return { ok: false, message: '未知的服务商' }
+  const key = (apiKey || '').trim()
+  if (!key) return { ok: false, message: '请先填写密钥' }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+  try {
+    const res = await fetch(meta.baseUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model: meta.model,
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 1,
+        stream: false
+      }),
+      signal: controller.signal
+    })
+    if (res.ok) return { ok: true, message: '连接正常' }
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, message: '密钥无效，请检查是否复制完整' }
+    }
+    if (res.status === 402) {
+      return { ok: false, message: '账户余额不足，请先充值或改用免费的智谱模型' }
+    }
+    if (res.status === 429) {
+      return { ok: false, message: '请求太频繁，稍后再试' }
+    }
+    return { ok: false, message: `接口返回 ${res.status}，请检查密钥与服务商是否对应` }
+  } catch (e) {
+    return {
+      ok: false,
+      message: e.name === 'AbortError' ? '连接超时，请检查网络' : '网络不通，请稍后再试'
+    }
   } finally {
     clearTimeout(timer)
   }
