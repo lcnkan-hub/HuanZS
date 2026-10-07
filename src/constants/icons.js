@@ -131,6 +131,10 @@ export const iconCrown = (size = 20) =>
 export const iconMemory = (size = 20) =>
   svg(size, '记忆', '<path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44A2.5 2.5 0 0 1 5 17.5v-2.5a2.5 2.5 0 0 1 5-2.5"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44A2.5 2.5 0 0 0 19 17.5v-2.5a2.5 2.5 0 0 0-5-2.5"/>')
 
+/** 密钥 — AI 设置入口（用户自带密钥） */
+export const iconKey = (size = 20) =>
+  svg(size, '密钥', '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>')
+
 // ========== 颜色标签（实心圆点，使用单独 fill 颜色） ==========
 
 export const iconColorBlue = (size = 20) =>
@@ -174,6 +178,7 @@ export const ICON_MAP = {
   stats: iconStats,
   crown: iconCrown,
   memory: iconMemory,
+  key: iconKey,
   puzzle: iconPuzzle,
   'color-blue': iconColorBlue,
   'color-brown': iconColorBrown,

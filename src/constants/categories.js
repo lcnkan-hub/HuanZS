@@ -45,5 +45,6 @@ export const STORAGE_KEYS = {
   USER: 'huan_zhong_shu_user',
   DB: 'huan_zhong_shu_db',
   CHAT: 'huan_zhong_shu_chat',
-  MEMORY: 'huan_zhong_shu_memory_v1' // 王冠记忆库（v1；升级时改 _v2）
+  MEMORY: 'huan_zhong_shu_memory_v1', // 王冠记忆库（v1；升级时改 _v2）
+  AI_CONFIG: 'huan_zhong_shu_ai_config' // AI 密钥配置（BYOK，只存本机）
 }
