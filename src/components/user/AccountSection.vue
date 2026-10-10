@@ -15,11 +15,11 @@
           <div class="account-name">{{ account ? account.username : '未登录' }}</div>
           <div class="account-meta">{{ metaLine }}</div>
         </div>
-        <span class="account-badge">{{ accountCount }} 个账号</span>
+        <span class="account-badge">{{ accountCount }} 个本机账号</span>
       </div>
 
       <p class="account-note">
-        账号和百科数据都只存在这台设备上，各账号互相看不到对方的数据。换手机数据不会跟着走 —— 要带走请在上面导出备份。
+        账号和百科数据都只存在这台设备上，各账号互相看不到对方的数据。换手机数据不会跟着走 —— 要带走，用上面的备份中心导出，百科、王冠记忆、聊天记录和图片都在同一个文件里。
       </p>
 
       <div class="account-actions">

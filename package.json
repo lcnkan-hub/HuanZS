@@ -8,6 +8,7 @@
     "build": "vite build && npm run check:secret",
     "preview": "vite preview",
     "test:crisis": "node scripts/run-crisis-tests.mjs",
+    "test:backup": "node scripts/run-backup-tests.mjs",
     "check:secret": "node scripts/check-no-secret.mjs"
   },
   "dependencies": {

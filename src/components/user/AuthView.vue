@@ -11,7 +11,7 @@
       <div class="auth-brand">
         <div class="brand-icon"><AppIcon name="crown" :size="26" /></div>
         <h1 class="brand-name">寰中枢</h1>
-        <p class="brand-sub">{{ isRegisterMode ? '建一个属于你的账号' : '回到你自己的中枢' }}</p>
+        <p class="brand-sub">{{ isRegisterMode ? '建一个本机账号' : '回到你自己的中枢' }}</p>
       </div>
 
       <!-- 已有账号快捷填入（登录时） -->
@@ -70,7 +70,7 @@
 
       <p class="auth-note">
         <AppIcon name="shield" :size="13" />
-        <span>账号和数据都只存在这台设备上，不会上传。密码只存加密后的结果，不存明文 —— 但这是「本机锁」，防别人随手打开，不防拿到设备的人。</span>
+        <span>账号和数据都只存在这台设备上，不会上传。密码只存加密后的结果，不存明文 —— 但这是「本机锁」，防别人随手打开，不防拿到设备的人。账号本身也只在这台设备上，换设备要重新注册。</span>
       </p>
     </div>
   </div>

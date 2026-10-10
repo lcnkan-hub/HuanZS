@@ -52,7 +52,6 @@
                 :dbData="dbData"
                 @open-item="(item, type) => { openDetail(item); currentTab = type }"
                 @save-profile="handleProfileUpdate"
-                @import-db-success="(data) => wikiData.importData(data)"
               />
             </div>
           </div>

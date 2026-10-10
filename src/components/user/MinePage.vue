@@ -29,12 +29,8 @@
       />
     </div>
 
-    <!-- 数据备份保险箱 -->
-    <DataBackup
-      :dbData="dbData"
-      :validateImport="validateImportData"
-      @import-success="(data) => $emit('import-db-success', data)"
-    />
+    <!-- 备份中心：导出全量 / 导入 / 回退（2026-10-10 替换只导百科的旧备份盒） -->
+    <BackupCenter />
 
     <!-- 账号（本地账号系统：当前账号 + 退出 / 换账号） -->
     <AccountSection />
@@ -71,6 +67,7 @@ import UserProfileCard   from './UserProfileCard.vue'
 import FootprintSummary  from './FootprintSummary.vue'
 import CategoryGroup     from './CategoryGroup.vue'
 import DataBackup        from './DataBackup.vue'
+import BackupCenter      from './BackupCenter.vue'
 import AccountSection    from './AccountSection.vue'
 import EditProfileModal  from './EditProfileModal.vue'
 import AiSettingsModal   from './AiSettingsModal.vue'
@@ -81,7 +78,7 @@ const props = defineProps({
   userProfile: { type: Object, default: null },
   dbData:      { type: Object, required: true }
 })
-const emit = defineEmits(['open-item', 'save-profile', 'import-db-success'])
+const emit = defineEmits(['open-item', 'save-profile'])
 
 const showEditModal = ref(false)
 const showAiSettings = ref(false)
