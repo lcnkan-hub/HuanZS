@@ -66,9 +66,11 @@ const EMOTIONAL_DIRECTION_NOTE = `【本轮特别要求】用户刚才表达了�
 2. 不虚假承诺：不要答应"我会一直陪着你""我会记住并经常关心你"这类会落空的承诺。
 正确方向（三个要素，用你自己的话自然表达，不要照抄模板）：真诚接住这句话背后的感受 + 明确这句话不会变成一条自动规则 + 不对做不到的事撒谎。例如可以说："我听到了，这句话我记在这轮对话里"。`
 
-export function useMemory() {
-  const { data: memories, error } = useLocalStorage(STORAGE_KEYS.MEMORY, [])
+// 记忆库是模块级单例（与 useChat / useWikiData 同一个道理）：同一个键有两个活跃 ref 会各持快照 → 静默丢数据。
+// 王冠主动开口要在 app 启动时读记忆（判断"有没有可想起的事"），那时王冠页可能还没挂载。
+const { data: memories, error } = useLocalStorage(STORAGE_KEYS.MEMORY, [])
 
+export function useMemory() {
   // 本轮对话状态（prepareTurn 记录，finishTurn 消费）
   let round = { injectedCIds: [], blockUserMemory: false }
   let extracting = false // 防并发提取：连续快速发送时跳过后一轮提取
@@ -350,6 +352,9 @@ writes 与 wiki 都可以是空数组 —— 大多数轮次两个都应该是�
     finishTurn,
     getInjectableMemories,
     getCTierCandidates,
-    isRetired
+    isRetired,
+    // 记忆措辞的唯一出口：主动开口（useProactive）也要用同一套语气，
+    // 否则会出现"日常对话里是『你之前说过…』、主动开口里是另一种说法"的漂移
+    buildContextBlock
   }
 }

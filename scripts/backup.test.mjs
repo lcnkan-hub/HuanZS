@@ -53,6 +53,10 @@ set(STORAGE_KEYS.MEMORY, [{ id: 'mem1', type: 'goal', content: '准备考研', c
 set(STORAGE_KEYS.CRISIS_AUDIT, [{ id: 'a1', ts: '2026-10-10T00:00:00Z', route: 'normal' }])
 set(STORAGE_KEYS.CRISIS_PENDING, { active: false, ts: '2026-10-10T00:00:00Z' })
 set(STORAGE_KEYS.CRISIS_STATE, { state: 'SAFE', last_signal_timestamp: null })
+// 主动开口（I02）与首屏落地页（I03）：换设备后月配额和习惯都不该归零/重置
+set(STORAGE_KEYS.PROACTIVE_LOG, [{ ts: 1759999999999, excerpt: '上次说的那个考试' }])
+set(STORAGE_KEYS.PROACTIVE_ENABLED, false)
+set(STORAGE_KEYS.LAST_TAB, 'note')
 // 设备级敏感项（用来验证它们绝不进备份）
 const FAKE_KEY = 'sk-fake000000000000000000000000000'
 localStorage.setItem(STORAGE_KEYS.AI_CONFIG, JSON.stringify({ provider: 'deepseek', apiKey: FAKE_KEY }))
@@ -61,6 +65,8 @@ localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify([{ id: CUR, username:
 // ─────────── A1 导出完整性 ───────────
 const payload = await backup.buildBackupPayload()
 ok('A1 导出含 user/db/chat/memory/crisis 五段', ['user', 'db', 'chat', 'memory', 'crisis'].every(k => k in payload.data))
+ok('A1 导出含 proactive（账本+开关）与 last_tab', ['proactive', 'last_tab'].every(k => k in payload.data))
+ok('A1 主动开口账本原样带走', (payload.data.proactive.log || []).length === 1 && payload.data.proactive.enabled === false && payload.data.last_tab === 'note')
 ok('A1 db 三分类都是数组', ['game', 'note', 'life'].every(c => Array.isArray(payload.data.db[c])))
 ok('A1 crisis 三段齐（null 也保留键）', ['audit_log', 'pending', 'state'].every(k => k in payload.data.crisis))
 ok('A1 格式头正确', payload.format === 'huanzhongshu-backup' && payload.schema_version === 1)
@@ -89,6 +95,11 @@ ok('A4 导入成功', res4.ok === true, JSON.stringify(res4).slice(0, 200))
 ok('A4 数据写进当前账号', String(localStorage.getItem(sk(STORAGE_KEYS.DB))).includes('从别的设备带来的'))
 ok('A4 没有任何键带旧账号 id', !Array.from(map.keys()).some(k => k.includes('OLDID')))
 ok('A4 写过的键都在当前账号前缀下', (res4.written || []).every(b => map.has(b + '@u' + CUR)), JSON.stringify(res4.written))
+ok('A4 首屏落地页与主动开口账本都跟着导入回来', get(STORAGE_KEYS.LAST_TAB) === 'note' && (get(STORAGE_KEYS.PROACTIVE_LOG) || []).length === 1 && get(STORAGE_KEYS.PROACTIVE_ENABLED) === false)
+// proactive 两个键是**多段路径**（data.proactive.log / data.proactive.enabled）。
+// 曾经按 path[0] 取值 → 整个 {log,enabled} 对象被写进这两个键，账本不再是数组、开关不再是布尔。
+ok('A4 账本落盘后仍是数组（多段路径没串味）', Array.isArray(get(STORAGE_KEYS.PROACTIVE_LOG)), JSON.stringify(get(STORAGE_KEYS.PROACTIVE_LOG)))
+ok('A4 开关键落盘后是布尔值而不是对象', typeof get(STORAGE_KEYS.PROACTIVE_ENABLED) === 'boolean', JSON.stringify(get(STORAGE_KEYS.PROACTIVE_ENABLED)))
 
 // ─────────── A6 损坏文件被拦且零改动 ───────────
 const badCases = [

@@ -47,7 +47,12 @@ const TEXT_SOURCES = [
   { path: ['user'],   key: () => STORAGE_KEYS.USER,   empty: null },
   { path: ['db'],     key: () => STORAGE_KEYS.DB,     empty: { game: [], note: [], life: [] } },
   { path: ['chat'],   key: () => STORAGE_KEYS.CHAT,   empty: [] },
-  { path: ['memory'], key: () => STORAGE_KEYS.MEMORY, empty: [] }
+  { path: ['memory'], key: () => STORAGE_KEYS.MEMORY, empty: [] },
+  // 主动开口：账本要带走（否则换设备后月配额归零、可能一个月说 6 次），开关也要带走（用户的选择不能被恢复弄丢）
+  { path: ['proactive', 'log'],     key: () => STORAGE_KEYS.PROACTIVE_LOG,     empty: [] },
+  { path: ['proactive', 'enabled'], key: () => STORAGE_KEYS.PROACTIVE_ENABLED, empty: null },
+  // 首屏落地页：换设备后还是落在你习惯的地方；坏值由 useLastTab 读的时候回落，这里不用校验
+  { path: ['last_tab'],             key: () => STORAGE_KEYS.LAST_TAB,          empty: null }
 ]
 
 const CRISIS_SOURCES = [
@@ -469,24 +474,36 @@ export function validateBackupPayload(raw) {
   return { ok: true, legacy: false, payload: raw }
 }
 
+/**
+ * 写一个键，并把「真写进去了的键」记进 written。
+ * null / undefined 走 writeJsonKey 的清键分支 —— 那种情况存储里现在没有值，不算写过。
+ * （之前不管三七二十一都 push，导致 key 被清掉时也会报成"写过"，测试拿它断言账号隔离时会假失败）
+ */
+function writeTracked(baseKey, value, written) {
+  writeJsonKey(baseKey, value)
+  if (value !== null && value !== undefined) written.push(baseKey)
+}
+
 /** 把校验过的 payload 写进当前账号的命名空间；返回写过的键（测试要断言这个） */
 export function applyPayload(payload) {
   const written = []
   const data = payload.data || {}
 
+  // 一律按完整路径取（getByPath），不能用 path[0] ——
+  // path 一旦是多段（如 ['proactive','log']），path[0] 拿到的是整个 {log,enabled} 对象，
+  // 会被原样写进每一个同前缀的键里，把账本和开关一起写坏。
+  // 单段路径下 getByPath 与 path[0] 等价，所以这个改动对老数据是等价的。
   TEXT_SOURCES.forEach(s => {
-    const field = s.path[0]
-    if (!(field in data)) return
-    writeJsonKey(s.key(), data[field])
-    written.push(s.key())
+    const v = getByPath(data, s.path)
+    if (v === undefined) return
+    writeTracked(s.key(), v === null ? null : v, written)
   })
 
   if (!payload.legacy) {
     CRISIS_SOURCES.forEach(s => {
       const v = getByPath(data, s.path)
       if (v === undefined) return
-      writeJsonKey(s.key(), v === null ? null : v)
-      written.push(s.key())
+      writeTracked(s.key(), v === null ? null : v, written)
     })
   }
   return written

@@ -57,5 +57,15 @@ export const STORAGE_KEYS = {
   CRISIS_AUDIT: 'crown_crisis_audit_log', // 危机响应留痕（原写在 services/crisisResponse.js）
   CRISIS_PENDING: 'crown_crisis_pending', // 危机待确认标记
   CRISIS_STATE: 'crown_crisis_state',      // 风险状态机（原写在 services/riskStateMachine.js）
-  LAST_EXPORT: 'huan_zhong_shu_last_export_at' // 上次导出备份的时间戳（按账号隔离，走 scopeKey）
+  LAST_EXPORT: 'huan_zhong_shu_last_export_at', // 上次导出备份的时间戳（按账号隔离，走 scopeKey）
+
+  // —— 王冠主动开口（I02 · 产品宪法 R1）——
+  PROACTIVE_LOG: 'crown_proactive_log',    // 主动开口账本：每次真说出口记一条 { ts, excerpt }，月配额从记录现算
+  PROACTIVE_ENABLED: 'crown_proactive_enabled', // 用户开关（键不存在 = 开；宪法没规定开关，是本产品补的）
+
+  // —— 首屏定位（I03）——
+  LAST_TAB: 'huan_zhong_shu_last_tab' // 上次停留的 Tab（键不存在 = 首次进来 → 王冠）
 }
+
+/** 全部合法 Tab（校验持久化的 Tab 值用，从导航项派生，不另写一份） */
+export const TAB_IDS = NAV_ITEMS.map(i => i.id)

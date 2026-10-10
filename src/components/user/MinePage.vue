@@ -35,6 +35,9 @@
     <!-- 账号（本地账号系统：当前账号 + 退出 / 换账号） -->
     <AccountSection />
 
+    <!-- 王冠（主动开口开关 + 本月已开口次数，2026-10-10 I02） -->
+    <CrownSection />
+
     <!-- 底部操作：AI 设置（BYOK 密钥）+ 修改资料 -->
     <div class="profile-action-wrapper">
       <button class="edit-data-trigger-btn" @click="showAiSettings = true">
@@ -69,6 +72,7 @@ import CategoryGroup     from './CategoryGroup.vue'
 import DataBackup        from './DataBackup.vue'
 import BackupCenter      from './BackupCenter.vue'
 import AccountSection    from './AccountSection.vue'
+import CrownSection      from './CrownSection.vue'
 import EditProfileModal  from './EditProfileModal.vue'
 import AiSettingsModal   from './AiSettingsModal.vue'
 import { ALL_CATEGORIES, TAB_ICONS, TAB_NAMES } from '../../constants/categories'

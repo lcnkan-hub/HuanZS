@@ -97,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 
 // 组件积木
 import SplashScreen from './components/common/SplashScreen.vue'
@@ -114,6 +114,8 @@ import AuthView     from './components/user/AuthView.vue'
 import { useUserProfile } from './composables/useUserProfile'
 import { useWikiData }    from './composables/useWikiData'
 import { usePageRouter }  from './composables/usePageRouter'
+import { readLastTab, writeLastTab } from './composables/useLastTab'
+import { startProactiveTrigger } from './composables/useProactiveTrigger'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
 
 // 配置常量
@@ -135,14 +137,21 @@ const wikiData = useWikiData()
 const { dbData } = wikiData
 const { syncCreatorName } = wikiData
 
-const currentTab     = ref('game')
+// 首屏 Tab（I03）：首次进来 → 王冠；之后 → 你上次待的地方（见 composables/useLastTab.js）
+const startTab       = readLastTab()
+const currentTab     = ref(startTab)
 // 王冠为全屏界面（隐藏底栏），进入前先记住来源 Tab，左上角返回按钮据此决定回哪
+// 首屏就是王冠时这里是初值 'game'：从首屏点返回，落到百科（王冠页没有底栏，返回是唯一出口）
 const lastNonCrownTab = ref('game')
 watch(currentTab, (val, oldVal) => {
   if (val === 'crown' && oldVal && oldVal !== 'crown') lastNonCrownTab.value = oldVal
+  writeLastTab(val)
 })
 const searchQueries  = ref({ game: '', note: '', life: '' })
-const isSplashActive = ref(true)
+// 开屏只在「首屏不是王冠」时播（I03 决定 b）：首屏是王冠时，开场交给「灯醒」入场动画。
+// 两个都是开场动画，叠着播的结果是开屏 2000ms 把灯醒的前 2 秒全盖住 —— 灯醒 quick 档才 800ms，等于白播。
+// 用 startTab 而不是 currentTab 判断：进过王冠再切走，不该把开屏又放出来。
+const isSplashActive = ref(startTab !== 'crown')
 const showAddModal   = ref(false)
 const newItemName    = ref('')
 
@@ -161,6 +170,14 @@ const currentTabIcon = computed(() => TAB_ICONS[currentTab.value] || '')
 const filteredItems = computed(() =>
   wikiData.searchItems(currentTab.value, searchQueries.value[currentTab.value])
 )
+
+// ========== 生命周期 ==========
+// 王冠主动开口的触发点（I02）：挂在 app 上而不是王冠页上 —— 首屏可能是用户上次停留的 Tab，
+// 那时王冠页没挂载，"打开 app 那一刻王冠已经先开过口"就不成立。
+// 未登录不启动：登录成功后是整页重载，那时会以已登录的身份重新走到这里。
+onMounted(() => {
+  if (loggedIn.value) startProactiveTrigger()
+})
 
 // ========== 操作函数 ==========
 
