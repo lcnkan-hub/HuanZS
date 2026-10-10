@@ -82,7 +82,7 @@ memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]
 | composables | useImageStore.js | IndexedDB 图片仓库（增删查/清理） |
 | composables | useApiKey.js | 密钥 / 服务商读写（模块级单例，只存本机 localStorage）· BYOK |
 | composables | useWikiContext.js | 百科 → 王冠上下文（命中给正文 / 未命中给最近清单）· 只读 |
-| composables | useWikiWriter.js | 回合提取结果校验后写入百科（保守过滤 + origin 标记） |
+| composables | useWikiWriter.js | 回合提取结果校验后写入百科（新建 / 追加 / 挂子词条 + 保守过滤 + origin 标记） |
 | constants | categories.js | Tab/分类/存储键统一配置 |
 | constants | aiProviders.js | AI 服务商 / 接口地址 / 模型名唯一真相源 |
 | constants | icons.js | SVG 图标库（统一 viewBox/描边） |

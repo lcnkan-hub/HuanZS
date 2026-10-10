@@ -72,7 +72,7 @@
 
         <textarea
           v-model="editingText"
-          placeholder="在此撰写百科内容。支持 Markdown 语法、颜色标签和图片插入。&#10;思维导图：用 - 缩进列表写层级结构，切换「导图」预览。"
+          placeholder="在此撰写百科内容。支持 Markdown 语法、颜色标签和图片插入。"
           class="markdown-textarea"
           ref="textareaRef"
         ></textarea>
@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { renderMarkdownToHtml, resolveImagesAsync } from '../../utils/markdownParser'
 import { saveImage, getImageUrl, extractImageIds } from '../../composables/useImageStore'
 import AppIcon from '../common/AppIcon.vue'
@@ -117,15 +117,12 @@ watch(() => props.childItem?.id, () => {
   refreshImagePreviews()
 })
 
-onBeforeUnmount(() => {
-  if (mindmapInstance) { try { mindmapInstance.destroy?.() } catch {}; mindmapInstance = null }
-})
-
 // ========== 视图切换 ==========
 
 const switchView = (view) => {
   currentView.value = view
   if (view === 'edit') {
+    refreshImagePreviews()
     nextTick(() => { if (textareaRef.value) textareaRef.value.focus() })
   } else {
     nextTick(() => resolveReadViewImages())
@@ -206,33 +203,24 @@ const resolveReadViewImages = async () => {
   try {
     const html = await resolveImagesAsync(readViewRef.value.innerHTML)
     readViewRef.value.innerHTML = html
-  } catch (e) {
+  } catch {
     // 图片解析失败不阻塞页面
   }
 }
 
-// ========== markmap 导图预览 ==========
-
-const mindmapEmpty = computed(() => {
-  const text = currentView.value === 'edit' ? editingText.value : (props.childItem.wiki || '')
-  return !/^[\s]*[-*]\s/m.test(text)
+// ⚠️ 首次挂载必须自己把这两件事做掉（2026-10-10 真浏览器查实）：
+//   以前只有「切换子词条」(watch childItem.id) 和「编辑完切回阅读」(switchView/handlePublish) 才触发，
+//   于是冷开编辑器时 —— 阅读态图片永远停在 src="id://..."（坏图）、编辑态图片预览栏永远是空的。
+//   表现就是"有时候能看到图、有时候看不到"，很难复现。
+onMounted(() => {
+  refreshImagePreviews()   // 它只读 props，不依赖 DOM，可以放心在挂载时调
 })
 
-const renderMindmap = async () => {
-  if (!mindmapRef.value) return
-  const text = (props.childItem.wiki || editingText.value || '').trim()
-  if (!text) return
-  try {
-    const { Markmap } = await import('https://cdn.jsdelivr.net/npm/markmap-view@0.17.0/+esm')
-    const { Transformer } = await import('https://cdn.jsdelivr.net/npm/markmap-lib@0.17.0/+esm')
-  if (mindmapInstance) { mindmapInstance.destroy?.(); mindmapRef.value.innerHTML = '' }
-  const transformer = new Transformer()
-  const { root } = transformer.transform(text)
-  mindmapInstance = Markmap.create(mindmapRef.value, { autoFit: true, fitRatio: 0.95, maxWidth: 300, duration: 400 }, root)
-  } catch (e) {
-    mindmapRef.value.innerHTML = '<p style="text-align:center;color:#8e8e93;padding:40px">导图加载失败（可能需要网络连接）</p>'
-  }
-}
+// 阅读区那层是 v-if 出来的：编辑器挂载完的那一刻 readViewRef 可能**还是 null**，
+// 于是 resolveReadViewImages 一进门就 return 了（2026-10-10 实测就是这么静默失败的）。
+// 所以不能赌时机，改成盯着 ref 本身 —— 元素真出现（含切换视图重建）时才解析。
+watch(readViewRef, (el) => { if (el) resolveReadViewImages() })
+
 </script>
 
 <style scoped>
@@ -248,12 +236,6 @@ const renderMindmap = async () => {
 }
 .back-link-btn { background: none; border: none; color: var(--color-accent); font-size: 15px; font-weight: 500; cursor: pointer; padding: 5px 0; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .sub-editor-title { font-size: 14px; font-weight: 600; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
-.header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-
-.view-toggle { display: flex; background: var(--color-bg-input); border-radius: var(--radius-sm); overflow: hidden; }
-.view-btn { background: none; border: none; padding: 4px 10px; font-size: 11px; font-weight: 500; color: var(--color-text-muted); cursor: pointer; transition: all 0.2s; white-space: nowrap; display: flex; align-items: center; gap: 3px; }
-.view-btn.active { background: var(--color-accent); color: white; }
-
 .state-toggle-btn { background-color: var(--color-border-light); color: var(--color-accent); border: none; border-radius: var(--radius-md); padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .state-toggle-btn.isEditing { background-color: var(--color-accent); color: white; }
 
@@ -296,9 +278,6 @@ const renderMindmap = async () => {
 .thumb-placeholder { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 24px; }
 .thumb-remove { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
 
-.mindmap-view { flex: 1; display: flex; align-items: center; justify-content: center; }
-.mindmap-container { width: 100%; height: 100%; min-height: 400px; }
-.mindmap-container svg { width: 100%; height: 100%; }
 .empty-tip { text-align: center; color: var(--color-text-muted); font-size: 13px; line-height: 1.8; padding: 40px 20px; }
 .empty-tip code { background: var(--color-bg-input); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; }
 

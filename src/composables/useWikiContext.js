@@ -13,6 +13,7 @@
  * 用快照会导致「用户刚记完，王冠读不到」这种极难查的隐蔽 bug。
  */
 import { STORAGE_KEYS, ALL_CATEGORIES, TAB_NAMES } from '../constants/categories'
+import { scopeKey } from '../utils/storageScope'
 
 const RECENT_DAYS = 7     // 回退路径：优先取最近 7 天记的（覆盖"我上周记的东西"这类问法）
 const MAX_RECENT = 8      // 回退路径：注入条数上限
@@ -52,7 +53,7 @@ const normalizeDb = db => Object.fromEntries(ALL_CATEGORIES.map(c => [c, Array.i
 /** 读百科数据（实时读，避免拿到别处的旧快照） */
 function readDb() {
   try {
-    return normalizeDb(JSON.parse(localStorage.getItem(STORAGE_KEYS.DB) || 'null') || {})
+    return normalizeDb(JSON.parse(localStorage.getItem(scopeKey(STORAGE_KEYS.DB)) || 'null') || {})
   } catch {
     return normalizeDb({}) // localStorage 不可用或数据损坏 → 当空库。绝不因读百科失败打断对话。
   }

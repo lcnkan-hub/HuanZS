@@ -5,12 +5,15 @@
 import { useLocalStorage } from './useLocalStorage'
 import { generateUniqueId, generateDefaultUsername } from '../utils/uniqueId'
 import { STORAGE_KEYS } from '../constants/categories'
+import { isLoggedIn } from './useAccount'
 
 export function useUserProfile() {
   const { data: userProfile } = useLocalStorage(STORAGE_KEYS.USER, null)
 
-  // 首次访问自动创建用户
-  if (!userProfile.value) {
+  // 首次访问自动创建用户。
+  // 但「未登录」时不创建 —— 免得在没有账号的状态下往本机旧键里写一份默认档案，
+  // 那会让首个注册的账号认领到一个随机昵称而不是自己的用户名。
+  if (!userProfile.value && isLoggedIn()) {
     userProfile.value = {
       id: generateUniqueId(),
       name: generateDefaultUsername(),

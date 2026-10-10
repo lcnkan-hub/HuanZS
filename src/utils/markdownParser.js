@@ -8,7 +8,7 @@
  *   标准格式：![](https://...)       — 外部链接（仅渲染，不过滤）
  *   编辑态插入时自动生成 id:// 引用
  */
-import { getImageUrl } from '../composables/useImageStore'
+import { getImageUrl, IMAGE_ID_SOURCE, isImageId } from '../composables/useImageStore'
 
 /**
  * 异步渲染 Markdown → HTML（支持图片异步加载）
@@ -71,30 +71,43 @@ export function renderMarkdownToHtml(text) {
  * @param {string} html 已渲染的 HTML 字符串
  * @returns {Promise<string>} 替换了 id:// 的 HTML
  */
+export function findImageRefsInHtml(html) {
+  // RegExp 构造函数里斜杠**不需要转义** —— 一律不写 \/ ，免得被二次转义成 \\/ 之后
+  // 整个正则去匹配"反斜杠+斜杠"、永远匹配不到（2026-10-10 就在这一行死过一轮）。
+  // 匹配整个 <img> 标签（不是只匹配属性）：替换时要连 src 一起换掉，见 withBlobSrc。
+  const regex = new RegExp('<img[^>]*data-img-src="id://(' + IMAGE_ID_SOURCE + ')"[^>]*>', 'gi')
+  const out = []
+  let m
+  while ((m = regex.exec(html)) !== null) out.push({ full: m[0], id: m[1] })
+  return out
+}
+
+/**
+ * 把 <img> 标签里的 src 换成 blob URL（**纯函数**，单独可测）。
+ *
+ * ⚠️ 这里曾经是「在 data-img-src 前面插一段 src=…」，结果标签里出现**两个 src**，
+ *    浏览器只认第一个（还是 id:// 那个）→ 图片依然是坏的，而且不报任何错。
+ *    2026-10-10 在真浏览器里查实（当时 img 上确实同时挂着两个 src）。
+ *    所以必须**换掉**原来的 src，而不是再加一个。
+ */
+export function withBlobSrc(tag, blobUrl) {
+  if (/\ssrc="[^"]*"/.test(tag)) return tag.replace(/\ssrc="[^"]*"/, ' src="' + blobUrl + '"')
+  return tag.replace('<img', '<img src="' + blobUrl + '"')
+}
+
 export async function resolveImagesAsync(html) {
-  const regex = /data-img-src="id:\/\/(img-\d+)"/g
-  const promises = []
-  const replacements = []
+  const refs = findImageRefsInHtml(html)
+  const done = new Map()
 
-  let match
-  while ((match = regex.exec(html)) !== null) {
-    const id = match[1]
-    const fullMatch = match[0]
-    promises.push(
-      getImageUrl(id).then(blobUrl => {
-        if (blobUrl) {
-          replacements.push({ from: fullMatch, to: `src="${blobUrl}" data-img-src="id://${id}"` })
-        }
-      })
-    )
-  }
-
-  await Promise.all(promises)
+  await Promise.all(refs.map(ref => getImageUrl(ref.id).then(blobUrl => {
+    if (blobUrl) done.set(ref.full, withBlobSrc(ref.full, blobUrl))
+  })))
 
   let result = html
-  replacements.forEach(r => {
-    result = result.replace(r.from, r.to)
+  done.forEach((to, from) => {
+    result = result.replace(from, to)
   })
+
   return result
 }
 
@@ -107,8 +120,10 @@ function sanitizeUrl(url) {
   const trimmed = url.trim()
   // 拒绝包含 HTML 特殊字符的 URL，防属性注入
   if (/["'<>]/.test(trimmed)) return null
-  // IndexedDB 图片引用
-  if (/^id:\/\/img-\d+$/.test(trimmed)) return trimmed
+  // IndexedDB 图片引用 —— id 形态统一走 IMAGE_ID_SOURCE（唯一出处）。
+  // ⚠️ 这里曾经写死 `^id:\/\/img-\d+$`，而真实 id 含字母 → 一律被判"不合法 URL"，
+  //    正文里的图片被当成普通文字原样输出，**连 <img> 都生成不出来**（2026-10-10 真浏览器查实）。
+  if (/^id:\/\//.test(trimmed) && isImageId(trimmed.slice('id://'.length))) return trimmed
   // HTTPS / HTTP
   if (/^https?:\/\/.+/.test(trimmed)) return trimmed
   // 相对路径
