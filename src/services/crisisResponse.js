@@ -16,6 +16,7 @@ import {
   SYSTEM_FALLBACK_TEMPLATE
 } from '../constants/crisis'
 import { CONFIDENCE_THRESHOLDS } from '../constants/crisisContextPatterns'
+import { STORAGE_KEYS } from '../constants/categories'
 import { detect } from './crisisDetection'
 import {
   getState,
@@ -26,8 +27,8 @@ import {
 } from './riskStateMachine'
 import { readJSON, writeJSON, removeKey } from './storageAdapter'
 
-const AUDIT_KEY = 'crown_crisis_audit_log'
-const PENDING_KEY = 'crown_crisis_pending'
+const AUDIT_KEY = STORAGE_KEYS.CRISIS_AUDIT
+const PENDING_KEY = STORAGE_KEYS.CRISIS_PENDING
 const MAX_AUDIT = 200
 const PENDING_TTL_MS = 30 * 60 * 1000 // 轻量确认后的复核窗口：30 分钟
 const RESPONSE_VERSION = 'v1'

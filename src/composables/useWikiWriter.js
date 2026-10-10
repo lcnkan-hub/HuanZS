@@ -14,6 +14,7 @@
  * 保守底线不变：宁可漏记，也不让百科变垃圾桶。
  */
 import { ALL_CATEGORIES, STORAGE_KEYS } from '../constants/categories'
+import { scopeKey } from '../utils/storageScope'
 import { getCurrentTimeString, generateUniqueId } from '../utils/uniqueId'
 import { useWikiData } from './useWikiData'
 
@@ -26,7 +27,7 @@ const MAX_APPEND_LEN = 2000   // 单次追加上限
 /** 取当前用户名当 creator —— 这样王冠记的条目也会出现在用户自己的「我的」页里 */
 function currentUserName() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.USER) || '{}').name || '我'
+    return JSON.parse(localStorage.getItem(scopeKey(STORAGE_KEYS.USER)) || '{}').name || '我'
   } catch {
     return '我'
   }

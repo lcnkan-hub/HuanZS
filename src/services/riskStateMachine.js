@@ -5,8 +5,9 @@
  * 迁移原则：升级从严判定、降级谨慎；时间衰减有例外
  */
 import { readJSON, writeJSON } from './storageAdapter'
+import { STORAGE_KEYS } from '../constants/categories'
 
-const STATE_KEY = 'crown_crisis_state'
+const STATE_KEY = STORAGE_KEYS.CRISIS_STATE
 
 /** 状态枚举（顺序即等级，index 越大风险越高） */
 export const RISK_STATES = ['SAFE', 'CONCERN', 'ELEVATED', 'CRITICAL', 'ACTIVE_INTERVENTION']

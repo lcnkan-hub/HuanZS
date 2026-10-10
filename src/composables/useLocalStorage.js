@@ -8,13 +8,16 @@
  * @returns {{ data: Ref, error: Ref<string|null> }} 响应式数据 + 错误信息
  */
 import { ref, watch } from 'vue'
+import { scopeKey } from '../utils/storageScope'
 
 export function useLocalStorage(key, defaultValue) {
+  // 按当前登录账号重写下键名（未登录 / node 环境 = 原键名，行为与旧版完全一致）
+  const realKey = scopeKey(key)
   let stored
   let initError = null
 
   try {
-    stored = localStorage.getItem(key)
+    stored = localStorage.getItem(realKey)
   } catch (e) {
     initError = e.message || 'localStorage 不可用'
     stored = null
@@ -36,7 +39,7 @@ export function useLocalStorage(key, defaultValue) {
       error.value = null
       try {
         const json = JSON.stringify(newVal)
-        localStorage.setItem(key, json)
+        localStorage.setItem(realKey, json)
       } catch (e) {
         // 存储失败时记录错误（如 localStorage 满 5MB 上限）
         error.value = '存储失败：' + (e.message || '空间不足或访问被拒');

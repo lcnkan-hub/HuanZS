@@ -8,9 +8,9 @@
 
     <!-- 用户名片 -->
     <UserProfileCard
-      :avatar="userProfile.avatar"
-      :name="userProfile.name"
-      :id="userProfile.id"
+      :avatar="userProfile?.avatar"
+      :name="userProfile?.name"
+      :id="userProfile?.id"
     />
 
     <!-- 创造力足迹 -->
@@ -36,6 +36,9 @@
       @import-success="(data) => $emit('import-db-success', data)"
     />
 
+    <!-- 账号（本地账号系统：当前账号 + 退出 / 换账号） -->
+    <AccountSection />
+
     <!-- 底部操作：AI 设置（BYOK 密钥）+ 修改资料 -->
     <div class="profile-action-wrapper">
       <button class="edit-data-trigger-btn" @click="showAiSettings = true">
@@ -50,8 +53,8 @@
     <!-- 修改资料弹窗 -->
     <EditProfileModal
       v-if="showEditModal"
-      :name="userProfile.name"
-      :avatar="userProfile.avatar"
+      :name="userProfile?.name"
+      :avatar="userProfile?.avatar"
       @close="showEditModal = false"
       @save="(data) => { $emit('save-profile', data); showEditModal = false }"
     />
@@ -68,13 +71,14 @@ import UserProfileCard   from './UserProfileCard.vue'
 import FootprintSummary  from './FootprintSummary.vue'
 import CategoryGroup     from './CategoryGroup.vue'
 import DataBackup        from './DataBackup.vue'
+import AccountSection    from './AccountSection.vue'
 import EditProfileModal  from './EditProfileModal.vue'
 import AiSettingsModal   from './AiSettingsModal.vue'
 import { ALL_CATEGORIES, TAB_ICONS, TAB_NAMES } from '../../constants/categories'
 import { useAIConfig } from '../../composables/useApiKey'
 
 const props = defineProps({
-  userProfile: { type: Object, required: true },
+  userProfile: { type: Object, default: null },
   dbData:      { type: Object, required: true }
 })
 const emit = defineEmits(['open-item', 'save-profile', 'import-db-success'])

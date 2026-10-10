@@ -1,92 +1,99 @@
 <!--
-  根组件 — 全局状态管理与页面调度
-  条件渲染 SplashScreen / 百科列表 / 详情面板 / 我的页面 / 添加弹窗
+  根组件 — 登录闸门 + 全局状态管理与页面调度
+  未登录：只渲染 AuthView（本地账号注册/登录门）
+  已登录：条件渲染 SplashScreen / 百科列表 / 详情面板 / 我的页面 / 添加弹窗
   支持主词条-子词条的二级嵌套结构
   通过 composables 集中处理用户档案和百科数据
 -->
 <template>
   <div class="app-container">
-    <!-- 开屏动画 -->
-    <SplashScreen v-if="isSplashActive" @close="isSplashActive = false" />
+    <!-- 未登录：本地账号门（注册 / 登录） -->
+    <AuthView v-if="!loggedIn" @authed="handleAuthed" />
 
-    <!-- 顶部搜索栏（内容页且未打开详情时显示，不包含王冠） -->
-    <AppHeader
-      v-if="isContentTab && !openedItem"
-      :tabName="currentTabName"
-      :modelValue="searchQueries[currentTab]"
-      @update:modelValue="(v) => searchQueries[currentTab] = v"
-      @add="openAddModal"
-    />
+    <!-- 已登录：原有界面整块包裹（未登录时不渲染任何业务页面） -->
+    <template v-else>
+      <!-- 开屏动画 -->
+      <SplashScreen v-if="isSplashActive" @close="isSplashActive = false" />
 
-    <!-- 主内容区（页面叠层，动画只操作 transform + opacity） -->
-    <div class="main-content">
-      <!-- 王冠 AI 伙伴（全屏聊天界面） -->
-      <ChatView v-if="currentTab === 'crown'" @back="handleCrownBack" />
+      <!-- 顶部搜索栏（内容页且未打开详情时显示，不包含王冠） -->
+      <AppHeader
+        v-if="isContentTab && !openedItem"
+        :tabName="currentTabName"
+        :modelValue="searchQueries[currentTab]"
+        @update:modelValue="(v) => searchQueries[currentTab] = v"
+        @add="openAddModal"
+      />
 
-      <!-- 百科叠层（非王冠 Tab 时显示） -->
-      <div v-if="currentTab !== 'crown'" class="page-stack">
+      <!-- 主内容区（页面叠层，动画只操作 transform + opacity） -->
+      <div class="main-content">
+        <!-- 王冠 AI 伙伴（全屏聊天界面） -->
+        <ChatView v-if="currentTab === 'crown'" @back="handleCrownBack" />
 
-        <!-- 主面板：百科列表 + 个人中心（同层切换，:key 触发内容动画） -->
-        <div class="page-sheet primary-sheet" :class="pageClass('primary')">
-          <div :key="primaryKey" class="sheet-body">
-            <WikiList
-              v-if="isContentTab && !openedItem"
-              :key="'list-' + currentTab"
-              :icon="currentTabIcon"
-              :tabName="currentTabName"
-              :items="filteredItems"
-              :currentUser="userProfile.name"
-              @open-item="(item) => openDetail(item)"
-              @delete-item="(id) => handleDelete(id)"
-            />
-            <MinePage
-              v-else-if="currentTab === 'mine'"
-              key="mine"
-              :userProfile="userProfile"
-              :dbData="dbData"
-              @open-item="(item, type) => { openDetail(item); currentTab = type }"
-              @save-profile="handleProfileUpdate"
-              @import-db-success="(data) => wikiData.importData(data)"
+        <!-- 百科叠层（非王冠 Tab 时显示） -->
+        <div v-if="currentTab !== 'crown'" class="page-stack">
+
+          <!-- 主面板：百科列表 + 个人中心（同层切换，:key 触发内容动画） -->
+          <div class="page-sheet primary-sheet" :class="pageClass('primary')">
+            <div :key="primaryKey" class="sheet-body">
+              <WikiList
+                v-if="isContentTab && !openedItem"
+                :key="'list-' + currentTab"
+                :icon="currentTabIcon"
+                :tabName="currentTabName"
+                :items="filteredItems"
+                :currentUser="profileName"
+                @open-item="(item) => openDetail(item)"
+                @delete-item="(id) => handleDelete(id)"
+              />
+              <MinePage
+                v-else-if="currentTab === 'mine'"
+                key="mine"
+                :userProfile="userProfile"
+                :dbData="dbData"
+                @open-item="(item, type) => { openDetail(item); currentTab = type }"
+                @save-profile="handleProfileUpdate"
+                @import-db-success="(data) => wikiData.importData(data)"
+              />
+            </div>
+          </div>
+
+          <!-- 详情面板（主词条详情页，独立 sheet 做滑入滑出） -->
+          <div class="page-sheet detail-sheet" :class="pageClass('detail')">
+            <WikiDetail
+              v-if="openedItem"
+              :key="'detail-' + openedItem.id"
+              :openedItem="openedItem"
+              :currentUser="profileName"
+              @close="closeDetail"
+              @add-child="handleAddChild"
+              @save-child="handleSaveChildWiki"
+              @delete-child="handleDeleteChild"
             />
           </div>
-        </div>
 
-        <!-- 详情面板（主词条详情页，独立 sheet 做滑入滑出） -->
-        <div class="page-sheet detail-sheet" :class="pageClass('detail')">
-          <WikiDetail
-            v-if="openedItem"
-            :key="'detail-' + openedItem.id"
-            :openedItem="openedItem"
-            :currentUser="userProfile.name"
-            @close="closeDetail"
-            @add-child="handleAddChild"
-            @save-child="handleSaveChildWiki"
-            @delete-child="handleDeleteChild"
-          />
         </div>
-
       </div>
-    </div>
 
-    <!-- 添加条目弹窗 -->
-    <ModalBox
-      v-if="showAddModal"
-      :title="'添加' + currentTabName"
-      @close="showAddModal = false"
-    >
-      <input
-        type="text" v-model="newItemName"
-        :placeholder="'请输入' + currentTabName + '名称'"
-        class="modal-input"
-      />
-      <template #actions>
-        <button class="cancel-btn" @click="showAddModal = false">取消</button>
-        <button class="save-btn" @click="handleAddItem">保存</button>
-      </template>
-    </ModalBox>
+      <!-- 添加条目弹窗 -->
+      <ModalBox
+        v-if="showAddModal"
+        :title="'添加' + currentTabName"
+        @close="showAddModal = false"
+      >
+        <input
+          type="text" v-model="newItemName"
+          :placeholder="'请输入' + currentTabName + '名称'"
+          class="modal-input"
+        />
+        <template #actions>
+          <button class="cancel-btn" @click="showAddModal = false">取消</button>
+          <button class="save-btn" @click="handleAddItem">保存</button>
+        </template>
+      </ModalBox>
 
-    <!-- 底部导航栏（王冠 Tab 隐藏，聊天有独立输入栏） -->
-    <BottomNav v-if="!openedItem && currentTab !== 'crown'" v-model="currentTab" />
+      <!-- 底部导航栏（王冠 Tab 隐藏，聊天有独立输入栏） -->
+      <BottomNav v-if="!openedItem && currentTab !== 'crown'" v-model="currentTab" />
+    </template>
   </div>
 </template>
 
@@ -102,14 +109,26 @@ import WikiList     from './components/wiki/WikiList.vue'
 import WikiDetail   from './components/wiki/WikiDetail.vue'
 import MinePage     from './components/user/MinePage.vue'
 import ChatView     from './components/crown/ChatView.vue'
+import AuthView     from './components/user/AuthView.vue'
 
 // 逻辑积木
 import { useUserProfile } from './composables/useUserProfile'
 import { useWikiData }    from './composables/useWikiData'
 import { usePageRouter }  from './composables/usePageRouter'
+import { isLoggedIn, reloadApp } from './composables/useAccount'
 
 // 配置常量
 import { TAB_ICONS, TAB_NAMES, ALL_CATEGORIES } from './constants/categories'
+
+// ========== 登录闸门 ==========
+// 未登录 → 只渲染 AuthView；登录/注册成功后整页重载，
+// 让所有业务 composable 的存储键在 boot 时按新账号重新解析（见 utils/storageScope.js）
+const loggedIn = ref(isLoggedIn())
+
+const handleAuthed = () => {
+  loggedIn.value = true
+  reloadApp() // 重载失败（如测试环境）时前面那行保证界面能进
+}
 
 // ========== 状态 ==========
 const { userProfile, updateProfile } = useUserProfile()
@@ -132,6 +151,10 @@ const newItemName    = ref('')
 const { openedItem, primaryKey, pageClass, openDetail, closeDetail } = usePageRouter(currentTab)
 
 // ========== 计算属性 ==========
+// 昵称统一走这里取值：档案还没建好时给空串，避免模板里直接 .name 崩掉
+// （2026-10-10 真浏览器验收抓到过一次 Cannot read properties of null (reading 'name')）
+const profileName = computed(() => (userProfile.value && userProfile.value.name) || '')
+
 const isContentTab   = computed(() => ALL_CATEGORIES.includes(currentTab.value))
 const currentTabName = computed(() => TAB_NAMES[currentTab.value] || '')
 const currentTabIcon = computed(() => TAB_ICONS[currentTab.value] || '')
@@ -154,7 +177,7 @@ const openAddModal = () => {
 
 const handleAddItem = () => {
   if (!newItemName.value.trim()) return alert('名称不能为空')
-  wikiData.addItem(currentTab.value, newItemName.value, userProfile.value.name)
+  wikiData.addItem(currentTab.value, newItemName.value, profileName.value)
   showAddModal.value = false
 }
 
@@ -168,7 +191,7 @@ const handleDelete = (id) => {
 
 /** 在主词条下添加子词条 */
 const handleAddChild = (name) => {
-  const child = wikiData.addChildItem(currentTab.value, openedItem.value.id, name, userProfile.value.name)
+  const child = wikiData.addChildItem(currentTab.value, openedItem.value.id, name, profileName.value)
   if (child) {
     // 同步更新 openedItem 以便 WikiDetail 即时渲染新子词条
     const parent = dbData.value[currentTab.value].find(i => i.id === openedItem.value.id)
@@ -204,6 +227,7 @@ const handleDeleteChild = (childId) => {
 // ========== 用户操作 ==========
 
 const handleProfileUpdate = (updatedData) => {
+  if (!userProfile.value) return
   const oldName = userProfile.value.name
   updateProfile(updatedData)
   syncCreatorName(oldName, updatedData.name)
@@ -215,6 +239,7 @@ const handleProfileUpdate = (updatedData) => {
   display: flex; flex-direction: column; height: 100vh; height: 100dvh; width: 100vw;
   background-color: var(--color-bg-primary); color: var(--color-text-primary);
   font-family: var(--font-system); overflow: hidden; user-select: none;
+  position: relative;
 }
 .main-content { flex: 1; position: relative; overflow: hidden; }
 .modal-input {
