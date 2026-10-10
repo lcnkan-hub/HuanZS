@@ -17,10 +17,22 @@ const DB_NAME   = 'huan_zhong_shu_images'
 const DB_VERSION = 1
 const STORE_NAME = 'images'
 
+// 导出库名与 store 名：备份积木要直接操作同一个库，别在别处硬编码（防漂移）
+export const IMAGE_DB_NAME = DB_NAME
+export const IMAGE_STORE_NAME = STORE_NAME
+
 let _imgCounter = 0
 let dbPromise = null
 
-function openDB() {
+/**
+ * 打开图片库 —— 全项目唯一入口（备份积木也走这里，别在别处再写一个 open）。
+ *
+ * 自愈：DB 存在但缺少 images store（半创建 / 异常残留）时会**关掉重建**。
+ * 不修的话事务会直接抛 `One of the specified object stores was not found`，
+ * 把「导出备份」整条打死在原始英文报错上（2026-10-10 真浏览器实测踩到）。
+ * 重建不丢数据 —— 缺 store 本身就说明里面没有图片。
+ */
+export function getImageDB() {
   if (dbPromise) return dbPromise
   dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
@@ -30,10 +42,23 @@ function openDB() {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' })
       }
     }
-    request.onsuccess = (e) => resolve(e.target.result)
-    request.onerror   = () => reject(request.error)
+    request.onsuccess = (e) => {
+      const db = e.target.result
+      if (db.objectStoreNames.contains(STORE_NAME)) { resolve(db); return }
+      db.close()
+      const del = indexedDB.deleteDatabase(DB_NAME)
+      const retry = () => { dbPromise = null; getImageDB().then(resolve, reject) }
+      del.onsuccess = retry
+      del.onerror = retry
+      del.onblocked = () => { dbPromise = null; reject(new Error('图片库被占用，关掉其它页面再试')) }
+    }
+    request.onerror = () => reject(request.error)
   })
   return dbPromise
+}
+
+function openDB() {
+  return getImageDB()
 }
 
 /**
@@ -134,10 +159,14 @@ export async function dropUnused(usedIds) {
 /**
  * 从 Markdown 文本中提取所有引用的图片 ID
  * 匹配 ![任意文字](id://img-xxx) 格式
+ *
+ * ⚠️ id 形态是 saveImage 生成的 `img-<base36 时间戳>_<序号>`（**含字母**），
+ * 不是纯数字 —— 旧的 `img-\d+` 一个都匹配不到（2026-10-10 排查发现，
+ * 结果是编辑器图片预览永远不会出现）。这里的字符类同时兼容老数据里的纯数字 id。
  */
 export function extractImageIds(markdown) {
   const ids   = new Set()
-  const regex = /!\[.*?\]\(id:\/\/(img-\d+)\)/g
+  const regex = /!\[.*?\]\(id:\/\/(img-[0-9a-z_]+)\)/g
   let match
   while ((match = regex.exec(markdown)) !== null) {
     ids.add(match[1])

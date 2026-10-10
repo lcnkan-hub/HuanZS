@@ -72,7 +72,7 @@ export function renderMarkdownToHtml(text) {
  * @returns {Promise<string>} 替换了 id:// 的 HTML
  */
 export async function resolveImagesAsync(html) {
-  const regex = /data-img-src="id:\/\/(img-\d+)"/g
+  const regex = /data-img-src="id:\/\/(img-[0-9a-z_]+)"/g
   const promises = []
   const replacements = []
 
