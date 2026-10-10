@@ -161,6 +161,88 @@ ok('A7 快照里含图片段与 counts', !!snap.payload.images && !!snap.payload
 ok('无 IndexedDB 时图片数为 0 且不抛错', payload.images.length === 0)
 ok('无 IndexedDB 时快照走内存兜底可用', (await store.snapshotInfo()) !== null)
 
+// ─────────── 图片 id 提取（2026-10-10 那个"图片永远显示不出来"的 bug 的回归钉）───────────
+{
+  const { extractImageIds } = await import('../src/composables/useImageStore.js')
+  // ⚠️ 必须用**真实形态**的 id：saveImage 生成的是 img-<base36>_<序号>（含字母）。
+  //    用纯数字 id 测的话新旧正则都能过 —— 测了等于没测（这正是当初漏掉这个 bug 的原因）。
+  const real = extractImageIds('图：![p](id://img-m3k9x_0)')
+  ok('正则:真实形态 id（含字母）能提取出来', real.has('img-m3k9x_0'), JSON.stringify([...real]))
+  ok('正则:带序号后缀也完整保留', [...real].every(id => !id.endsWith('_')), JSON.stringify([...real]))
+  const legacy = extractImageIds('老数据 ![p](id://img-1700000000123)')
+  ok('正则:老数据里的纯数字 id 仍兼容', legacy.has('img-1700000000123'), JSON.stringify([...legacy]))
+  const multi = extractImageIds('![a](id://img-aaa_0) 和 ![b](id://img-bbb_1)')
+  ok('正则:多条引用全部提取', multi.size === 2, JSON.stringify([...multi]))
+  ok('正则:非 id:// 的普通图片链接不受影响', extractImageIds('![x](https://a.com/b.png)').size === 0)
+}
+
+// ─────────── 落文件方式选择（纯函数 · 优先级即正确性）───────────
+{
+  const { pickSaver } = backup
+  ok('pickSaver 原生壳里必走 native（WebView 里 download 是静默死的）', pickSaver({ isNative: true, canShare: true, canDownload: true }) === 'native')
+  ok('pickSaver 原生壳里即使啥都没有也选 native（交给它自己退）', pickSaver({ isNative: true }) === 'native')
+  ok('pickSaver 手机浏览器 → webshare', pickSaver({ isNative: false, canShare: true, canDownload: true }) === 'webshare')
+  ok('pickSaver 桌面浏览器 → download', pickSaver({ isNative: false, canShare: false, canDownload: true }) === 'download')
+  ok('pickSaver 什么都没有 → none（不许假装成功）', pickSaver({}) === 'none')
+}
+
+// ─────────── 清理闸门（纯函数：防「把图片库清空」）───────────
+{
+  const { shouldRefuseDrop } = await import('../src/composables/useImageStore.js')
+  ok('闸门:空引用 + 库里有图 → 拒绝', shouldRefuseDrop(0, 5) === true)
+  ok('闸门:空引用 + 空库 → 放行（没图可删）', shouldRefuseDrop(0, 0) === false)
+  ok('闸门:有引用 → 放行', shouldRefuseDrop(3, 5) === false)
+  ok('闸门:显式 allowEmptyRefs 才放行清空', shouldRefuseDrop(0, 5, true) === false)
+  ok('闸门:计数拿不到 → 拒绝（宁可不删）', shouldRefuseDrop(NaN, 5) === true)
+}
+
+// ─────────── 无 DOM / 无原生壳时的降级 ───────────
+ok('无 DOM 环境 via 如实报 none', (await backup.downloadBackup({ includeImages: false })).via === 'none')
+
+/* ── 图片 id 形态的唯一出处见 useImageStore.IMAGE_ID_SOURCE，别在本文件手写 img-\d+ ── */
+
+// ─────────── 正文渲染的正反例钉（2026-10-10：这个 bug 让图片一张都显示不出来）───────────
+{
+  const { renderMarkdownToHtml } = await import('../src/utils/markdownParser.js')
+  // ★ 正向：真实形态 id（含字母）必须真的生成 <img> —— 旧代码在 sanitizeUrl 就把它拦掉了
+  const html = renderMarkdownToHtml('看图：![p](id://img-m3k9x_0)')
+  ok('渲染:真实形态 id 生成 md-image', html.includes('class="md-image"'), html.slice(0, 120))
+  ok('渲染:src 保留 id:// 原引用（交给后面换 blob）', html.includes('data-img-src="id://img-m3k9x_0"'), html.slice(0, 160))
+  ok('渲染:不再把图片语法当普通文字输出', !html.includes('![p]'), html.slice(0, 120))
+  // 老数据里的纯数字 id 仍要能渲染
+  ok('渲染:老数据纯数字 id 仍可渲染', renderMarkdownToHtml('![p](id://img-1700000000123)').includes('class="md-image"'), '')
+  // ★ 反向：注入与非法 URL 必须仍然被拦住（安全回归，不能被这次放宽搞崩）
+  const bad = renderMarkdownToHtml('![x](javascript:alert(1))')
+  ok('渲染:javascript: 仍被拦（不放宽安全）', !bad.includes('<img'), bad.slice(0, 120))
+  const inj = renderMarkdownToHtml('![x](id://img-1" onerror="alert(1))')
+  // 被拦 = **不生成 img**（原文当纯文本保留，所以字面上还能看到 onerror 这几个字符）
+  ok('渲染:属性注入不生成 img', !inj.includes('<img'), inj.slice(0, 120))
+  ok('渲染:外链图片仍可渲染', renderMarkdownToHtml('![x](https://a.com/b.png)').includes('class="md-image"'), '')
+  // 相对路径规则（既有行为，钉住别被后人误改）：必须是 ./ 或 ../ 开头
+  ok('渲染:./ 开头的相对路径可渲染', renderMarkdownToHtml('![x](./local/a.png)').includes('class="md-image"'), '')
+  ok('渲染:裸相对路径按既有规则仍被拦（不是这次改动引入的）', !renderMarkdownToHtml('![x](local/a.png)').includes('<img'), '')
+
+  // ★ HTML 里待解析图片 id 的提取 —— 这里有"二次转义"这个隐形杀手：
+  //   正则里斜杠被多转义一层（\\/）之后，整个正则去匹配"反斜杠+斜杠"，永远匹配不到，
+  //   症状是"页面图片不显示"且不报任何错（2026-10-10 在真浏览器里查实并固定）。
+  const { findImageRefsInHtml, withBlobSrc } = await import('../src/utils/markdownParser.js')
+  const imgHtml = '<img src="id://img-m3k9x_0" alt="q" class="md-image" data-img-src="id://img-m3k9x_0">'
+  const refs = findImageRefsInHtml(imgHtml)
+  ok('HTML 提取:能抓到待解析的真形态 id', refs.length === 1 && refs[0].id === 'img-m3k9x_0', JSON.stringify(refs))
+  ok('HTML 提取:整段匹配到的是整个 <img> 标签（替换要连 src 一起换）', refs.length === 1 && refs[0].full.startsWith('<img') && refs[0].full.endsWith('>'), JSON.stringify(refs))
+  ok('HTML 提取:老数据纯数字 id 也能抓', findImageRefsInHtml('<img data-img-src="id://img-1700000000123">').length === 1)
+  ok('HTML 提取:没有图片引用时返回空（不误抓）', findImageRefsInHtml('<p>纯文字</p>').length === 0)
+
+  // ★ 换 src 必须**换掉**原来的，不能变成两个 src（2026-10-10：浏览器只认第一个，图片依然是坏的）
+  const fixed = withBlobSrc('<img src="id://img-m3k9x_0" alt="q" class="md-image" data-img-src="id://img-m3k9x_0">', 'blob:http://x/abc')
+  // 注意：用 `\ssrc="` 计数 —— 宽松的 /src=/ 会把 data-img-src= 也算进去（自己坑自己一次）
+  ok('换 src:真正的 src 属性只有一个', (fixed.match(/\ssrc="/g) || []).length === 1, fixed)
+  ok('换 src:src 变成 blob', fixed.includes('src="blob:http://x/abc"'), fixed)
+  ok('换 src:data-img-src 仍保留 id:// 原引用（便于二次解析）', fixed.includes('data-img-src="id://img-m3k9x_0"'), fixed)
+  ok('换 src:没有 src 的标签会补上', withBlobSrc('<img data-img-src="id://img-1">', 'blob:x').includes(' src="blob:x"'))
+  ok('换 src:alt/class 等其它属性保留', fixed.includes('alt="q"') && fixed.includes('class="md-image"'), fixed)
+}
+
 // ─────────── 汇总 ───────────
 await sleep(0)
 let pass = 0

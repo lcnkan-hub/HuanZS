@@ -39,7 +39,7 @@
       </p>
 
       <p class="bk-note">
-        备份里不含 API 密钥。安卓版导出会先弹系统「分享 / 存到文件」；要是没弹出来，就用电脑浏览器打开再导出。
+        备份里不含 API 密钥。手机 App 里导出会把文件写进手机并弹出系统「保存 / 分享」；电脑浏览器里导出就是直接下载。
       </p>
     </div>
   </div>
@@ -90,11 +90,14 @@ const handleExport = async () => {
     }
     const r = await downloadBackup({ includeImages })
     const c = r.counts || {}
-    const how = r.viaShare === 'share' ? '已交给系统保存 / 分享'
-      : r.viaShare === 'download' ? '已导出到下载目录'
-        : '当前环境不支持直接存文件'
+    const how = {
+      'native-share': '已导出，系统已弹出「保存 / 分享」',
+      'native-file': '已存进 App 的导出目录（分享没弹出来，可用系统文件管理找 ' + r.filename + '）',
+      webshare: '已交给系统保存 / 分享',
+      download: '已导出到下载目录'
+    }[r.via] || '当前环境不支持直接存文件'
     say(`${how}（百科 ${c.wiki_items} · 记忆 ${c.memory} · 聊天 ${c.chat} · 图片 ${c.images}）` +
-      (includeImages ? '' : '；这次没含图片'), r.viaShare === 'none' ? 'error' : 'ok')
+      (includeImages ? '' : '；这次没含图片'), r.via === 'none' ? 'error' : 'ok')
     lastAt.value = lastExportAt()
   } catch (e) {
     say('导出失败：' + humanError(e), 'error')

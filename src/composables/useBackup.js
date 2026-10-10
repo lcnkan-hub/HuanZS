@@ -17,7 +17,7 @@
  */
 import { STORAGE_KEYS } from '../constants/categories'
 import { scopeKey } from '../utils/storageScope'
-import { IMAGE_DB_NAME, IMAGE_STORE_NAME, getImageDB } from './useImageStore'
+import { IMAGE_DB_NAME, IMAGE_STORE_NAME, getImageDB, releaseAllImageUrls } from './useImageStore'
 import { saveSnapshot, readSnapshot } from './useBackupStore'
 
 export const BACKUP_FORMAT = 'huanzhongshu-backup'
@@ -157,6 +157,9 @@ function base64ToBlob(b64, mime) {
 async function replaceAllImages(images) {
   const db = await openImageDb()
   if (!db) return 0
+  // 旧 blob URL 必须清掉：这批图已经整批换过，旧 URL 指向的数据已经没了
+  //（不清的话，页面上正在显示的图会变成坏图 / 读到已删数据）
+  try { releaseAllImageUrls() } catch { /* 忽略 */ }
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IMAGE_STORE_NAME, 'readwrite')
     const store = tx.objectStore(IMAGE_STORE_NAME)
@@ -271,10 +274,10 @@ export async function downloadBackup({ includeImages = true } = {}) {
 
   const blob = new Blob(parts, { type: 'application/json' })
   const filename = 'huanzhongshu-backup-' + safeLabel(payload.account_label) + '-' + localDateStr() + '.json'
-  const viaShare = await trySave(blob, filename)
+  const via = await trySave(blob, filename)
 
   markExported()
-  return { ok: true, filename, bytes: blob.size, images: payload.images.length, counts: payload.counts, viaShare }
+  return { ok: true, filename, bytes: blob.size, images: payload.images.length, counts: payload.counts, via }
 }
 
 function safeLabel(label) {
@@ -288,30 +291,114 @@ function localDateStr() {
 }
 
 /**
- * 保存文件。优先「系统分享」（安卓 APK 里最可靠的一条路：存到文件/发出去），
- * 否则用 <a download>（桌面浏览器可用）。
- * ⚠️ Android WebView 里 <a download> 可能静默无效 —— 这是已知待真机验的点（见 M23 B 类验收）。
+ * 选落文件方式（**纯函数**，优先级单独可测）。
+ *
+ * 顺序 = 从"最可靠"到"最不可靠"：
+ *   native    → APK（安卓/iOS 原生壳）：走 Capacitor Filesystem 真写进设备 + 弹系统分享
+ *   webshare  → 手机浏览器 / PWA：Web Share 能带文件时用系统分享面板
+ *   download  → 桌面浏览器：<a download>
+ *   none      → 什么路都没有（如实告诉用户，不许假装成功）
+ *
+ * ⚠️ 为什么 native 必须排第一：Android WebView 里 `<a download>` **对 blob 静默无效**
+ *    （没有 DownloadListener 就什么都不发生，连报错都没有）——2026-10-10 查证，
+ *    这正是"APK 里导出点了没反应"的根因。所以原生壳里绝不能落到 download 这条路。
+ */
+export function pickSaver({ isNative = false, canShare = false, canDownload = false } = {}) {
+  if (isNative) return 'native'
+  if (canShare) return 'webshare'
+  if (canDownload) return 'download'
+  return 'none'
+}
+
+/** 探当前环境能力（纯探测，不落文件） */
+async function detectEnv() {
+  const canDownload = typeof document !== 'undefined' && typeof URL !== 'undefined' && !!URL.createObjectURL
+  let canShare = false
+  try {
+    canShare = typeof navigator !== 'undefined' && typeof navigator.canShare === 'function' && typeof File !== 'undefined'
+  } catch { canShare = false }
+  let isNative = false
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    isNative = !!(Capacitor && typeof Capacitor.isNativePlatform === 'function' && Capacitor.isNativePlatform())
+  } catch { isNative = false }
+  return { isNative, canShare, canDownload }
+}
+
+function fileShareable(file) {
+  try {
+    return !!(file && navigator.canShare && navigator.canShare({ files: [file] }))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * 原生壳里落文件：先写进设备（Documents 优先，权限不许就退 App 缓存目录），再弹系统分享。
+ * 为什么写完还要分享：写进 App 私有目录用户"看不到"，等于没导出 —— 必须给他一个
+ * 「存到文件 / 发给自己 / 传电脑」的出口。
+ * 返回 'native-share' | 'native-file' | null（null = 这条路走不通，交给上层继续往后退）
+ */
+async function saveViaNative(blob, filename) {
+  let uri = null
+  try {
+    const { Filesystem, Directory } = await import('@capacitor/filesystem')
+    const b64 = await blobToBase64(blob)
+    for (const dir of [Directory.Documents, Directory.Cache]) {
+      try {
+        const res = await Filesystem.writeFile({ path: filename, data: b64, directory: dir, recursive: true })
+        uri = res && res.uri
+        if (uri) break
+      } catch { /* 这个目录不行 → 试下一个 */ }
+    }
+  } catch {
+    return null
+  }
+  if (!uri) return null
+  try {
+    const { Share } = await import('@capacitor/share')
+    await Share.share({ title: filename, url: uri, dialogTitle: '保存备份文件' })
+    return 'native-share'
+  } catch {
+    return 'native-file' // 文件已经落地了，只是分享没弹出来
+  }
+}
+
+/**
+ * 按 pickSaver 选定的路落文件；**选定的那条失败就依次往后退**（不让用户一步拿不到就啥也没有）。
+ * 返回实际走通的 via 值：'native-share' | 'native-file' | 'webshare' | 'download' | 'none'
  */
 async function trySave(blob, filename) {
+  const env = await detectEnv()
   const file = typeof File !== 'undefined' ? new File([blob], filename, { type: 'application/json' }) : null
-  if (file && typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+  const canShareFile = !!(file && env.canShare && fileShareable(file))
+  const how = pickSaver({ isNative: env.isNative, canShare: canShareFile, canDownload: env.canDownload })
+
+  if (how === 'native') {
+    const via = await saveViaNative(blob, filename)
+    if (via) return via
+    /* 原生那条走不通 → 继续往下退 */
+  }
+  if ((how === 'native' || how === 'webshare') && canShareFile) {
     try {
       await navigator.share({ files: [file], title: filename })
-      return 'share'
+      return 'webshare'
     } catch {
-      /* 用户取消或分享失败 → 落回下载 */
+      /* 用户取消或分享失败 → 退下载 */
     }
   }
-  if (typeof document === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) return 'none'
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 10000)
-  return 'download'
+  if (env.canDownload) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+    return 'download'
+  }
+  return 'none'
 }
 
 /** 记上次导出时间（按账号，走 scopeKey） */
