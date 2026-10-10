@@ -19,7 +19,8 @@ import { getCurrentTimeString, generateUniqueId } from '../utils/uniqueId'
 import { useWikiData } from './useWikiData'
 
 const MAX_PER_ROUND = 5       // 单轮最多写几条：分层写入一轮要建父 + 挂几个子，上限比原来宽
-const MIN_CONTENT_LEN = 8     // 正文至少这么长才算「知识」，挡掉"好的""嗯嗯"
+export const MIN_CONTENT_LEN = 8 // 正文至少这么长才算「知识」，挡掉"好的""嗯嗯"
+                                 // （导出给空库开局用：第一条最可能很短，得知道这道关在哪）
 const MAX_TITLE_LEN = 40
 const MAX_CONTENT_LEN = 4000  // 新建条目正文上限
 const MAX_APPEND_LEN = 2000   // 单次追加上限

@@ -125,6 +125,9 @@ import { useMemory } from '../../composables/useMemory'
 import { useTimeMode } from '../../composables/useTimeMode'
 import { useAIConfig } from '../../composables/useApiKey'
 import { buildWikiContext } from '../../composables/useWikiContext'
+import { takePendingStarter } from '../../composables/useStarter'
+import { buildStarterEntry } from '../../utils/starterJudge'
+import { writeWikiItems } from '../../composables/useWikiWriter'
 import AiSettingsModal from '../user/AiSettingsModal.vue'
 
 // 事件：back —— 左上角返回按钮触发，具体回到哪个 Tab 由 App.vue 决定
@@ -198,6 +201,16 @@ async function handleSend() {
   const text = inputText.value.trim()
   if (!text || isThinking.value) return
   // 没配密钥就不进对话流程：就地打开设置（避免"正在输入"转圈，最后只等到一句报错）
+  // ⚠️ 但**开局落库必须在它之前**（I04）：全新设备第一件事就是没配密钥，
+  //    而「答完什么都没发生」正是首屏流失的原因本身。落库是纯本地写入，不需要 AI。
+  //    take 语义保证这里取走之后，下面就算再走一遍也不会重复落库。
+  try {
+    const starterTab = takePendingStarter()
+    if (starterTab) {
+      const entry = buildStarterEntry(text, starterTab)
+      if (entry) writeWikiItems([entry])
+    }
+  } catch { /* 落库失败绝不打断对话 */ }
   if (!aiConfigured.value) {
     showAiSettings.value = true
     return

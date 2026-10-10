@@ -7,8 +7,15 @@
     <h2><AppIcon :name="icon" :size="24" /> {{ tabName }}百科</h2>
 
     <div class="item-list">
-      <div v-if="items.length === 0" class="empty-tip">
-        暂无相关百科条目，点击右上角"添加"一个吧！
+      <!-- 空库开局（I04）：这条分类一条都没有时，不显示「暂无数据」，而是给三张能点的卡片。
+           必须与「搜索没搜到」分开 —— 后者只是过滤结果为空，用户其实有一堆条目。 -->
+      <StarterCards
+        v-if="items.length === 0 && libraryEmpty"
+        @ask="(tab) => $emit('ask-starter', tab)"
+        @open-backup="$emit('open-backup')"
+      />
+      <div v-else-if="items.length === 0" class="empty-tip">
+        没搜到相关条目，换个词试试
       </div>
       <WikiCard
         v-for="(item, index) in items"
@@ -26,14 +33,16 @@
 <script setup>
 import AppIcon from '../common/AppIcon.vue'
 import WikiCard from './WikiCard.vue'
+import StarterCards from './StarterCards.vue'
 
 defineProps({
-  icon:        { type: String, default: '' },
-  tabName:     { type: String, default: '' },
-  items:       { type: Array,  default: () => [] },
-  currentUser: { type: String, default: '' }
+  icon:         { type: String,  default: '' },
+  tabName:      { type: String,  default: '' },
+  items:        { type: Array,   default: () => [] },
+  currentUser:  { type: String,  default: '' },
+  libraryEmpty: { type: Boolean, default: false } // 该分类真的一条都没有（不是搜索过滤空）
 })
-defineEmits(['open-item', 'delete-item'])
+defineEmits(['open-item', 'delete-item', 'ask-starter', 'open-backup'])
 </script>
 
 <style scoped>

@@ -42,8 +42,11 @@
                 :tabName="currentTabName"
                 :items="filteredItems"
                 :currentUser="profileName"
+                :libraryEmpty="categoryEmpty"
                 @open-item="(item) => openDetail(item)"
                 @delete-item="(id) => handleDelete(id)"
+                @ask-starter="handleStarterAsk"
+                @open-backup="handleOpenBackup"
               />
               <MinePage
                 v-else-if="currentTab === 'mine'"
@@ -116,6 +119,9 @@ import { useWikiData }    from './composables/useWikiData'
 import { usePageRouter }  from './composables/usePageRouter'
 import { readLastTab, writeLastTab } from './composables/useLastTab'
 import { startProactiveTrigger } from './composables/useProactiveTrigger'
+import { useChat } from './composables/useChat'
+import { setPendingStarter } from './composables/useStarter'
+import { starterQuestion } from './utils/starterJudge'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
 
 // 配置常量
@@ -171,6 +177,10 @@ const filteredItems = computed(() =>
   wikiData.searchItems(currentTab.value, searchQueries.value[currentTab.value])
 )
 
+// 空库开局（I04）：这个分类一条都没有。必须与「搜索过滤后为空」分开 ——
+// 后者用户明明有一堆条目，弹开局卡片是错的（见 wiki/WikiList.vue 的 v-else-if）
+const categoryEmpty = computed(() => (dbData.value[currentTab.value] || []).length === 0)
+
 // ========== 生命周期 ==========
 // 王冠主动开口的触发点（I02）：挂在 app 上而不是王冠页上 —— 首屏可能是用户上次停留的 Tab，
 // 那时王冠页没挂载，"打开 app 那一刻王冠已经先开过口"就不成立。
@@ -180,6 +190,26 @@ onMounted(() => {
 })
 
 // ========== 操作函数 ==========
+
+/**
+ * 空库开局（I04）：点卡片 = 让王冠先问一句，并记下「这一轮在等哪个分类的回答」。
+ * 回答在王冠页的输入框里打出来，那句话由 ChatView 顺手落成该分类的第一条词条（见 composables/useStarter.js）。
+ * 为什么不就地开个表单：这个产品的差别化就是「它替我记得」，不是「我自己填表」——
+ * 空列表应该是一次对话的开头，而不是一个空表单。
+ */
+function handleStarterAsk(tab) {
+  const q = starterQuestion(tab)
+  if (!q) return
+  setPendingStarter(tab)
+  const { addReply } = useChat()
+  addReply(q)                 // 王冠先开口：用户看到的是「它在问我」
+  currentTab.value = 'crown'  // 切到王冠（切 Tab 会写 LAST_TAB，沿用 I03 的记忆口径）
+}
+
+/** 开局那行「换手机了？从旧手机带进来」→ 去「我的」（备份中心在那儿） */
+function handleOpenBackup() {
+  currentTab.value = 'mine'
+}
 
 /** 王冠返回：回到进入王冠之前所在的 Tab（底栏在王冠页隐藏，这是唯一出口） */
 const handleCrownBack = () => {
