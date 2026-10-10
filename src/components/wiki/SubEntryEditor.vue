@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { renderMarkdownToHtml, resolveImagesAsync } from '../../utils/markdownParser'
 import { saveImage, getImageUrl, extractImageIds } from '../../composables/useImageStore'
 import AppIcon from '../common/AppIcon.vue'
@@ -122,6 +122,7 @@ watch(() => props.childItem?.id, () => {
 const switchView = (view) => {
   currentView.value = view
   if (view === 'edit') {
+    refreshImagePreviews()
     nextTick(() => { if (textareaRef.value) textareaRef.value.focus() })
   } else {
     nextTick(() => resolveReadViewImages())
@@ -206,6 +207,19 @@ const resolveReadViewImages = async () => {
     // 图片解析失败不阻塞页面
   }
 }
+
+// ⚠️ 首次挂载必须自己把这两件事做掉（2026-10-10 真浏览器查实）：
+//   以前只有「切换子词条」(watch childItem.id) 和「编辑完切回阅读」(switchView/handlePublish) 才触发，
+//   于是冷开编辑器时 —— 阅读态图片永远停在 src="id://..."（坏图）、编辑态图片预览栏永远是空的。
+//   表现就是"有时候能看到图、有时候看不到"，很难复现。
+onMounted(() => {
+  refreshImagePreviews()   // 它只读 props，不依赖 DOM，可以放心在挂载时调
+})
+
+// 阅读区那层是 v-if 出来的：编辑器挂载完的那一刻 readViewRef 可能**还是 null**，
+// 于是 resolveReadViewImages 一进门就 return 了（2026-10-10 实测就是这么静默失败的）。
+// 所以不能赌时机，改成盯着 ref 本身 —— 元素真出现（含切换视图重建）时才解析。
+watch(readViewRef, (el) => { if (el) resolveReadViewImages() })
 
 </script>
 
