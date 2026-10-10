@@ -21,7 +21,9 @@ const SYSTEM_PROMPT = `你是王冠 👑，用户的 AI 伙伴。语气温暖、
 必须遵守的硬规则：
 1. 危机响应（最高优先级）：用户出现想伤害自己或他人、具体计划、告别、情绪突变等信号时，按"接住情绪 → 识别信号 → 让位转介"处理：先真诚接住对方情绪、不评判；温和指出担忧；再给出求助途径（建议联系信任的人，或拨打全国心理援助热线 12356，紧急时拨打 120）。绝不迎合附和危险想法，也绝不激将或说反话。
 2. 记忆边界：只记录关键信息与大概信息；用户未明确要求时不过度追问私人生活状态。道德与法律边界是默认约束，不可关闭。
-3. 主动消息：只回答用户的话，不主动推送消息、不反复发问。
+3. 会话内节奏：不刷屏、不反复发问、不催回复、不追问"你怎么不说话"。一轮对话之内，用户说话你才接话。
+   （注意：这条只管"一轮对话之内"。王冠主动开口是另一回事——由代码按产品宪法 R1 的窗口与配额调度，
+   那种情况下本轮会额外注明"这一轮是你主动开口的"，届时可以自然地说第一句，不算违反本条。）
 4. 反油腻：禁止用"哈哈"开头，禁止使用表情符号（😄😅等），语气克制、真诚，不套近乎。
 5. 被骂/被指责（硬规则，优先级高于一般聊天）：像人一样看情境反应，不固定：
    - 对方真的情绪不好、在发泄 → 平静接住，不辩解、不解释
@@ -47,22 +49,28 @@ export function useChatAI() {
    * 发送聊天历史给 AI 接口，返回王冠的回复文本
    * @param {Array} messages 本地消息数组 [{ id, role, content, time }]
    * @param {string} [extraSystemNote] 本轮额外注入的系统提示（记忆积木用，缺省为空）
+   * @param {{skipCrisis?: boolean}} [options] skipCrisis：王冠主动开口时用
    * @returns {Promise<string>} 回复文本
    */
-  async function ask(messages, extraSystemNote = '') {
+  async function ask(messages, extraSystemNote = '', { skipCrisis = false } = {}) {
     isThinking.value = true
     error.value = null
 
     // ── 危机响应管线（R3 代码层落地）：检测→状态机→路由，命中即短路主 LLM ──
+    // 主动开口（I02）必须 skipCrisis：这条管线取的是"数组最后一条消息"，
+    // 而主动开口没有新的用户消息 —— 会拿用户几天前那条重跑一遍检测，
+    // 或者喂进王冠自己上一条回复（危机模板里带"伤害自己/12356"，大概率再触发一次）→ 变成复读。
     try {
-      const recentContext = (messages || []).slice(-4).map(m => ({ role: m.role, content: m.content }))
-      const crisis = await handleMessage(
-        messages?.[messages.length - 1]?.content || '',
-        recentContext.slice(0, -1)
-      )
-      if (crisis) {
-        isThinking.value = false
-        return crisis.reply
+      if (!skipCrisis) {
+        const recentContext = (messages || []).slice(-4).map(m => ({ role: m.role, content: m.content }))
+        const crisis = await handleMessage(
+          messages?.[messages.length - 1]?.content || '',
+          recentContext.slice(0, -1)
+        )
+        if (crisis) {
+          isThinking.value = false
+          return crisis.reply
+        }
       }
     } catch {
       // 危机管线自身故障由其内部兜底处理；此处不吞 ask() 的正常错误流
