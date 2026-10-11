@@ -13,6 +13,7 @@
     "test:lasttab": "node scripts/run-lasttab-tests.mjs",
     "test:starter": "node scripts/run-starter-tests.mjs",
     "test:silent": "node scripts/silent-failure.test.mjs",
+    "test:browser": "node scripts/browser.test.mjs",
     "check:secret": "node scripts/check-no-secret.mjs"
   },
   "dependencies": {
