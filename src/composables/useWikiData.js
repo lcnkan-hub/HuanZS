@@ -2,8 +2,10 @@
  * 百科数据库积木
  * 集中管理所有百科条目的增删改查、搜索、导入导出
  * 支持主词条-子词条的二级嵌套结构
+ * 删条目 / 删子词条时连带回收没人引用的图片（A02：此前 dropUnused 全项目零调用点，图只进不出）
  */
 import { useLocalStorage } from './useLocalStorage'
+import { extractImageIds, dropUnused } from './useImageStore'
 import { ALL_CATEGORIES, STORAGE_KEYS } from '../constants/categories'
 import { getCurrentTimeString } from '../utils/uniqueId'
 
@@ -54,10 +56,57 @@ export function useWikiData() {
     return newItem
   }
 
-  /** 删除条目 */
-  function deleteItem(category, id) {
-    // 清理子词条引用的图片（由外部调用 dropUnused）
+  // ========== 图片回收（A02） ==========
+
+  /**
+   * 走一遍全库，收集正文里引用到的所有图片 id。
+   *
+   * 「全」是这里唯一的正确性要求：dropUnused 会把**不在这个集合里**的图全部删掉，
+   * 少走一个字段 = 那张还在用的图被当成孤儿清掉，正文里留下一个坏图，而且一声不吭。
+   * 三件事必须同时做到：
+   *   ① 三个分类都走 ALL_CATEGORIES，不写死 game/note/life；
+   *   ② 主词条正文 item.wiki 走；
+   *   ③ 子词条正文走，且**递归**——validateImportData 允许 children 一直套到 10 层，
+   *      导入进来的数据真可能更深，只扫一层就会删掉深层正文里的活图。
+   * 正文之外没有别的图片引用可存：全项目只有 SubEntryEditor 会插入 id:// 引用（2026-10-11 查过）。
+   */
+  function collectUsedImageIds() {
+    const used = new Set()
+    const walk = (node) => {
+      if (!node || typeof node !== 'object') return
+      extractImageIds(node.wiki || '').forEach(id => used.add(id))
+      if (Array.isArray(node.children)) node.children.forEach(walk)
+    }
+    ALL_CATEGORIES.forEach(cat => (dbData.value[cat] || []).forEach(walk))
+    return used
+  }
+
+  /**
+   * 回收没人引用的图片（A02：dropUnused 此前全项目零调用点，是死代码）。
+   *
+   * 为什么敢传 allowEmptyRefs：引用集合由 collectUsedImageIds() 走**全库**得出，
+   * 「集合为空」是真话、不是漏算。不传的话「删掉最后一个带图条目」这个最常见的情况
+   * 恰好会被闸门挡下——图照样永久留着，正是本条要修的东西。
+   *
+   * 失败只留痕、不弹窗：清理失败的后果只是「图多留一会儿」，条目该删已经删掉了；
+   * 弹窗会打断删除流程，代价大于收益。但绝不静默——原文进 console。
+   */
+  async function purgeUnusedImages() {
+    try {
+      const r = await dropUnused(collectUsedImageIds(), { allowEmptyRefs: true })
+      if (r.refused) console.warn('[图片回收] 被闸门挡下，图片暂时留在库里：', r.reason)
+      return r
+    } catch (e) {
+      console.warn('[图片回收] 失败，图片暂时留在库里（条目本身已删掉）：', e && e.message)
+      return { refused: true, reason: '清理失败：' + (e && e.message) }
+    }
+  }
+
+  /** 删除条目（连带回收只被它引用的图片） */
+  async function deleteItem(category, id) {
+    // 数组先同步改完再 await：App.vue 删完立刻读 dbData 同步界面，不能等图片回收
     dbData.value[category] = dbData.value[category].filter(i => i.id !== id)
+    return purgeUnusedImages()
   }
 
   /** 更新条目的百科正文 */
@@ -88,11 +137,12 @@ export function useWikiData() {
     return child
   }
 
-  /** 删除主词条下的子词条 */
-  function deleteChildItem(category, parentId, childId) {
+  /** 删除主词条下的子词条（连带回收只被它引用的图片） */
+  async function deleteChildItem(category, parentId, childId) {
     const parent = dbData.value[category].find(i => i.id === parentId)
     if (!parent) return
     parent.children = (parent.children || []).filter(c => c.id !== childId)
+    return purgeUnusedImages()
   }
 
   /** 更新子词条的百科正文 */
@@ -173,6 +223,8 @@ export function useWikiData() {
     addChildItem,
     deleteChildItem,
     updateChildWiki,
+    collectUsedImageIds,
+    purgeUnusedImages,
     syncCreatorName,
     exportData,
     importData,

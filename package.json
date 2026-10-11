@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test:crisis": "node scripts/run-crisis-tests.mjs",
     "test:backup": "node scripts/run-backup-tests.mjs",
+    "test:image": "node scripts/run-image-tests.mjs",
     "test:proactive": "node scripts/run-proactive-tests.mjs",
     "test:lasttab": "node scripts/run-lasttab-tests.mjs",
     "test:starter": "node scripts/run-starter-tests.mjs",
