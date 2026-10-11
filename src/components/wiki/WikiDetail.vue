@@ -161,13 +161,13 @@ const handleChildDelete = () => {
 <style scoped>
 .detail-page-wrapper {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-  background-color: #ffffff; z-index: 100; display: flex; flex-direction: column;
+  background-color: var(--color-bg-card); z-index: 100; display: flex; flex-direction: column;
   animation: slideInPage 0.28s var(--ease-slide);
 }
 .detail-header {
   height: var(--header-height); border-bottom: 1px solid var(--color-border-light);
   display: flex; justify-content: space-between; align-items: center;
-  padding: 0 16px; background: #ffffff;
+  padding: 0 16px; background: var(--color-bg-card);
   -webkit-user-select: none; user-select: none;
 }
 .back-link-btn {
@@ -271,7 +271,7 @@ const handleChildDelete = () => {
 .modal-actions {
   display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;
 }
-.cancel-btn { background: var(--color-border-light); color: #515154; border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
+.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
 .save-btn   { background: var(--color-accent); color: white; border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
 
 @keyframes slideInPage { from { transform: translateX(100%); } to { transform: translateX(0); } }

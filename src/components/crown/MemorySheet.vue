@@ -146,7 +146,9 @@ function onGrabEnd() {
   background: var(--color-bg-card);
   border-radius: 20px 20px 0 0;
   box-shadow: var(--shadow-modal);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* 统一走 --safe-bottom 令牌：底栏是 calc(18px + var(--safe-bottom))、聊天输入栏是 calc(8px + ...)，
+     只有这里直接写 env()。值等价（令牌本身就是 env(...,0px)），但三处写法归一后才好一起改。 */
+  padding-bottom: var(--safe-bottom);
   /* 常态 transition：下滑手势回弹用（入场由 enter-active 覆盖） */
   transition: transform 0.25s ease-out;
 }
@@ -257,7 +259,7 @@ function onGrabEnd() {
   gap: 10px;
   padding: 12px 14px;
   background: var(--color-bg-primary);
-  border-radius: 16px;
+  border-radius: var(--radius-3xl);
   min-height: 44px;
 }
 

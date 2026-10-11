@@ -34,7 +34,9 @@ defineEmits(['update:modelValue', 'add'])
   height: var(--header-height);
   background-color: var(--color-bg-card);
   border-bottom: 1px solid var(--color-border);
-  display: flex; align-items: center; padding: 0 15px;
+  /* 顶部栏左右内边距：详情页是 0 16px，这里原本 0 15px，差 1px 肉眼看不出来但两条栏并排切换时会轻微跳。
+     统一到 16px，和 .detail-header / .sub-editor-header 一致。 */
+  display: flex; align-items: center; padding: 0 16px;
 }
 .search-bar { display: flex; width: 100%; gap: 10px; }
 .search-bar input {

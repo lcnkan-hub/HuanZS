@@ -60,7 +60,7 @@ const totalCount = computed(() => cats.value.reduce((n, c) => n + c.count, 0))
 <style scoped>
 .my-items-entry {
   background: var(--color-bg-card); border-radius: var(--radius-3xl);
-  padding: 16px 18px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  padding: 16px 18px; box-shadow: var(--shadow-card);
   border: 1px solid var(--color-border-light); margin-bottom: 22px;
 }
 

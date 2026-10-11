@@ -325,7 +325,7 @@ const handleProfileUpdate = (updatedData) => {
   background: var(--color-bg-modal); border-radius: var(--radius-md);
   padding: 10px 12px; box-sizing: border-box; font-size: 14px;
 }
-.cancel-btn { background: var(--color-border-light); color: #515154; border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
+.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
 .save-btn   { background: var(--color-accent); color: white; border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
 
 /* ===== 页面叠层容器 ===== */

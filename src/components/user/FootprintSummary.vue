@@ -66,7 +66,7 @@ const getPercentage = (type) => {
 <style scoped>
 .footprint-summary-card {
   background: var(--color-bg-card); border-radius: var(--radius-3xl);
-  padding: 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+  padding: 18px; box-shadow: var(--shadow-card);
   border: 1px solid var(--color-border-light); margin-bottom: 22px;
 }
 .summary-header { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }

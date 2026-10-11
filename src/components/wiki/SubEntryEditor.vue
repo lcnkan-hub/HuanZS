@@ -226,13 +226,14 @@ watch(readViewRef, (el) => { if (el) resolveReadViewImages() })
 <style scoped>
 .sub-editor-wrapper {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-  background-color: #ffffff; z-index: 110; display: flex; flex-direction: column;
+  background-color: var(--color-bg-card); z-index: 110; display: flex; flex-direction: column;
   animation: slideInSub 0.28s var(--ease-slide);
 }
 .sub-editor-header {
   height: var(--header-height); border-bottom: 1px solid var(--color-border-light);
   display: flex; justify-content: space-between; align-items: center;
-  padding: 0 12px 0 16px; background: #ffffff; -webkit-user-select: none; user-select: none; gap: 8px;
+  /* 原本是 0 12px 0 16px（左右不等），和详情页的 0 16px 对不齐；统一 16px */
+  padding: 0 16px; background: var(--color-bg-card); -webkit-user-select: none; user-select: none; gap: 8px;
 }
 .back-link-btn { background: none; border: none; color: var(--color-accent); font-size: 15px; font-weight: 500; cursor: pointer; padding: 5px 0; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .sub-editor-title { font-size: 14px; font-weight: 600; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
@@ -269,7 +270,7 @@ watch(readViewRef, (el) => { if (el) resolveReadViewImages() })
 .color-brown-tag { background: var(--color-toolbar-brown-bg); color: var(--color-markdown-brown); }
 .color-green-tag { background: var(--color-toolbar-green-bg); color: var(--color-markdown-green); }
 .markdown-textarea { flex: 1; min-height: 200px; width: 100%; border: 1px solid var(--color-border-input); background: var(--color-bg-modal); border-radius: var(--radius-xl); padding: 12px; box-sizing: border-box; font-size: 15px; font-family: var(--font-mono); line-height: 1.6; color: var(--color-text-primary); resize: none; -webkit-appearance: none; appearance: none; }
-.markdown-textarea:focus { outline: none; border-color: var(--color-accent); background: #ffffff; }
+.markdown-textarea:focus { outline: none; border-color: var(--color-accent); background: var(--color-bg-card); }
 
 .image-preview-bar { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; border-top: 1px solid var(--color-border-light); }
 .image-preview-bar::-webkit-scrollbar { display: none; }

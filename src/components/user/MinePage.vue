@@ -99,7 +99,7 @@ const myFilteredData = computed(() => {
   display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;
 }
 .edit-data-trigger-btn {
-  background-color: #ffffff; color: var(--color-text-muted);
+  background-color: var(--color-bg-card); color: var(--color-text-muted);
   border: 1px solid var(--color-border-input); border-radius: var(--radius-lg);
   padding: 8px 20px; font-size: 13px; font-weight: 500; cursor: pointer;
   transition: all 0.2s; display: flex; align-items: center; gap: 4px;
