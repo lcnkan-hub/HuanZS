@@ -50,6 +50,7 @@ function makeIDB() {
   return {
     ctl,
     count: (name, store) => (dbs.get(name)?.get(store)?.size ?? 0),
+    keys: (name, store) => Array.from(dbs.get(name)?.get(store)?.keys() ?? []),
     api: {
       open (name) {
         const req = { result: null, error: null, onsuccess: null, onerror: null, onupgradeneeded: null }
@@ -91,11 +92,14 @@ globalThis.localStorage = {
 
 const { useWikiData } = await import('../src/composables/useWikiData.js')
 const { saveImage, dropUnused, IMAGE_DB_NAME, IMAGE_STORE_NAME } = await import('../src/composables/useImageStore.js')
+const { STORAGE_KEYS } = await import('../src/constants/categories.js')
+const { scopeKey, SCOPE_SEP } = await import('../src/utils/storageScope.js')
 
 // ─────────── 断言工具 ───────────
 const chk = []
 const ok = (name, cond, extra) => chk.push([name, !!cond, extra])
 const imgCount = () => idb.count(IMAGE_DB_NAME, IMAGE_STORE_NAME)
+const imgKeys = () => idb.keys(IMAGE_DB_NAME, IMAGE_STORE_NAME)
 const fakeFile = n => ({ type: 'image/png', name: n })
 
 const wiki = useWikiData()
@@ -169,7 +173,7 @@ ok('清库:删掉最后一个带图条目后引用集合为空 → 仍然清理�
 ok('清库:返回结果如实报告删了几张', r2.deleted === 1, JSON.stringify(r2))
 
 // ─────────── 闸门没被放宽 ───────────
-await saveImage(fakeFile('f.png'))
+const imgF = await saveImage(fakeFile('f.png'))
 const noSet = await dropUnused(['img-x'])
 ok('闸门:dropUnused 拿到非 Set 仍然拒绝（本次改动没放宽它）', noSet.refused === true, JSON.stringify(noSet))
 const emptyRefs = await dropUnused(new Set())
@@ -190,6 +194,43 @@ ok('图片库不可用时:条目照样删掉（不因清理失败而删不掉）
 ok('图片库不可用时:返回结果里说清了原因', r3.refused === true && /清理失败/.test(r3.reason || ''), JSON.stringify(r3))
 ok('图片库不可用时:留痕到 console（不静默吞掉）', warns.some(w => w.includes('[图片回收]')), JSON.stringify(warns))
 ok('图片库不可用时:图片一张没动（没删一半）', imgCount() === 1, '实际 ' + imgCount() + ' 张')
+
+// ─────────── ★ 跨账号：图片库是全设备单库，别人的图绝不能清 ───────────
+// 现状：图片库 huan_zhong_shu_images 不分账号（DB_NAME 是常量），
+// 而百科数据按账号分键（huan_zhong_shu_db@u<id>）。只按当前账号算引用集合，
+// 换个账号删一条条目，上个账号的图就全被当孤儿清掉 —— 那是毁数据，不是留垃圾。
+const imgX = await saveImage(fakeFile('x.png'))
+localStorage.setItem(STORAGE_KEYS.DB + SCOPE_SEP + 'OTHER', JSON.stringify({
+  game: [{
+    id: 'og1', name: '别人的条目', wiki: ref(imgX), creator: '别人', time: '',
+    children: [{ id: 'oc1', name: '子', wiki: ref(imgX), creator: '别人', time: '' }]
+  }],
+  note: [], life: []
+}))
+wiki.importData({ game: [{ id: 'mine', name: '我的条目', wiki: '', creator: '刘', time: '' }], note: [], life: [] })
+await wiki.deleteItem('game', 'mine')
+ok('跨账号:另一个账号引用着的图必须活下来', imgKeys().includes(imgX), JSON.stringify(imgKeys()))
+ok('跨账号:全设备都没人引用的图才清得掉（imgF 无人引用 → 该清）', !imgKeys().includes(imgF), JSON.stringify(imgKeys()))
+ok('跨账号:这一轮只留下了别人的那张图', imgKeys().length === 1, JSON.stringify(imgKeys()))
+
+// 有账号数据读不出来 → 读不全就不敢判定谁是孤儿，整轮放弃（宁可不清，不可错杀）
+const imgY = await saveImage(fakeFile('y.png'))
+localStorage.setItem(STORAGE_KEYS.DB + SCOPE_SEP + 'BROKEN', '{"game":[{"id":"坏')
+wiki.importData({ game: [{ id: 'mine2', name: '我的条目2', wiki: '', creator: '刘', time: '' }], note: [], life: [] })
+const rBad = await wiki.deleteItem('game', 'mine2')
+ok('跨账号:有一份账号数据读不出来 → 整轮放弃回收', rBad.refused === true && /读不出来/.test(rBad.reason || ''), JSON.stringify(rBad))
+ok('跨账号:放弃回收时一张图都没动', imgKeys().includes(imgX) && imgKeys().includes(imgY), JSON.stringify(imgKeys()))
+
+// 当前账号那一份必须取内存：localStorage 由 useLocalStorage 的 watch 异步落盘，
+// 刚删完这一瞬间它还是旧的 —— 照它算，等于「刚删掉的条目还引用着自己的图」，永远清不掉
+localStorage.removeItem(STORAGE_KEYS.DB + SCOPE_SEP + 'BROKEN')
+const imgZ = await saveImage(fakeFile('z.png'))
+const myDB = { game: [{ id: 'mz', name: '带图', wiki: ref(imgZ), creator: '刘', time: '' }], note: [], life: [] }
+wiki.importData(JSON.parse(JSON.stringify(myDB)))
+localStorage.setItem(scopeKey(STORAGE_KEYS.DB), JSON.stringify(myDB))   // 钉住「旧快照」
+await wiki.deleteItem('game', 'mz')
+ok('当前账号:以内存为准 —— localStorage 那份还是旧快照也必须清掉', !imgKeys().includes(imgZ), JSON.stringify(imgKeys()))
+ok('当前账号:别人的图在这一轮依然没被牵连', imgKeys().includes(imgX), JSON.stringify(imgKeys()))
 
 // ─────────── 汇总 ───────────
 let pass = 0
