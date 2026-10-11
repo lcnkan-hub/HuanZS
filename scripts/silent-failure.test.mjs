@@ -126,6 +126,40 @@ ok('行为: 救援提示只弹一次（多键同时损坏不连环弹窗）', ()
 })
 
 // ─────────────────────────────────────────────────────────────
+console.log('\n═══ A05 · 硬规则不得与注入正文糊成一层 ═══')
+// 缺陷原貌：extraSystemNote（记忆正文 / 百科正文 / 节奏指令）直接拼在 SYSTEM_PROMPT 后面，
+// 三段之间与硬规则之间都没有分隔标记 —— 规则被长正文稀释，或反被当成"资料之外的指令"读。
+// 这条用例直接拦截真实发出的那条 system 消息，验的是"实际发出去的样子"，不是源码。
+const { useAIConfig } = await import('../src/composables/useApiKey.js')
+const { ask } = useChatAI()
+const realFetch = globalThis.fetch
+
+await okAsync('行为: 硬规则在前、注入内容有边界、且写明不得覆盖规则', async () => {
+  reset()
+  const { config } = useAIConfig()
+  const savedConfig = config.value
+  config.value = { provider: 'deepseek', apiKey: 'test-key', savedAt: '' }
+  let sent = null
+  globalThis.fetch = async (_url, init) => {
+    sent = JSON.parse(init.body)
+    return { ok: true, json: async () => ({ choices: [{ message: { content: '好' } }] }) }
+  }
+  try {
+    await ask([{ role: 'user', content: '在吗' }], '【用户自己记下的内容】王冠是猫')
+    const sys = sent.messages.find(m => m.role === 'system').content
+    const rules = sys.indexOf('必须遵守的硬规则')
+    const note = sys.indexOf('王冠是猫')
+    assert.ok(rules > -1 && note > -1, '系统消息里应同时有硬规则与注入正文')
+    assert.ok(note > rules, '注入正文必须排在硬规则之后')
+    assert.ok(sys.includes('附加内容'), '注入内容必须有明确的边界标记')
+    assert.match(sys, /不能削弱|不能改变|不改变上面的规则/, '必须写明注入内容不能覆盖硬规则')
+  } finally {
+    globalThis.fetch = realFetch
+    config.value = savedConfig
+  }
+})
+
+// ─────────────────────────────────────────────────────────────
 console.log('\n' + '═'.repeat(30))
 console.log(`结果: ${passCount} 通过 / ${failCount} 失败 / 共 ${passCount + failCount}`)
 if (failCount) {
