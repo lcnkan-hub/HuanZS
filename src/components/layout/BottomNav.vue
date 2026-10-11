@@ -47,5 +47,5 @@ const navItems = NAV_ITEMS
   min-height: 44px;
 }
 .nav-item.active { color: var(--color-accent); }
-.nav-text { font-size: 10px; font-weight: 500; }
+.nav-text { font-size: var(--text-10); font-weight: 500; }
 </style>

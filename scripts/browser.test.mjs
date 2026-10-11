@@ -239,6 +239,154 @@ await ok('「返回」仍能回列表（离场通道没被堵死）', async () =
   must(!r.editor && r.list, '返回应回到子词条列表')
 })
 
+// ═══ 移动端适配 · 375px ═══
+// 两条验收：窄屏不横向溢出、可点控件真的够得着。
+// 为什么不写进 check-ui.mjs：命中区是**布局算出来的**。静态读 CSS 只读得到"写了 32px"，
+// 读不到 ::after 外扩了多少，更读不到外扩的部分有没有被祖先的 overflow 裁掉
+// （缩略图那个 ✕ 就正是被裁掉的那种）。
+//
+// 量法用「探点」而不是去解析 ::after 的 computed 值：abspos 伪元素的 top/bottom
+// 回传的是 used value，算出来的盒子会离谱（第一版就量到过 -750）。探点问的是浏览器
+// 本人：从这个控件的中心往上/往下走，elementFromPoint 认不认它 —— 外扩出来的面积
+// 只要真的点得到，就一定认；被祖先裁掉的，就一定不认。
+console.log('\n═══ 移动端适配（375×667）═══')
+await cmd('Emulation.setDeviceMetricsOverride', {
+  width: 375, height: 667, deviceScaleFactor: 2, mobile: true
+})
+
+// 候选"可点件"取两路的并集：
+//   · 语义选择器 —— button / role=switch / 各类 btn、chip / 几个 div 当按钮用的
+//   · cursor:pointer —— 这一路不用维护清单。Vue 的 @click 挂在 div 上时 DOM 里看不出来，
+//     但作者一定会给它 cursor:pointer，所以"像可点的东西"就等于"是可点的东西"。
+// 然后只留最外层的那个：cursor 是**继承**属性，父级可点则其下每个 svg、span 都算
+// pointer，真正该够得着的是父级这一整块，子级不该单独计数。
+const HIT_AUDIT = `
+window.__hitH = function (el) {
+  var r = el.getBoundingClientRect()
+  var x = Math.round(r.left + r.width / 2)
+  var up = 0, down = 0
+  if (x >= 0 && x < window.innerWidth) {
+    function mine(y) {
+      if (y < 0 || y > window.innerHeight - 1) return false
+      var t = document.elementFromPoint(x, y)
+      return !!t && (t === el || el.contains(t))
+    }
+    for (var y1 = Math.ceil(r.top) - 1; up < 30; y1--) { if (!mine(y1)) break; up++ }
+    for (var y2 = Math.floor(r.bottom); down < 30; y2++) { if (!mine(y2)) break; down++ }
+  }
+  // 拆开回三个数：本体多高 + 上/下各探到几像素。只报一个总数的话，
+  // 44 而量到 42 时分不清是"外扩不够"还是"外扩被什么压住了"。
+  return { box: Math.round(r.height), up: up, down: down, h: r.height + up + down }
+}
+window.__audit = function () {
+  var SEL = 'button, [role="switch"], a[href], [class*="btn"], [class*="chip"], ' +
+            '.nav-item, .data-card, .child-card, .provider-item, .avatar-option'
+  var set = new Set()
+  document.querySelectorAll(SEL).forEach(function (e) { set.add(e) })
+  document.querySelectorAll('body *').forEach(function (e) {
+    if (getComputedStyle(e).cursor === 'pointer') set.add(e)
+  })
+  var small = []
+  set.forEach(function (el) {
+    for (var p = el.parentElement; p; p = p.parentElement) if (set.has(p)) return
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') return
+    var r = el.getBoundingClientRect()
+    if (r.width === 0 || r.height === 0) return
+    if (getComputedStyle(el).visibility === 'hidden') return
+    if (r.bottom < 0 || r.top > window.innerHeight) return
+    var m = window.__hitH(el)
+    if (m.h < 43.5) {
+      small.push({
+        cls: String(el.getAttribute('class') || el.tagName).slice(0, 36),
+        text: (el.textContent || '').trim().slice(0, 10),
+        h: Math.round(m.h * 10) / 10,
+        why: m.box + '+' + m.up + '+' + m.down
+      })
+    }
+  })
+  return {
+    innerW: window.innerWidth,
+    scrollW: document.documentElement.scrollWidth,
+    over: [].slice.call(document.querySelectorAll('body *')).filter(function (e) {
+      var r = e.getBoundingClientRect()
+      return r.right > window.innerWidth + 1
+    }).map(function (e) {
+      return String(e.getAttribute('class') || e.tagName).slice(0, 30)
+    }).slice(0, 6),
+    small: small.slice(0, 10),
+    smallTotal: small.length
+  }
+}`
+
+const audit = () => ev(HIT_AUDIT + '; window.__audit()')
+
+/** 量当前这一屏：横向不许溢出，可点件不许矮于 44 */
+async function mustFit() {
+  const r = await audit()
+  must(r.innerW === 375, `视口没切到 375（实际 ${r.innerW}），这一屏的量测不算数`)
+  if (r.scrollW > r.innerW + 1) {
+    throw new Error(`横向溢出：scrollWidth ${r.scrollW} > 375；越界元素 ${r.over.join(' / ') || '(取不到)'}`)
+  }
+  if (r.smallTotal) {
+    throw new Error(`命中区高度不足 44 的控件 ${r.smallTotal} 个：` +
+      r.small.map(s => `${s.cls || s.text}${s.text ? '/' + s.text : ''}=${s.h}(${s.why})`).join('、'))
+  }
+}
+
+/** 切到某屏 → 等它到位 → 量一遍
+    settle 要留够入场/切页动画（王冠页还有一层入场编排），否则量到的是一堆还没落位的盒子 */
+async function screen(name, gotoExpr, readyExpr, settle = 500) {
+  await ok(name, async () => {
+    if (gotoExpr) await ev(gotoExpr)
+    must(await waitFor(readyExpr, 8000), `没进到目标界面：${readyExpr}`)
+    await sleep(settle)
+    await mustFit()
+  })
+}
+
+const NAV = (t) => `[...document.querySelectorAll('.nav-item')].find(n => n.textContent.includes('${t}')).click()`
+
+await ok('先退出详情页（底栏被详情页盖着点不到）', async () => {
+  await ev(`document.querySelector('.back-link-btn').click()`)
+  must(await waitFor(`!document.querySelector('.detail-page-wrapper')`, 5000), '没退出详情页')
+})
+
+await screen('游戏列表', NAV('游戏'), `!!document.querySelector('.data-card')`)
+await screen('主词条详情', `document.querySelector('.data-card').click()`, `!!document.querySelector('.child-card')`)
+await screen('子词条编辑器（阅读态）', `document.querySelector('.child-card').click()`, `!!document.querySelector('.sub-editor-wrapper')`)
+await ok('编辑器切成编辑态 → 量工具条与输入区', async () => {
+  await ev(`[...document.querySelectorAll('.state-toggle-btn')].find(b => /编辑/.test(b.textContent)).click()`)
+  must(await waitFor(`!!document.querySelector('.markdown-textarea')`, 5000), '没进到编辑态')
+  await sleep(400)
+  await mustFit()
+})
+await ok('退出编辑器与详情（连按两次返回）', async () => {
+  await ev(`document.querySelector('.back-link-btn').click()`)
+  must(await waitFor(`!document.querySelector('.sub-editor-wrapper')`, 5000), '没退出编辑器')
+  await ev(`document.querySelector('.back-link-btn').click()`)
+  must(await waitFor(`!document.querySelector('.detail-page-wrapper')`, 5000), '没退出详情页')
+})
+await screen('「我的」页', NAV('我的'), `!!document.querySelector('.account-card')`)
+await screen('王冠聊天页（含底部输入栏）', NAV('王冠'), `!!document.querySelector('.chat-container')`, 2500)
+await ok('打开修改资料弹窗 → 量头像格与动作键', async () => {
+  // 王冠 Tab 是故意藏底栏的（聊天有自己的输入栏），所以从它自己的返回键出去，
+  // 回到进王冠之前那个 Tab（这时是「我的」）
+  await ev(`document.querySelector('.back-btn').click()`)
+  must(await waitFor(`!!document.querySelector('.edit-data-trigger-btn')`, 6000), '王冠返回后没回到「我的」页')
+  await ev(`document.querySelector('.edit-data-trigger-btn').click()`)
+  must(await waitFor(`!!document.querySelector('.avatar-option')`, 5000), '弹窗没打开')
+  await sleep(400)
+  await mustFit()
+})
+await ok('关闭弹窗 → 退出登录 → 登录页也在 375 下过一遍', async () => {
+  await ev(`document.querySelector('.cancel-btn').click()`)
+  must(await waitFor(`!document.querySelector('.avatar-option')`, 5000), '弹窗没关掉')
+  await ev(`document.querySelector('.acc-btn.danger').click()`)
+  must(await waitFor(`!!document.querySelector('.auth-wrap')`, 10000), '退出登录后没回到登录页')
+  await sleep(700)
+  await mustFit()
+})
+
 console.log('\n' + '═'.repeat(30))
 console.log(`结果: ${pass} 通过 / ${fail} 失败 / 共 ${pass + fail}`)
 if (fail) for (const [n, m] of bad) console.log(`  ✗ ${n}\n    ${m}`)

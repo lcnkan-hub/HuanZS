@@ -38,12 +38,12 @@ onMounted(() => {
 }
 .splash-content { text-align: center; }
 .splash-text {
-  font-size: 32px; font-weight: 800; color: var(--color-text-primary); margin-bottom: 12px;
+  font-size: var(--text-32); font-weight: 800; color: var(--color-text-primary); margin-bottom: 12px;
   letter-spacing: -0.5px;
   animation: splashPopIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .splash-sub {
-  font-size: 15px; color: var(--color-text-muted); margin-bottom: 30px; opacity: 0;
+  font-size: var(--text-15); color: var(--color-text-muted); margin-bottom: 30px; opacity: 0;
   animation: fadeInSub 0.6s ease-out 0.4s forwards;
 }
 .splash-loader {

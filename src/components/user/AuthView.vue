@@ -173,16 +173,16 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
   display: flex; align-items: center; justify-content: center;
   border-radius: 18px;
   background: linear-gradient(135deg, #1d1d1f, #3a3a3c);
-  color: #fff;
+  color: var(--color-text-on-dark);
 }
-.brand-name { font-size: 21px; font-weight: 600; color: var(--color-text-primary); letter-spacing: 0.02em; }
-.brand-sub  { font-size: 13px; color: var(--color-text-muted); margin-top: 4px; }
+.brand-name { font-size: var(--text-22); font-weight: 600; color: var(--color-text-primary); letter-spacing: 0.02em; }
+.brand-sub  { font-size: var(--text-13); color: var(--color-text-muted); margin-top: 4px; }
 
 /* ---- 已有账号 chips ---- */
 .auth-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 6px 11px; font-size: 12.5px;
+  padding: 6px 11px; min-height: 44px; font-size: var(--text-13);
   border: 1px solid var(--color-border); border-radius: 999px;
   background: var(--color-bg-subtle); color: var(--color-text-secondary);
   cursor: pointer; font-family: var(--font-system);
@@ -194,12 +194,12 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 /* ---- 表单 ---- */
 .auth-form { display: flex; flex-direction: column; gap: 13px; }
 .auth-field { display: flex; flex-direction: column; gap: 6px; }
-.field-label { font-size: 12.5px; font-weight: 500; color: var(--color-text-secondary); }
+.field-label { font-size: var(--text-13); font-weight: 500; color: var(--color-text-secondary); }
 .field-input {
-  height: 42px; padding: 0 13px;
+  height: 44px; padding: 0 13px;
   border: 1px solid var(--color-border-input); border-radius: var(--radius-lg);
   background: var(--color-bg-input); color: var(--color-text-primary);
-  font-size: 15px; font-family: var(--font-system);
+  font-size: var(--text-15); font-family: var(--font-system);
   transition: border-color 0.2s, background 0.2s;
   -webkit-appearance: none; appearance: none;
 }
@@ -208,7 +208,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 
 .auth-error, .auth-ok {
   display: flex; align-items: flex-start; gap: 6px;
-  font-size: 12.5px; line-height: 1.5;
+  font-size: var(--text-13); line-height: 1.5;
 }
 .auth-error { color: var(--color-danger); }
 .auth-ok    { color: var(--color-success); }
@@ -216,8 +216,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 .auth-submit {
   height: 44px; margin-top: 3px;
   border: none; border-radius: var(--radius-lg);
-  background: var(--color-accent); color: #fff;
-  font-size: 15px; font-weight: 500; font-family: var(--font-system);
+  background: var(--color-accent); color: var(--color-text-on-accent);
+  font-size: var(--text-15); font-weight: 500; font-family: var(--font-system);
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1.0), opacity 0.2s;
 }
@@ -227,12 +227,14 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 /* ---- 切换 ---- */
 .auth-switch {
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  margin-top: 16px; font-size: 13px; color: var(--color-text-muted);
+  margin-top: 16px; font-size: var(--text-13); color: var(--color-text-muted);
 }
+/* 纯文字链接只有一行高（约 18）。视觉不动 —— 留白是这页的设计 —— 只把盒子撑到 44 */
 .link-btn {
   border: none; background: none; padding: 0;
-  color: var(--color-accent); font-size: 13px; font-family: var(--font-system);
+  color: var(--color-accent); font-size: var(--text-13); font-family: var(--font-system);
   cursor: pointer;
+  min-height: 44px; display: inline-flex; align-items: center;
 }
 .link-btn:disabled { opacity: 0.5; }
 
@@ -241,6 +243,6 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
   display: flex; align-items: flex-start; gap: 7px;
   margin-top: 18px; padding-top: 14px;
   border-top: 1px solid var(--color-border-light);
-  font-size: 11.5px; line-height: 1.65; color: var(--color-text-muted);
+  font-size: var(--text-12); line-height: 1.65; color: var(--color-text-muted);
 }
 </style>

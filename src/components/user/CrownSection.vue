@@ -78,7 +78,7 @@ function toggle() {
 .crown-section { margin-top: 22px; }
 .crown-section h3 {
   display: flex; align-items: center; gap: 7px;
-  font-size: 13px; font-weight: 600; color: var(--color-text-secondary);
+  font-size: var(--text-13); font-weight: 600; color: var(--color-text-secondary);
   margin-bottom: 10px;
 }
 
@@ -92,11 +92,11 @@ function toggle() {
 
 .crown-row { display: flex; align-items: center; gap: 11px; }
 .crown-info { flex: 1; min-width: 0; }
-.crown-name { font-size: 15px; font-weight: 600; color: var(--color-text-primary); }
-.crown-meta { font-size: 11.5px; color: var(--color-text-muted); margin-top: 2px; }
+.crown-name { font-size: var(--text-15); font-weight: 600; color: var(--color-text-primary); }
+.crown-meta { font-size: var(--text-12); color: var(--color-text-muted); margin-top: 2px; }
 
 .crown-note {
-  margin-top: 11px; font-size: 11.5px; line-height: 1.65; color: var(--color-text-muted);
+  margin-top: 11px; font-size: var(--text-12); line-height: 1.65; color: var(--color-text-muted);
 }
 
 /* 密钥那一行：与开关同卡，用一条浅分隔线分成「行为 / 燃料」两段 */
@@ -105,23 +105,28 @@ function toggle() {
   border-top: 1px solid var(--color-border-light);
 }
 .row-link {
-  flex: 0 0 auto; background: none; border: none; padding: 4px 2px;
-  font-size: 12.5px; font-weight: 500; color: var(--color-accent); cursor: pointer;
+  flex: 0 0 auto; background: none; border: none; padding: 0; min-height: 44px;
+  display: flex; align-items: center;
+  font-size: var(--text-13); font-weight: 500; color: var(--color-accent); cursor: pointer;
 }
 .row-link:active { opacity: 0.55; }
 
-/* 开关：46 = 2(内边距) + 23(滑块) + 19(行程) + 2(内边距) */
+/* 开关：46 = 2(内边距) + 23(滑块) + 19(行程) + 2(内边距)
+   触控目标 44：46×27 正是开关该有的样子，改高度就不像开关了 —— 靠外扩命中区补到 44。
+   横向只放 2px：右边是卡片边距，左边挨着 .crown-info 的正文，多放会盖住文字。 */
 .switch {
   flex: 0 0 auto; width: 46px; height: 27px; padding: 2px;
+  position: relative;
   display: flex; align-items: center;
   border: none; border-radius: 999px;
   background: var(--color-border-input);
   cursor: pointer; transition: background 0.2s;
 }
 .switch.on { background: var(--color-success); } /* 与 AI 连通测试的「成功」同一个绿 */
+.switch::after { content: ''; position: absolute; inset: -9px -2px; }
 .knob {
   width: 23px; height: 23px; border-radius: 50%;
-  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  background: var(--color-bg-card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1.0);
 }
 .switch.on .knob { transform: translateX(19px); }

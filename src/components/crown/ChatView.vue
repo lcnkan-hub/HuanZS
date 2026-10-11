@@ -332,11 +332,14 @@ function formatTime(timeStr) {
 .back-btn:active {
   transform: scale(0.95);
 }
-/* 触控目标扩展 ≥44px */
+/* 触控目标扩展 ≥44px。
+   注意 inset 是相对**父级的 padding box** 算的，不含 border —— 这颗钮有 1px 描边，
+   所以 -5px 实际只越过可视外沿 4px，34 的圆扩出来是 42，差的正是那一条边框。
+   要凑够 44（34+5+5）这里得写 -6px。真浏览器探点验过：34+5+5=44。 */
 .back-btn::after {
   content: '';
   position: absolute;
-  inset: -5px;
+  inset: -6px;
 }
 /* 左向箭头光学纠偏：几何居中会显得偏左，右移 1px 视觉才正 */
 .back-btn :deep(.app-icon) {
@@ -361,7 +364,7 @@ function formatTime(timeStr) {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--text-12);
   cursor: pointer;
   box-shadow: var(--shadow-card);
   transition: transform 0.15s ease-out, opacity 0.2s ease;
@@ -381,7 +384,7 @@ function formatTime(timeStr) {
   gap: 2px;
 }
 .memory-count {
-  font-size: 13px;
+  font-size: var(--text-13);
   color: var(--color-accent);
   font-variant-numeric: tabular-nums;
 }
@@ -464,7 +467,7 @@ function formatTime(timeStr) {
   padding: 10px 14px;
   border-radius: 18px;
   line-height: 1.5;
-  font-size: 14px;
+  font-size: var(--text-14);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -476,14 +479,14 @@ function formatTime(timeStr) {
 }
 .bubble.user {
   background: var(--color-accent);
-  color: white;
+  color: var(--color-text-on-accent);
   border-bottom-right-radius: 6px;
   text-align: left;
 }
 
 /* ===== 时间戳 ===== */
 .msg-time {
-  font-size: 10px;
+  font-size: var(--text-10);
   color: var(--color-text-muted);
   padding: 0 4px;
 }
@@ -514,13 +517,13 @@ function formatTime(timeStr) {
 }
 .empty-title {
   margin: 0;
-  font-size: 17px;
+  font-size: var(--text-17);
   font-weight: 600;
   color: var(--color-text-primary);
 }
 .empty-text {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-14);
   line-height: 1.6;
   color: var(--color-text-muted);
 }
@@ -531,8 +534,8 @@ function formatTime(timeStr) {
   border: none;
   border-radius: 999px;
   background: var(--color-accent);
-  color: #ffffff;
-  font-size: 14px;
+  color: var(--color-text-on-accent);
+  font-size: var(--text-14);
   font-weight: 500;
   cursor: pointer;
   transition: transform 0.15s ease-out, opacity 0.2s ease;
@@ -571,7 +574,7 @@ function formatTime(timeStr) {
   border: none;
   outline: none;
   background: transparent;
-  font-size: 15px;
+  font-size: var(--text-15);
   color: var(--color-text-primary);
   font-family: var(--font-system);
   line-height: 1.4;
@@ -583,6 +586,7 @@ function formatTime(timeStr) {
 
 .send-btn {
   width: 32px; height: 32px;
+  position: relative; /* ::after 命中区外扩的定位基准 */
   border: none;
   border-radius: 50%;
   background: var(--color-bg-input);
@@ -598,9 +602,16 @@ function formatTime(timeStr) {
 .send-btn:disabled {
   opacity: 0.5;
 }
+/* 触控目标 44px：外框 32 是设计定稿（iMessage 同款比例），靠命中区补到 44。
+   往左多出的 6px 会压到输入框右沿约 2px —— 可接受，比"发送键点不中"划算。 */
+.send-btn::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
 .send-btn.active {
   background: var(--color-accent);
-  color: white;
+  color: var(--color-text-on-accent);
   cursor: pointer;
 }
 .send-btn.active:active {
@@ -609,6 +620,7 @@ function formatTime(timeStr) {
 
 .clear-btn {
   width: 36px; height: 36px;
+  position: relative; /* ::after 命中区外扩的定位基准 */
   border: none;
   border-radius: 50%;
   background: transparent;
@@ -623,6 +635,12 @@ function formatTime(timeStr) {
 .clear-btn:active {
   background: var(--color-danger-bg);
   color: var(--color-danger);
+}
+/* 触控目标 44px：36 + 左右各 4 = 44 */
+.clear-btn::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
 }
 
 /* ===== 王冠正在输入…（三个跳动圆点） ===== */
@@ -660,21 +678,28 @@ function formatTime(timeStr) {
   background: var(--color-bg-card);
   box-shadow: var(--shadow-card);
 }
-.setup-text { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; }
+.setup-text { font-size: var(--text-12); color: var(--color-text-secondary); line-height: 1.5; }
 .setup-btn {
   flex-shrink: 0; border: none; border-radius: var(--radius-md);
-  padding: 6px 12px; font-size: 12px; font-weight: 500;
-  background: var(--color-accent); color: white; cursor: pointer;
+  padding: 6px 12px; font-size: var(--text-12); font-weight: 500;
+  background: var(--color-accent); color: var(--color-text-on-accent); cursor: pointer;
   transition: transform 0.15s ease-out;
+  position: relative; /* ::after 命中区外扩的定位基准 */
 }
 .setup-btn:active { transform: scale(0.96); }
+/* 触控目标 44px：文字按钮本身只有约 27 高，命中区上下各补 9 —— 提示条内边距正好 10，不外溢 */
+.setup-btn::after {
+  content: '';
+  position: absolute;
+  inset: -9px -6px;
+}
 
 /* ===== 错误提示 ===== */
 .error-hint {
   position: relative;
   z-index: 1;
   padding: 6px 12px;
-  font-size: 12px;
+  font-size: var(--text-12);
   color: var(--color-danger);
   text-align: center;
   background: var(--color-danger-bg);

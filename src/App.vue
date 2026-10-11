@@ -323,10 +323,10 @@ const handleProfileUpdate = (updatedData) => {
 .modal-input {
   width: 100%; border: 1px solid var(--color-border);
   background: var(--color-bg-modal); border-radius: var(--radius-md);
-  padding: 10px 12px; box-sizing: border-box; font-size: 14px;
+  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
 }
-.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
-.save-btn   { background: var(--color-accent); color: white; border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
+.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; }
+.save-btn   { background: var(--color-accent); color: var(--color-text-on-accent); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; }
 
 /* ===== 页面叠层容器 ===== */
 .page-stack {

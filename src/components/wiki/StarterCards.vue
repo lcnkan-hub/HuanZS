@@ -39,7 +39,7 @@ defineEmits(['ask', 'open-backup'])
 <style scoped>
 .starter { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
 .starter-lead {
-  margin: 0 0 2px 0; font-size: 13px; line-height: 1.6;
+  margin: 0 0 2px 0; font-size: var(--text-13); line-height: 1.6;
   color: var(--color-text-muted);
 }
 .starter-card {
@@ -55,14 +55,14 @@ defineEmits(['ask', 'open-backup'])
    于是整条 color 声明被丢弃、颜色一路继承到 <button> 的浏览器默认值。
    因为默认值和 --color-text-primary(#1d1d1f) 本来就几乎一样，视觉上看不出来，
    属于典型的「静默失败」：写错了但没人会知道。 */
-.starter-q { font-size: 15px; font-weight: 500; color: var(--color-text-primary); }
-.starter-where { font-size: 12px; color: var(--color-text-muted); }
+.starter-q { font-size: var(--text-15); font-weight: 500; color: var(--color-text-primary); }
+.starter-where { font-size: var(--text-12); color: var(--color-text-muted); }
 
 .starter-import {
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  margin-top: 6px; padding: 10px; width: 100%;
+  margin-top: 6px; padding: 10px; min-height: 44px; width: 100%;
   background: none; border: none; cursor: pointer;
-  font-size: 13px; color: var(--color-text-muted);
+  font-size: var(--text-13); color: var(--color-text-muted);
 }
 .starter-import:active { opacity: 0.6; }
 

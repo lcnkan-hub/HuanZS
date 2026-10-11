@@ -170,20 +170,22 @@ const handleChildDelete = () => {
   padding: 0 16px; background: var(--color-bg-card);
   -webkit-user-select: none; user-select: none;
 }
+/* 顶部栏里的三个可点件统一撑到 44 高：栏本身 55，够放，不必靠外扩命中区 */
 .back-link-btn {
   background: none; border: none; color: var(--color-accent);
-  font-size: 15px; font-weight: 500; cursor: pointer; padding: 5px 0;
+  font-size: var(--text-15); font-weight: 500; cursor: pointer; padding: 0;
+  min-height: 44px;
   display: flex; align-items: center; gap: 4px;
 }
 .detail-page-title {
-  font-size: 16px; font-weight: 600; color: var(--color-text-primary);
+  font-size: var(--text-16); font-weight: 600; color: var(--color-text-primary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 38%;
   display: flex; align-items: center; gap: 4px;
 }
 .add-child-btn {
-  background-color: var(--color-accent); color: white;
-  border: none; border-radius: var(--radius-md); padding: 6px 14px;
-  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  background-color: var(--color-accent); color: var(--color-text-on-accent);
+  border: none; border-radius: var(--radius-md); padding: 6px 14px; min-height: 44px;
+  font-size: var(--text-13); font-weight: 600; cursor: pointer; transition: all 0.2s;
   white-space: nowrap; display: flex; align-items: center; gap: 4px;
 }
 .add-child-btn:active { opacity: 0.8; }
@@ -194,17 +196,17 @@ const handleChildDelete = () => {
 }
 .meta-info-strip {
   display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-  font-size: 11px; color: var(--color-text-muted); margin-bottom: 20px;
+  font-size: var(--text-11); color: var(--color-text-muted); margin-bottom: 20px;
   padding-bottom: 12px; border-bottom: 1px dashed var(--color-border-input);
 }
 .meta-badge {
   background-color: var(--color-bg-input); color: var(--color-text-secondary);
-  font-weight: 600; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 11px;
+  font-weight: 600; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-11);
   display: flex; align-items: center; gap: 3px;
 }
 .meta-count {
   background-color: var(--color-toolbar-blue-bg); color: var(--color-markdown-blue);
-  font-weight: 500; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 11px;
+  font-weight: 500; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-11);
   margin-left: auto; display: flex; align-items: center; gap: 3px;
 }
 .meta-author, .meta-time {
@@ -217,7 +219,7 @@ const handleChildDelete = () => {
 }
 .empty-tip {
   text-align: center; color: var(--color-text-muted);
-  margin-top: 40px; font-size: 14px; line-height: 1.6;
+  margin-top: 40px; font-size: var(--text-14); line-height: 1.6;
 }
 .child-card {
   background: var(--color-bg-primary); border-radius: var(--radius-lg);
@@ -230,19 +232,19 @@ const handleChildDelete = () => {
 .child-card:active { transform: scale(0.98); box-shadow: none; }
 .child-card-left { display: flex; flex-direction: column; gap: 4px; overflow: hidden; }
 .child-name {
-  font-size: 15px; font-weight: 600; color: var(--color-text-primary);
+  font-size: var(--text-15); font-weight: 600; color: var(--color-text-primary);
   display: flex; align-items: center; gap: 4px;
 }
 .child-meta {
-  display: flex; gap: 10px; font-size: 11px; color: var(--color-text-muted);
+  display: flex; gap: 10px; font-size: var(--text-11); color: var(--color-text-muted);
   align-items: center; flex-wrap: wrap;
 }
 .child-meta span {
   display: flex; align-items: center; gap: 2px;
 }
 .child-has-content {
-  background-color: #e8f5e9; color: #2e7d32;
-  padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 500;
+  background-color: var(--color-success-bg); color: var(--color-success-deep);
+  padding: 1px 6px; border-radius: 4px; font-size: var(--text-10); font-weight: 500;
   display: flex; align-items: center; gap: 2px;
 }
 .child-arrow { color: #c7c7cc; flex-shrink: 0; }
@@ -254,25 +256,26 @@ const handleChildDelete = () => {
   align-items: center; z-index: 999; backdrop-filter: blur(2px);
 }
 .modal-box {
-  background: white; border-radius: var(--radius-3xl, 16px);
+  background: var(--color-bg-card); border-radius: var(--radius-3xl);
   width: 85%; max-width: 340px; padding: 22px;
   box-shadow: var(--shadow-modal);
   animation: popModal 0.25s var(--ease-pop);
 }
 .modal-box h3 {
-  margin-top: 0; margin-bottom: 18px; font-size: 18px;
+  margin-top: 0; margin-bottom: 18px; font-size: var(--text-18);
   text-align: center; font-weight: 600;
 }
 .modal-input {
   width: 100%; border: 1px solid var(--color-border);
   background: var(--color-bg-modal); border-radius: var(--radius-md);
-  padding: 10px 12px; box-sizing: border-box; font-size: 14px;
+  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
 }
 .modal-actions {
   display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;
 }
-.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
-.save-btn   { background: var(--color-accent); color: white; border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; cursor: pointer; }
+/* 弹窗动作键：9px 上下内边距 + 14px 字 ≈ 35 高，撑到 44 才够指腹 */
+.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.save-btn   { background: var(--color-accent); color: var(--color-text-on-accent); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
 
 @keyframes slideInPage { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes cardFadeIn {
