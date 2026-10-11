@@ -32,27 +32,27 @@ onMounted(() => {
 <style scoped>
 .splash-screen {
   position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-  background-color: #ffffff; display: flex; justify-content: center;
+  background-color: var(--color-bg-card); display: flex; justify-content: center;
   align-items: center; z-index: 99999;
   animation: fadeOutScreen 0.4s cubic-bezier(0.25, 1, 0.5, 1) 1.6s forwards;
 }
 .splash-content { text-align: center; }
 .splash-text {
-  font-size: 32px; font-weight: 800; color: #1d1d1f; margin-bottom: 12px;
+  font-size: 32px; font-weight: 800; color: var(--color-text-primary); margin-bottom: 12px;
   letter-spacing: -0.5px;
   animation: splashPopIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 .splash-sub {
-  font-size: 15px; color: #8e8e93; margin-bottom: 30px; opacity: 0;
+  font-size: 15px; color: var(--color-text-muted); margin-bottom: 30px; opacity: 0;
   animation: fadeInSub 0.6s ease-out 0.4s forwards;
 }
 .splash-loader {
-  width: 140px; height: 3px; background: #f2f2f7; border-radius: 2px;
+  width: 140px; height: 3px; background: var(--color-border-light); border-radius: 2px;
   margin: 0 auto; position: relative; overflow: hidden;
 }
 .splash-loader::after {
   content: ''; position: absolute; left: 0; top: 0; height: 100%;
-  width: 40%; background: #007aff; border-radius: 2px;
+  width: 40%; background: var(--color-accent); border-radius: 2px;
   animation: loadingBar 1.6s ease-in-out infinite;
 }
 @keyframes splashPopIn {

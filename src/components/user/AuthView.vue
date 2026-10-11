@@ -211,7 +211,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
   font-size: 12.5px; line-height: 1.5;
 }
 .auth-error { color: var(--color-danger); }
-.auth-ok    { color: #34a853; }
+.auth-ok    { color: var(--color-success); }
 
 .auth-submit {
   height: 44px; margin-top: 3px;

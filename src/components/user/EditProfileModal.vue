@@ -77,6 +77,6 @@ const handleSave = () => {
   margin-bottom: 0;
 }
 .modal-input:focus { outline: none; border-color: var(--color-accent); background: white; }
-.cancel-btn { background: var(--color-border-light); color: #515154; }
+.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); }
 .save-btn   { background: var(--color-accent); color: white; }
 </style>

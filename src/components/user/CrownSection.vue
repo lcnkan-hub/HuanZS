@@ -118,7 +118,7 @@ function toggle() {
   background: var(--color-border-input);
   cursor: pointer; transition: background 0.2s;
 }
-.switch.on { background: #2e9e5b; } /* 与 .ai-state.configured 同一个绿 */
+.switch.on { background: var(--color-success); } /* 与 AI 连通测试的「成功」同一个绿 */
 .knob {
   width: 23px; height: 23px; border-radius: 50%;
   background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);

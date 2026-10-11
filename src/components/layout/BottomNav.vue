@@ -42,7 +42,7 @@ const navItems = NAV_ITEMS
 .nav-item {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 3px;
-  cursor: pointer; color: #8e8e93; transition: color 0.2s;
+  cursor: pointer; color: var(--color-text-muted); transition: color 0.2s;
   -webkit-tap-highlight-color: transparent;
   min-height: 44px;
 }

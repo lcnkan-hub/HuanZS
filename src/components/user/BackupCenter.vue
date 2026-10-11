@@ -191,7 +191,7 @@ const handleRestore = async () => {
   display: flex; align-items: flex-start; gap: 6px;
   font-size: 12.5px; line-height: 1.6; margin-top: 2px;
 }
-.bk-msg.ok { color: #34a853; }
+.bk-msg.ok { color: var(--color-success); }
 .bk-msg.error { color: var(--color-danger); }
 
 .bk-note {

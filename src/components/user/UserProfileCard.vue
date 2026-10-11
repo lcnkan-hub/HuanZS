@@ -22,14 +22,14 @@ defineProps({
 
 <style scoped>
 .user-profile-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f9f9fc 100%);
+  background: linear-gradient(135deg, var(--color-bg-card) 0%, #f9f9fc 100%);
   border-radius: var(--radius-3xl); padding: 20px; display: flex;
   align-items: center; gap: 18px;
   box-shadow: var(--shadow-card-md); margin-bottom: 16px;
   border: 1px solid rgba(0,0,0,0.02);
 }
 .user-avatar-circle {
-  width: 62px; height: 62px; background: white; border-radius: 50%;
+  width: 62px; height: 62px; background: var(--color-bg-card); border-radius: 50%;
   display: flex; justify-content: center; align-items: center;
   font-size: 32px; box-shadow: 0 3px 10px rgba(0,0,0,0.06);
 }

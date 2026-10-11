@@ -32,6 +32,11 @@ html, body {
   --color-accent-light:  #f0f4f8;
   --color-danger:        #ff3b30;
   --color-danger-bg:     #ffeef0;
+  /* 成功 / 开启态。原先四处各写各的：#2e9e5b（开关、AI 连通测试）与 #34a853（登录、备份）并存。
+     取深一点的 #2e9e5b：四处里有三处是**文字**，Apple 那颗亮绿 #34C759 当正文对比度不够。 */
+  --color-success:       #2e9e5b;
+  /* 中性按钮文字（取消键）。原先在四个 .cancel-btn 里各硬编码一遍同一个 #515154 */
+  --color-text-neutral:  #515154;
 
   --color-border:        #e5e5e5;
   --color-border-light:  #f2f2f7;
@@ -61,7 +66,9 @@ html, body {
   --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.04);
   --shadow-card-md: 0 4px 14px rgba(0, 0, 0, 0.04);
   --shadow-modal:   0 10px 30px rgba(0, 0, 0, 0.15);
-  --shadow-nav:     0 2px 6px rgba(0, 122, 255, 0.08);
+  /* 原 --shadow-nav 已删：底栏改用 border-top + 半透明底 + 模糊做分层，全库零引用。
+     注意 --radius-2xl 目前也零引用，但它在 sm/md/lg/xl/2xl/3xl 这套完整圆角刻度里 ——
+     删了刻度就缺口，所以留着。 */
 
   /* === 动画 === */
   --ease-out:  cubic-bezier(0.4, 0, 0.2, 1);

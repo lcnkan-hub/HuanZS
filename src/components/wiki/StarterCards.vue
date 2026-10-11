@@ -46,12 +46,16 @@ defineEmits(['ask', 'open-backup'])
   display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
   width: 100%; padding: 14px 16px; text-align: left;
   background: var(--color-bg-card);
-  border: 1px solid var(--color-border, #eee); border-radius: var(--radius-md, 12px);
+  border: 1px solid var(--color-border); border-radius: var(--radius-md);
   cursor: pointer; animation: starterIn 0.32s ease-out both;
   transition: transform 0.16s ease, border-color 0.16s ease;
 }
 .starter-card:active { transform: scale(0.985); }
-.starter-q { font-size: 15px; font-weight: 500; color: var(--color-text); }
+/* 原写的是 var(--color-text) —— 全库没有这个令牌，也没写 fallback，
+   于是整条 color 声明被丢弃、颜色一路继承到 <button> 的浏览器默认值。
+   因为默认值和 --color-text-primary(#1d1d1f) 本来就几乎一样，视觉上看不出来，
+   属于典型的「静默失败」：写错了但没人会知道。 */
+.starter-q { font-size: 15px; font-weight: 500; color: var(--color-text-primary); }
 .starter-where { font-size: 12px; color: var(--color-text-muted); }
 
 .starter-import {
