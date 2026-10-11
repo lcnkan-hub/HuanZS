@@ -1,6 +1,8 @@
 <!--
   创造力足迹积木
   展示累计创建条目数、总字数、分类占比进度条
+  分类明细（各分类几条）不在这里重复：紧邻的 MyItemsEntry（「我创建的」）用同一套三色给出了数字，
+  这里只负责「总量与占比」这一件事（2026-10-11「我的」页重排）
 -->
 <template>
   <div class="footprint-summary-card">
@@ -27,12 +29,8 @@
       <div class="progress-segment note" :style="{ width: getPercentage('note') }" title="笔记"></div>
       <div class="progress-segment life" :style="{ width: getPercentage('life') }" title="生活"></div>
     </div>
-
-    <div v-if="totalCount > 0" class="progress-legend">
-      <span><i class="dot game"></i> 游戏 ({{ getPercentage('game') }})</span>
-      <span><i class="dot note"></i> 笔记 ({{ getPercentage('note') }})</span>
-      <span><i class="dot life"></i> 生活 ({{ getPercentage('life') }})</span>
-    </div>
+    <!-- 分类明细（游戏/笔记/生活 各几条）不在这里重复写一遍 ——
+         紧邻的「我创建的」入口已经用同一套三色点把数字给了出去（2026-10-11「我的」页重排） -->
   </div>
 </template>
 
@@ -89,16 +87,10 @@ const getPercentage = (type) => {
 .metric-label { font-size: 11px; color: var(--color-text-muted); }
 .progress-bar-container {
   height: 8px; border-radius: 4px; overflow: hidden; display: flex;
-  background: var(--color-border-input); margin-bottom: 10px;
+  background: var(--color-border-input);
 }
 .progress-segment { height: 100%; transition: width 0.3s ease; }
 .progress-segment.game { background-color: var(--color-progress-game); }
 .progress-segment.note { background-color: var(--color-progress-note); }
 .progress-segment.life { background-color: var(--color-progress-life); }
-.progress-legend { display: flex; gap: 14px; font-size: 11px; color: #636366; }
-.progress-legend span { display: flex; align-items: center; gap: 4px; }
-.dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
-.dot.game { background-color: var(--color-progress-game); }
-.dot.note { background-color: var(--color-progress-note); }
-.dot.life { background-color: var(--color-progress-life); }
 </style>

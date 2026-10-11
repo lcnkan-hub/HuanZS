@@ -43,17 +43,19 @@
                 :items="filteredItems"
                 :currentUser="profileName"
                 :libraryEmpty="categoryEmpty"
+                :mineOnly="mineOnly"
                 @open-item="(item) => openDetail(item)"
                 @delete-item="(id) => handleDelete(id)"
                 @ask-starter="handleStarterAsk"
                 @open-backup="handleOpenBackup"
+                @clear-mine-only="mineOnly = false"
               />
               <MinePage
                 v-else-if="currentTab === 'mine'"
                 key="mine"
                 :userProfile="userProfile"
                 :dbData="dbData"
-                @open-item="(item, type) => { openDetail(item); currentTab = type }"
+                @jump-category="handleJumpCategory"
                 @save-profile="handleProfileUpdate"
               />
             </div>
@@ -149,9 +151,17 @@ const currentTab     = ref(startTab)
 // 王冠为全屏界面（隐藏底栏），进入前先记住来源 Tab，左上角返回按钮据此决定回哪
 // 首屏就是王冠时这里是初值 'game'：从首屏点返回，落到百科（王冠页没有底栏，返回是唯一出口）
 const lastNonCrownTab = ref('game')
+// 「只看我创建的」（2026-10-11「我的」页 B 档）：只有从「我的」点分类数字跳过来才带上；
+// 手动切 Tab 一律回到全量 —— 否则用户切走了还带着筛选，会莫名其妙少东西。
+const mineOnly = ref(false)
+let jumpMineOnly = false
 watch(currentTab, (val, oldVal) => {
   if (val === 'crown' && oldVal && oldVal !== 'crown') lastNonCrownTab.value = oldVal
   writeLastTab(val)
+  if (val !== oldVal) {
+    mineOnly.value = jumpMineOnly
+    jumpMineOnly = false
+  }
 })
 const searchQueries  = ref({ game: '', note: '', life: '' })
 // 开屏只在「首屏不是王冠」时播（I03 决定 b）：首屏是王冠时，开场交给「灯醒」入场动画。
@@ -173,9 +183,12 @@ const isContentTab   = computed(() => ALL_CATEGORIES.includes(currentTab.value))
 const currentTabName = computed(() => TAB_NAMES[currentTab.value] || '')
 const currentTabIcon = computed(() => TAB_ICONS[currentTab.value] || '')
 
-const filteredItems = computed(() =>
-  wikiData.searchItems(currentTab.value, searchQueries.value[currentTab.value])
-)
+const filteredItems = computed(() => {
+  const list = wikiData.searchItems(currentTab.value, searchQueries.value[currentTab.value])
+  // 只看我创建的：搜索之后再过一道，与「我的」页那个数字入口保持一致（数字是几条，点进去就该看到几条）
+  if (!mineOnly.value) return list
+  return list.filter(item => item.creator === profileName.value)
+})
 
 // 空库开局（I04）：这个分类一条都没有。必须与「搜索过滤后为空」分开 ——
 // 后者用户明明有一堆条目，弹开局卡片是错的（见 wiki/WikiList.vue 的 v-else-if）
@@ -209,6 +222,18 @@ function handleStarterAsk(tab) {
 /** 开局那行「换手机了？从旧手机带进来」→ 去「我的」（备份中心在那儿） */
 function handleOpenBackup() {
   currentTab.value = 'mine'
+}
+
+/**
+ * 「我的」页点分类数字 → 跳到该分类，并只看我创建的（2026-10-11「我的」页 B 档）
+ * 跳过去先清掉那个 Tab 里残留的搜索词：不清的话可能落进「没搜到」的空列表，
+ * 用户会以为自己那些条目丢了。
+ */
+function handleJumpCategory(cat) {
+  if (!ALL_CATEGORIES.includes(cat)) return
+  searchQueries.value[cat] = ''
+  jumpMineOnly = true
+  currentTab.value = cat
 }
 
 /** 王冠返回：回到进入王冠之前所在的 Tab（底栏在王冠页隐藏，这是唯一出口） */
