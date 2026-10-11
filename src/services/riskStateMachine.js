@@ -47,11 +47,19 @@ export function isRecoverySignal(text) {
   return /没事了|已经好多了|已经联系|打过电话|去医院了|有人在陪我|已经安全/i.test(String(text || ''))
 }
 
-/** 由 risk_level 映射目标状态（none 不映射——降级只走衰减/正向信号） */
-function targetStateFromLevel(level) {
+/**
+ * 由 risk_level 映射目标状态（none 不映射——降级只走衰减/正向信号）
+ * 中风险分两档（A03）：首次落在 CONCERN（温和陪伴），已处 CONCERN 再来一次才升 ELEVATED。
+ * 原先 medium 一步跳到 ELEVATED，CONCERN 于是成了没有任何路径能产出的死状态——
+ * 它的陪伴模板与路由分支在生产里全部不可达，而"日常轻度表达"直接吃"我很担心你"。
+ * @param {string} level detect() 的 risk_level
+ * @param {number} prevIdx 当前状态的等级下标（RISK_STATES 内）
+ */
+function targetStateFromLevel(level, prevIdx) {
   switch (level) {
     case 'high': return 'CRITICAL'
-    case 'medium': return 'ELEVATED'
+    case 'medium':
+      return prevIdx >= RISK_STATES.indexOf('CONCERN') ? 'ELEVATED' : 'CONCERN'
     default: return null
   }
 }
@@ -76,7 +84,7 @@ export function update(detection, userText = '') {
       reason = 'recovery_signal_confirmed'
     }
   } else {
-    const target = targetStateFromLevel(detection?.risk_level)
+    const target = targetStateFromLevel(detection?.risk_level, prevIdx)
     if (target) {
       let effective = target
       // 升级从严：high 且带方法引用/紧迫性 → 顶格 ACTIVE_INTERVENTION

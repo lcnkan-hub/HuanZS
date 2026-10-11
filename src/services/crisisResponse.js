@@ -87,6 +87,17 @@ function routeAndRespond(d, message, stateBefore) {
         decision_type: 'low_confidence_conservative_route'
       }
     }
+    // 温和档（CONCERN）：中风险的第一响——给一次陪伴，不转介、不抬级（A03）
+    // 这一格原先缺失：进了 CONCERN 又有风险信号时，路由会直接展到末尾的 null 放行，
+    // 等于把手上最轻的那批风险表达静默漏给普通聊天。
+    if (stateBefore === 'CONCERN') {
+      markConcernAcknowledged()
+      return {
+        route: 'concern',
+        reply: pickTemplate(INTERVENTION_TEMPLATES.concern, 'concern'),
+        decision_type: 'mild_concern_first_response'
+      }
+    }
     // 高置信度或已处中高危：按当前状态查固定模板
     if (
       stateBefore === 'ACTIVE_INTERVENTION' ||
@@ -106,6 +117,8 @@ function routeAndRespond(d, message, stateBefore) {
   // ── 无新风险信号：按滞留状态决定 ──
   if (stateBefore === 'CONCERN') {
     // 甲案口径：进入 CONCERN 的第一响应给陪伴模板，此后停留期间放行正常聊天（防复读机）
+    // 首响通常已由"那条中风险消息本身"给出（见上面的 mild_concern_first_response）；
+    // 这里兜的是状态还在 CONCERN、但首响尚未落下的情况（如跨会话恢复）
     if (!isConcernAcknowledged()) {
       markConcernAcknowledged()
       return { route: 'concern', reply: pickTemplate(INTERVENTION_TEMPLATES.concern, 'concern'), decision_type: 'first_response' }

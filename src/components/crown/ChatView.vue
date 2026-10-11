@@ -142,7 +142,7 @@ const {
 } = useChat()
 
 // AI 回话积木：isThinking 控制"正在输入"，error 显示友好错误
-const { isThinking, error, ask } = useChatAI()
+const { isThinking, error, ask, detectCrisis } = useChatAI()
 
 // 记忆积木：白名单四类写入 + C档开口 + 上下文注入（prepareTurn 本轮注入，finishTurn 提取落库）
 const memory = useMemory()
@@ -201,7 +201,8 @@ async function handleSend() {
   const text = inputText.value.trim()
   if (!text || isThinking.value) return
   // 没配密钥就不进对话流程：就地打开设置（避免"正在输入"转圈，最后只等到一句报错）
-  // ⚠️ 但**开局落库必须在它之前**（I04）：全新设备第一件事就是没配密钥，
+  // ⚠️ 但危机兜底除外——它不读密钥，见下面的 A01 分支。
+  // ⚠️ 且**开局落库必须在它之前**（I04）：全新设备第一件事就是没配密钥，
   //    而「答完什么都没发生」正是首屏流失的原因本身。落库是纯本地写入，不需要 AI。
   //    take 语义保证这里取走之后，下面就算再走一遍也不会重复落库。
   try {
@@ -212,6 +213,22 @@ async function handleSend() {
     }
   } catch { /* 落库失败绝不打断对话 */ }
   if (!aiConfigured.value) {
+    // ⚠️ A01：没配密钥也要接住危险表达。危机管线是纯本地的（不读密钥、自带系统兜底），
+    //    而原来的闸门设在 ask() 之外，等于把整条安全兜底一起挡掉——
+    //    「密钥没配 / 失效 / 换服务商的空档期」正是最没人接住的时刻。
+    //    这里先跑一次管线：命中就照常接住（含落消息），未命中才引导去配密钥。
+    let crisis = null
+    try {
+      crisis = await detectCrisis(text, messages.value)
+    } catch { /* 管线故障不阻断下面的配置引导 */ }
+    if (crisis) {
+      sendMessage(text)
+      inputText.value = ''
+      inputRef.value?.focus()
+      addReply(crisis)
+      try { await memory.finishTurn(text, crisis) } catch { /* 记忆落库失败不打断接住 */ }
+      return
+    }
     showAiSettings.value = true
     return
   }
