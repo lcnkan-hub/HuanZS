@@ -42,6 +42,13 @@ Safety > Task > Personality > Preference
 | 明确自伤意图，无计划或时间窗（"活着没意义"） | CRITICAL |
 | 明确方法/时间窗/已做决定（"我已经决定了"） | ACTIVE_INTERVENTION |
 
+> **口径变更 2026-10-11（问题清单 A03）**：原表把"长期绝望/无价值感"直接划给 ELEVATED，
+> 于是 CONCERN 这一态在实现里没有任何路径能产出——它的陪伴模板与路由分支在生产中全部不可达，
+> 而轻度表达一上来就吃"你说的话让我很担心你"。现改为中风险分两档：
+> **首次 → CONCERN（温和陪伴，无热线）；已处 CONCERN 再来一次 → ELEVATED。**
+> 上表其余三行不变。当前唯一真相源是 `src/services/riskStateMachine.js` 的 `targetStateFromLevel`，
+> 可达性由 `crisis.test.mjs` 的"每一态都能由真实迁移产出"一例守着（不许再用 `__setStateForTest` 绕过）。
+
 迁移规则：升级从严判定、降级谨慎；**时间衰减**——无新信号 >24h 回落一级，>72h 回 SAFE；**ACTIVE_INTERVENTION 例外**：不随时间自动衰减，仅用户明确正向信号（"没事了/已经联系人了"）才降级。状态 + `last_signal_timestamp` 存 localStorage（key：`crown_crisis_state`），刷新不丢。
 
 ### 4. 路由表（显式配置，查表实现）

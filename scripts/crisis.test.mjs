@@ -88,13 +88,27 @@ const B_CASES = [
   'zhe yang huo zhe hai you shen me yi si'
 ]
 for (const input of B_CASES) {
-  await okAsync(`B: "${input.slice(0, 16)}…" → 恰为 ELEVATED`, async () => {
+  await okAsync(`B: "${input.slice(0, 16)}…" → 首次恰为 CONCERN（温和档）`, async () => {
     reset()
     const r = await handleMessage(input, [], { classifier: async () => ({ confidence: 0.85, signals: ['hopelessness'] }) })
-    assert.ok(r, 'ELEVATED 应被拦截给固定文案')
-    assert.equal(getState(), 'ELEVATED', `应恰为 ELEVATED，实际 ${getState()}`)
+    assert.ok(r, 'CONCERN 应被拦截给陪伴文案')
+    assert.equal(getState(), 'CONCERN', `中风险首响应为 CONCERN，实际 ${getState()}`)
+    assert.ok(
+      !r.reply.includes(crisisConst.HOTLINES.PSY) && !r.reply.includes(crisisConst.HOTLINES.ER),
+      '温和档不得出现热线——转介从 CRITICAL 起'
+    )
   })
 }
+// A03：中风险不再一步抬到 ELEVATED，但连续两次必须抬（防"单条不重、连着几条在滑"被逐句消解）
+await okAsync('B: 中风险连续两次 → 升 ELEVATED', async () => {
+  reset()
+  const stub = async () => ({ confidence: 0.85, signals: ['hopelessness'] })
+  await handleMessage('活着真的没意思，每天都是煎熬', [], { classifier: stub })
+  assert.equal(getState(), 'CONCERN', '首响落在温和档')
+  const r2 = await handleMessage('撑不下去了，太累了这一切', [], { classifier: stub })
+  assert.ok(r2, '升级后仍应被拦截')
+  assert.equal(getState(), 'ELEVATED', '第二次中风险应升到 ELEVATED')
+})
 
 console.log('\n═══ C 类 · 普通情绪（≥10，不误触）═══')
 const C_CASES = [
@@ -201,6 +215,26 @@ ok('状态机: high+方法引用 → 顶格 ACTIVE_INTERVENTION（b/d 分级）'
 ok('状态机: RISK_STATES 五态顺序正确（冻结物）', () => {
   assert.deepEqual(RISK_STATES, ['SAFE', 'CONCERN', 'ELEVATED', 'CRITICAL', 'ACTIVE_INTERVENTION'])
 })
+ok('状态机: 每一态都能由真实迁移产出（防死状态，A03 护栏）', () => {
+  // A03 的教训：CONCERN 曾经没有任何路径能产出，而用例用 __setStateForTest 直接注入状态绕过去，
+  // 于是"矩阵全绿"与"这一态在生产里根本到不了"同时成立。
+  // 这条只用真实入口 update()，不许注入——任何一态失去产出路径，这里就会红。
+  reset()
+  const reachable = new Set([getState()]) // SAFE：初始态
+  const feeds = [
+    { risk_level: 'medium', signals: ['hopelessness'] },
+    { risk_level: 'high', signals: ['explicit_self_harm_intent'] },
+    { risk_level: 'high', signals: ['method_reference', 'immediacy'] }
+  ]
+  for (const d of feeds) {
+    for (let i = 0; i < 3; i++) {
+      smUpdate(d, '')
+      reachable.add(getState())
+    }
+  }
+  const missing = RISK_STATES.filter(s => !reachable.has(s))
+  assert.deepEqual(missing, [], `这些状态没有任何真实路径能产出：${missing.join('、')}`)
+})
 
 console.log('\n═══ 短路与兜底 ═══')
 await okAsync('短路: 危机路径下主 LLM fetch 计数 = 0', async () => {
@@ -262,13 +296,14 @@ await okAsync('复核: 窗口内用户说真的 → 正常升级干预', async (
 })
 
 console.log('\n═══ 甲案口径：CONCERN 防复读机 ═══')
-await okAsync('CONCERN 第一响给模板，停留期间放行正常聊天', async () => {
+await okAsync('CONCERN 首响由中风险消息本身给出，随后放行', async () => {
   reset()
-  const stubC = async () => ({ confidence: 0.5, signals: ['hopelessness'] })
-  const r1 = await handleMessage('最近很痛苦', [], { classifier: stubC })
-  // 中间带 → 轻量确认（细则一路径）；改用高置信度直入 CONCERN 场景验证甲案
-  assert.ok(true)
-  void r1
+  const r1 = await handleMessage('活着真的没意思', [], { classifier: async () => ({ confidence: 0.85, signals: ['hopelessness'] }) })
+  assert.ok(r1, '中风险首响应给陪伴模板')
+  assert.equal(r1.route, 'concern', `首响路由应为 concern，实际 ${r1.route}`)
+  assert.equal(getState(), 'CONCERN')
+  const r2 = await handleMessage('在吗', []) // 无新信号 → 已 acknowledged → 放行
+  assert.equal(r2, null, '第二响必须放行，不得复读模板')
 })
 await okAsync('CONCERN 高置信度首响 → concern 模板；次响放行', async () => {
   reset()
