@@ -71,20 +71,20 @@ const getPercentage = (type) => {
 }
 .summary-header { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
 .summary-title {
-  font-size: 15px; font-weight: 600; color: var(--color-text-primary);
+  font-size: var(--text-15); font-weight: 600; color: var(--color-text-primary);
   display: flex; align-items: center; gap: 4px;
 }
-.summary-philosophy { font-size: 11px; color: var(--color-text-light); }
+.summary-philosophy { font-size: var(--text-11); color: var(--color-text-muted); }
 .metrics-grid { display: flex; gap: 15px; margin-bottom: 14px; }
 .metric-box {
   flex: 1; background: #f8f9fc; padding: 12px; border-radius: var(--radius-lg);
   display: flex; flex-direction: column; gap: 2px;
 }
 .metric-num {
-  font-size: 20px; font-weight: 700; color: var(--color-accent);
+  font-size: var(--text-20); font-weight: 700; color: var(--color-accent);
   font-family: var(--font-mono);
 }
-.metric-label { font-size: 11px; color: var(--color-text-muted); }
+.metric-label { font-size: var(--text-11); color: var(--color-text-muted); }
 .progress-bar-container {
   height: 8px; border-radius: 4px; overflow: hidden; display: flex;
   background: var(--color-border-input);

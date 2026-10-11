@@ -157,7 +157,7 @@ const handleRestore = async () => {
 .backup-section { margin-top: 22px; }
 .backup-section h3 {
   display: flex; align-items: center; gap: 7px;
-  font-size: 13px; font-weight: 600; color: var(--color-text-secondary);
+  font-size: var(--text-13); font-weight: 600; color: var(--color-text-secondary);
   margin-bottom: 10px;
 }
 
@@ -174,22 +174,22 @@ const handleRestore = async () => {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   min-height: 44px; width: 100%;
   border-radius: var(--radius-lg); border: 1px solid var(--color-border);
-  font-size: 14px; font-weight: 500; font-family: var(--font-system);
+  font-size: var(--text-14); font-weight: 500; font-family: var(--font-system);
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1.0), opacity 0.2s, background 0.2s;
 }
 .bk-btn:active { transform: scale(0.985); }
 .bk-btn:disabled { opacity: 0.55; }
-.bk-btn.primary { background: var(--color-accent); color: #fff; border-color: transparent; }
+.bk-btn.primary { background: var(--color-accent); color: var(--color-text-on-accent); border-color: transparent; }
 .bk-btn.ghost   { background: var(--color-bg-card); color: var(--color-text-secondary); }
 
-.bk-hint { font-size: 11.5px; color: var(--color-text-muted); text-align: center; line-height: 1.6; }
-.bk-last { font-size: 11.5px; color: var(--color-text-muted); text-align: center; }
+.bk-hint { font-size: var(--text-12); color: var(--color-text-muted); text-align: center; line-height: 1.6; }
+.bk-last { font-size: var(--text-12); color: var(--color-text-muted); text-align: center; }
 .bk-last.warn { color: var(--color-danger); }
 
 .bk-msg {
   display: flex; align-items: flex-start; gap: 6px;
-  font-size: 12.5px; line-height: 1.6; margin-top: 2px;
+  font-size: var(--text-13); line-height: 1.6; margin-top: 2px;
 }
 .bk-msg.ok { color: var(--color-success); }
 .bk-msg.error { color: var(--color-danger); }
@@ -197,7 +197,7 @@ const handleRestore = async () => {
 .bk-note {
   margin-top: 3px; padding-top: 11px;
   border-top: 1px solid var(--color-border-light);
-  font-size: 11.5px; line-height: 1.65; color: var(--color-text-muted);
+  font-size: var(--text-12); line-height: 1.65; color: var(--color-text-muted);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -40,12 +40,16 @@ defineEmits(['open', 'delete'])
   to   { opacity: 1; transform: translateY(0); }
 }
 .card-main { display: flex; flex-direction: column; gap: 4px; }
-.item-name   { font-size: 16px; font-weight: 600; color: var(--color-text-primary); }
-.creator-tag { font-size: 12px; color: var(--color-text-muted); }
+.item-name   { font-size: var(--text-16); font-weight: 600; color: var(--color-text-primary); }
+.creator-tag { font-size: var(--text-12); color: var(--color-text-muted); }
+/* 删除键在卡片右端，本就有 52 宽，只差高度。卡片内边距 15 大于 10，纵向外扩顶不出卡片；
+   横向只放 2px，避免盖住左边「打开」的区域。 */
 .delete-btn {
   background-color: var(--color-danger-bg); color: var(--color-danger);
   border: none; border-radius: var(--radius-sm); padding: 6px 10px;
-  font-size: 12px; cursor: pointer;
+  font-size: var(--text-12); cursor: pointer;
   display: flex; align-items: center; gap: 3px;
+  position: relative;
 }
+.delete-btn::after { content: ''; position: absolute; inset: -10px -2px; }
 </style>

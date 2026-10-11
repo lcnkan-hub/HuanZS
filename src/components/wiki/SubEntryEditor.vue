@@ -235,26 +235,30 @@ watch(readViewRef, (el) => { if (el) resolveReadViewImages() })
   /* 原本是 0 12px 0 16px（左右不等），和详情页的 0 16px 对不齐；统一 16px */
   padding: 0 16px; background: var(--color-bg-card); -webkit-user-select: none; user-select: none; gap: 8px;
 }
-.back-link-btn { background: none; border: none; color: var(--color-accent); font-size: 15px; font-weight: 500; cursor: pointer; padding: 5px 0; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.sub-editor-title { font-size: 14px; font-weight: 600; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
-.state-toggle-btn { background-color: var(--color-border-light); color: var(--color-accent); border: none; border-radius: var(--radius-md); padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.state-toggle-btn.isEditing { background-color: var(--color-accent); color: white; }
+.back-link-btn { background: none; border: none; color: var(--color-accent); font-size: var(--text-15); font-weight: 500; cursor: pointer; padding: 0; min-height: 44px; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.sub-editor-title { font-size: var(--text-14); font-weight: 600; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.state-toggle-btn { background-color: var(--color-border-light); color: var(--color-accent); border: none; border-radius: var(--radius-md); padding: 6px 12px; min-height: 44px; font-size: var(--text-12); font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.state-toggle-btn.isEditing { background-color: var(--color-accent); color: var(--color-text-on-accent); }
 
 .sub-editor-body { flex: 1; overflow-y: auto; padding: 16px 20px 40px 20px; display: flex; flex-direction: column; -webkit-overflow-scrolling: touch; }
-.meta-info-strip { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 11px; color: var(--color-text-muted); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed var(--color-border-input); }
-.meta-badge { background-color: var(--color-bg-input); color: var(--color-text-secondary); font-weight: 600; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 11px; display: flex; align-items: center; gap: 3px; }
-.meta-parent { background-color: var(--color-toolbar-blue-bg); color: var(--color-markdown-blue); font-weight: 500; padding: 3px 8px; border-radius: var(--radius-sm); font-size: 11px; display: flex; align-items: center; gap: 3px; }
+.meta-info-strip { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: var(--text-11); color: var(--color-text-muted); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px dashed var(--color-border-input); }
+.meta-badge { background-color: var(--color-bg-input); color: var(--color-text-secondary); font-weight: 600; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-11); display: flex; align-items: center; gap: 3px; }
+.meta-parent { background-color: var(--color-toolbar-blue-bg); color: var(--color-markdown-blue); font-weight: 500; padding: 3px 8px; border-radius: var(--radius-sm); font-size: var(--text-11); display: flex; align-items: center; gap: 3px; }
 .meta-author, .meta-time { display: flex; align-items: center; gap: 3px; }
-.delete-child-btn { background-color: var(--color-danger-bg); color: var(--color-danger); border: none; border-radius: var(--radius-sm); padding: 4px 8px; font-size: 11px; cursor: pointer; margin-left: auto; display: flex; align-items: center; gap: 3px; }
+/* 元信息条里的删除键：条本身只有 20 出头，撑到 44 会把整条拱高 23px，
+   改用外扩命中区 —— 右侧是 flex 尾部、下方 12px 全是留白，多出来的面积不压任何别的东西。
+   就算真点错也不会误删：WikiDetail 那边的 handleChildDelete 还压着一道 confirm。 */
+.delete-child-btn { background-color: var(--color-danger-bg); color: var(--color-danger); border: none; border-radius: var(--radius-sm); padding: 4px 8px; font-size: var(--text-11); cursor: pointer; margin-left: auto; display: flex; align-items: center; gap: 3px; position: relative; }
+.delete-child-btn::after { content: ''; position: absolute; inset: -11px -8px; }
 
-.markdown-render-view { font-size: 15px; line-height: 1.75; color: var(--color-text-secondary); font-family: var(--font-system); word-break: break-all; }
-:deep(.markdown-render-view h1) { font-size: 20px; font-weight: 700; color: var(--color-text-primary); margin: 14px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid var(--color-border-light); }
-:deep(.markdown-render-view h2) { font-size: 17px; font-weight: 600; color: var(--color-text-primary); margin: 16px 0 8px 0; }
-:deep(.markdown-render-view h3) { font-size: 15px; font-weight: 600; color: var(--color-text-secondary); margin: 12px 0 6px 0; }
+.markdown-render-view { font-size: var(--text-15); line-height: 1.75; color: var(--color-text-secondary); font-family: var(--font-system); word-break: break-all; }
+:deep(.markdown-render-view h1) { font-size: var(--text-20); font-weight: 700; color: var(--color-text-primary); margin: 14px 0 10px 0; padding-bottom: 4px; border-bottom: 1px solid var(--color-border-light); }
+:deep(.markdown-render-view h2) { font-size: var(--text-17); font-weight: 600; color: var(--color-text-primary); margin: 16px 0 8px 0; }
+:deep(.markdown-render-view h3) { font-size: var(--text-15); font-weight: 600; color: var(--color-text-secondary); margin: 12px 0 6px 0; }
 :deep(.markdown-render-view strong) { color: var(--color-text-primary); font-weight: 700; background: linear-gradient(to top, rgba(255,204,0,0.15) 30%, transparent 30%); padding: 0 2px; }
-:deep(.md-inline-code) { font-family: monospace; background-color: var(--color-border-light); color: #d73a49; padding: 2px 5px; border-radius: 4px; font-size: 13px; border: 1px solid var(--color-border-input); margin: 0 2px; }
+:deep(.md-inline-code) { font-family: monospace; background-color: var(--color-border-light); color: #d73a49; padding: 2px 5px; border-radius: 4px; font-size: var(--text-13); border: 1px solid var(--color-border-input); margin: 0 2px; }
 :deep(.md-image) { max-width: 100%; height: auto; border-radius: var(--radius-md); margin: 8px 0; display: block; }
-:deep(.empty-render-placeholder) { text-align: center; color: var(--color-text-light); font-size: 13px; line-height: 1.8; margin-top: 60px; }
+:deep(.empty-render-placeholder) { text-align: center; color: var(--color-text-muted); font-size: var(--text-13); line-height: 1.8; margin-top: 60px; }
 :deep(.m-color-blue)  { color: var(--color-markdown-blue);  font-weight: 600; }
 :deep(.m-color-brown) { color: var(--color-markdown-brown); font-weight: 600; }
 :deep(.m-color-green) { color: var(--color-markdown-green); font-weight: 600; }
@@ -262,25 +266,33 @@ watch(readViewRef, (el) => { if (el) resolveReadViewImages() })
 .markdown-edit-view { flex: 1; display: flex; flex-direction: column; gap: 12px; }
 .mobile-keyboard-toolbar { display: flex; align-items: center; gap: 6px; overflow-x: auto; white-space: nowrap; padding: 4px 2px 8px 2px; border-bottom: 1px solid var(--color-border-light); }
 .mobile-keyboard-toolbar::-webkit-scrollbar { display: none; }
-.toolbar-hint { font-size: 10px; color: var(--color-text-light); flex-shrink: 0; }
-.tool-tag-btn { background: var(--color-border-light); border: none; color: var(--color-text-secondary); border-radius: var(--radius-sm); padding: 5px 8px; font-size: 11px; font-weight: 500; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; gap: 3px; -webkit-appearance: none; appearance: none; }
+.toolbar-hint { font-size: var(--text-10); color: var(--color-text-muted); flex-shrink: 0; }
+/* 工具条按钮撑到 44：这条是写作时点得最密的八个键，22 高在真机上是"看得见点不着"。
+   横向滚动容器会把纵向的外扩命中区裁掉，所以只能老老实实靠 min-height 撑。 */
+.tool-tag-btn { background: var(--color-border-light); border: none; color: var(--color-text-secondary); border-radius: var(--radius-sm); padding: 5px 8px; min-height: 44px; font-size: var(--text-11); font-weight: 500; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; gap: 3px; -webkit-appearance: none; appearance: none; }
 .tool-tag-btn:active { background: var(--color-border-input); }
-.img-insert-btn { background: #e8f5e9; color: #2e7d32; }
+.img-insert-btn { background: var(--color-success-bg); color: var(--color-success-deep); }
 .color-blue-tag  { background: var(--color-toolbar-blue-bg);  color: var(--color-markdown-blue); }
 .color-brown-tag { background: var(--color-toolbar-brown-bg); color: var(--color-markdown-brown); }
 .color-green-tag { background: var(--color-toolbar-green-bg); color: var(--color-markdown-green); }
-.markdown-textarea { flex: 1; min-height: 200px; width: 100%; border: 1px solid var(--color-border-input); background: var(--color-bg-modal); border-radius: var(--radius-xl); padding: 12px; box-sizing: border-box; font-size: 15px; font-family: var(--font-mono); line-height: 1.6; color: var(--color-text-primary); resize: none; -webkit-appearance: none; appearance: none; }
+.markdown-textarea { flex: 1; min-height: 200px; width: 100%; border: 1px solid var(--color-border-input); background: var(--color-bg-modal); border-radius: var(--radius-xl); padding: 12px; box-sizing: border-box; font-size: var(--text-15); font-family: var(--font-mono); line-height: 1.6; color: var(--color-text-primary); resize: none; -webkit-appearance: none; appearance: none; }
 .markdown-textarea:focus { outline: none; border-color: var(--color-accent); background: var(--color-bg-card); }
 
-.image-preview-bar { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0; border-top: 1px solid var(--color-border-light); }
+/* 上下留 10 而不是 8：下面 ✕ 的命中区要往上张 10px，容器裁切边得让它张得开 */
+.image-preview-bar { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; border-top: 1px solid var(--color-border-light); }
 .image-preview-bar::-webkit-scrollbar { display: none; }
-.preview-thumb { position: relative; width: 60px; height: 60px; flex-shrink: 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--color-border-input); background: var(--color-bg-input); }
-.preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.thumb-placeholder { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 24px; }
-.thumb-remove { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+/* 圆角从这一层下放到图片本身：原来靠 overflow:hidden 裁角，那也把 ✕ 的外扩命中区一起裁了
+   （量出来只剩约 36）。裁角交给各自的 border-radius 之后，这一层就不必再裁东西。 */
+.preview-thumb { position: relative; width: 60px; height: 60px; flex-shrink: 0; border-radius: var(--radius-sm); border: 1px solid var(--color-border-input); background: var(--color-bg-input); }
+.preview-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-sm); }
+.thumb-placeholder { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: var(--text-24); border-radius: var(--radius-sm); }
+/* 缩略图上的 ✕：18px 连点中都要看运气。视觉放到 24，命中区外扩到 44×44。
+   再大就会把 60px 的图整个盖住，点图本身也变成删除，所以到这个尺寸为止。 */
+.thumb-remove { position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.6); color: var(--color-text-on-dark); border: none; border-radius: 50%; width: 24px; height: 24px; font-size: var(--text-12); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.thumb-remove::after { content: ''; position: absolute; inset: -10px; }
 
-.empty-tip { text-align: center; color: var(--color-text-muted); font-size: 13px; line-height: 1.8; padding: 40px 20px; }
-.empty-tip code { background: var(--color-bg-input); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 12px; }
+.empty-tip { text-align: center; color: var(--color-text-muted); font-size: var(--text-13); line-height: 1.8; padding: 40px 20px; }
+.empty-tip code { background: var(--color-bg-input); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: var(--text-12); }
 
 @keyframes slideInSub { from { transform: translateX(100%); } to { transform: translateX(0); } }
 </style>

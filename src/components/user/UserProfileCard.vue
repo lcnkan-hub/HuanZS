@@ -31,9 +31,9 @@ defineProps({
 .user-avatar-circle {
   width: 62px; height: 62px; background: var(--color-bg-card); border-radius: 50%;
   display: flex; justify-content: center; align-items: center;
-  font-size: 32px; box-shadow: 0 3px 10px rgba(0,0,0,0.06);
+  font-size: var(--text-32); box-shadow: 0 3px 10px rgba(0,0,0,0.06);
 }
 .user-info-details { display: flex; flex-direction: column; gap: 4px; }
-.user-name-title { font-size: 19px; font-weight: 700; color: var(--color-text-primary); }
-.user-id-sub { font-size: 13px; color: var(--color-text-muted); font-family: monospace; }
+.user-name-title { font-size: var(--text-20); font-weight: 700; color: var(--color-text-primary); }
+.user-id-sub { font-size: var(--text-13); color: var(--color-text-muted); font-family: monospace; }
 </style>

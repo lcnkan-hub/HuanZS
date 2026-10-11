@@ -69,7 +69,7 @@ const handleLogout = () => {
 .account-section { margin-top: 22px; }
 .account-section h3 {
   display: flex; align-items: center; gap: 7px;
-  font-size: 13px; font-weight: 600; color: var(--color-text-secondary);
+  font-size: var(--text-13); font-weight: 600; color: var(--color-text-secondary);
   margin-bottom: 10px;
 }
 
@@ -89,24 +89,24 @@ const handleLogout = () => {
 }
 .account-info { flex: 1; min-width: 0; }
 .account-name {
-  font-size: 15px; font-weight: 600; color: var(--color-text-primary);
+  font-size: var(--text-15); font-weight: 600; color: var(--color-text-primary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.account-meta { font-size: 11.5px; color: var(--color-text-muted); margin-top: 2px; }
+.account-meta { font-size: var(--text-12); color: var(--color-text-muted); margin-top: 2px; }
 .account-badge {
-  flex: 0 0 auto; font-size: 11px; padding: 3px 9px; border-radius: 999px;
+  flex: 0 0 auto; font-size: var(--text-11); padding: 3px 9px; border-radius: 999px;
   background: var(--color-bg-input); color: var(--color-text-muted);
 }
 
 .account-note {
-  margin-top: 11px; font-size: 11.5px; line-height: 1.65; color: var(--color-text-muted);
+  margin-top: 11px; font-size: var(--text-12); line-height: 1.65; color: var(--color-text-muted);
 }
 
 .account-actions { display: flex; gap: 9px; margin-top: 13px; }
 .acc-btn {
-  flex: 1; height: 38px;
+  flex: 1; height: 44px;
   border-radius: var(--radius-lg); border: 1px solid var(--color-border);
-  font-size: 13.5px; font-family: var(--font-system); font-weight: 500;
+  font-size: var(--text-14); font-family: var(--font-system); font-weight: 500;
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1.0), opacity 0.2s, background 0.2s;
 }

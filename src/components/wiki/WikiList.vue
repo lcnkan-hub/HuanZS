@@ -63,28 +63,33 @@ defineEmits(['open-item', 'delete-item', 'ask-starter', 'open-backup', 'clear-mi
 <style scoped>
 .page-content { padding: 20px; animation: fadeInContent 0.3s ease-out; }
 .page-content h2 {
-  font-size: 22px; font-weight: 600; margin-bottom: 15px;
+  font-size: var(--text-22); font-weight: 600; margin-bottom: 15px;
   display: flex; align-items: center; gap: 6px;
 }
 
 /* 筛选 chip：与「我的」页入口同一套三色点，一眼看出筛的是哪个分类 */
 .filter-chip {
   display: inline-flex; align-items: center; gap: 6px;
+  /* 撑到 44 会把这颗小胶囊吹成一根横条，所以保持 24 的视觉、靠命中区外扩到 44。
+     它整页只有一枚（v-if mineOnly），上方是标题留白、下方是 item-list 的 15px 间隔，
+     外扩出来的面积不压任何别的东西，不会误触。 */
+  position: relative;
   padding: 5px 12px; margin-bottom: 2px;
   background: rgba(0, 122, 255, 0.08); color: var(--color-accent);
   border: 1px solid rgba(0, 122, 255, 0.16); border-radius: 999px;
-  font-size: 12px; font-weight: 500; cursor: pointer;
+  font-size: var(--text-12); font-weight: 500; cursor: pointer;
   transition: background 0.2s;
 }
 .filter-chip:active { background: rgba(0, 122, 255, 0.16); }
+.filter-chip::after { content: ''; position: absolute; inset: -10px -4px; }
 .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
 .dot-game { background: var(--color-progress-game); }
 .dot-note { background: var(--color-progress-note); }
 .dot-life { background: var(--color-progress-life); }
-.chip-x { font-size: 10px; opacity: 0.7; margin-left: 1px; }
+.chip-x { font-size: var(--text-10); opacity: 0.7; margin-left: 1px; }
 
 .item-list { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
-.empty-tip { text-align: center; color: var(--color-text-muted); margin-top: 40px; font-size: 14px; }
+.empty-tip { text-align: center; color: var(--color-text-muted); margin-top: 40px; font-size: var(--text-14); }
 @keyframes fadeInContent {
   from { opacity: 0; transform: translateY(5px); }
   to   { opacity: 1; transform: translateY(0); }

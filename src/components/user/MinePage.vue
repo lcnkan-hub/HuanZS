@@ -89,7 +89,7 @@ const myFilteredData = computed(() => {
 <style scoped>
 .page-content { padding: 20px; animation: fadeInContent 0.3s ease-out; }
 .page-content h2 {
-  font-size: 22px; font-weight: 600; margin-bottom: 15px;
+  font-size: var(--text-22); font-weight: 600; margin-bottom: 15px;
   display: flex; align-items: center; gap: 6px;
 }
 .mine-page-container { display: flex; flex-direction: column; min-height: calc(100vh - 120px); }
@@ -101,7 +101,7 @@ const myFilteredData = computed(() => {
 .edit-data-trigger-btn {
   background-color: var(--color-bg-card); color: var(--color-text-muted);
   border: 1px solid var(--color-border-input); border-radius: var(--radius-lg);
-  padding: 8px 20px; font-size: 13px; font-weight: 500; cursor: pointer;
+  padding: 8px 20px; min-height: 44px; font-size: var(--text-13); font-weight: 500; cursor: pointer;
   transition: all 0.2s; display: flex; align-items: center; gap: 4px;
 }
 .edit-data-trigger-btn:active { background-color: #f4f9ff; transform: scale(0.98); }

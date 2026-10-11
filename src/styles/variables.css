@@ -25,8 +25,15 @@ html, body {
 
   --color-text-primary:  #1d1d1f;
   --color-text-secondary:#3a3a3c;
-  --color-text-muted:    #8e8e93;
-  --color-text-light:    #aeaeae;
+  /* 次要文字。原值 #8e8e93 是 Apple 的 systemGray —— 它在四种底色上量出来是
+     2.86(输入框底) ~ 3.26(卡片) ，连 AA 要求的 4.5 都够不到，而它管着全库约四十处
+     时间戳、说明、脚注，字号多在 11~13。真机白天在户外看就是"糊成一片"。
+     换成 #6a6a6f：卡片 5.38 / 页面 4.94 / 输入框底 4.73 / 浅块 5.10，四处全过，
+     并且与 secondary(≈10) 和 primary(≈15) 仍拉开三档，层级没有被压平。 */
+  --color-text-muted:    #6a6a6f;
+  /* 原 --color-text-light(#aeaeae) 已删：它只有 1.95~2.22，是全库唯一连 3:1 都不到的
+     文字色，四处用例（渲染占位、工具条提示、足迹理念句、条目入口提示）本来就是 muted
+     的语义，归到上面一档即可，不必再养一个读不出来的第四级灰。 */
 
   --color-accent:        #007aff;
   --color-accent-light:  #f0f4f8;
@@ -35,8 +42,21 @@ html, body {
   /* 成功 / 开启态。原先四处各写各的：#2e9e5b（开关、AI 连通测试）与 #34a853（登录、备份）并存。
      取深一点的 #2e9e5b：四处里有三处是**文字**，Apple 那颗亮绿 #34C759 当正文对比度不够。 */
   --color-success:       #2e9e5b;
+  /* 成功的另外两级。同一支绿的三个亮度，对应三种对比场景，不是三套色：
+       --color-success      #2e9e5b  白底上的绿字（4.5:1 够用）
+       --color-success-deep #2e7d32  **浅绿底上的绿字**。这两个原先硬编码在「有内容」「插入图片」
+                                    两个小标签里，10~11px。不能直接换成 --color-success ——
+                                    它压在 #e8f5e9 上只有 3.0:1，小字不过关；#2e7d32 是 4.6:1。 */
+  --color-success-deep:  #2e7d32;
+  --color-success-bg:    #e8f5e9;
   /* 中性按钮文字（取消键）。原先在四个 .cancel-btn 里各硬编码一遍同一个 #515154 */
   --color-text-neutral:  #515154;
+  /* 实底上的前景色。原先 13 处强调色按钮各写一遍 color: white（与 #515154 同一类重复），
+     另有 2 处深底上的白色字形。分成两个令牌而不是一个：将来做深色主题时，
+     强调底会提亮、其上的文字要翻成深色；而深色品牌块 / 图片遮罩一直是深色、
+     其上的字形一直是白 —— 两者会往相反方向走，共用一个令牌就会打架。 */
+  --color-text-on-accent: #ffffff;
+  --color-text-on-dark:   #ffffff;
 
   --color-border:        #e5e5e5;
   --color-border-light:  #f2f2f7;
@@ -84,6 +104,31 @@ html, body {
   /* 苹方优先：Apple 设备原生渲染，非 Apple 设备自动 fallback 到高质量系统字体 */
   --font-system: "PingFang SC", "PingFang TC", "Helvetica Neue", "Microsoft YaHei", "Hiragino Sans GB", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono:   "SF Mono", "Menlo", "Consolas", "PingFang SC", -apple-system, monospace;
+
+  /* === 字号刻度 ===
+     为什么要有这张表：以前字号的唯一来源是"当时手边觉得合适"，于是全库长出 18 档
+     裸 px，中间夹着 11.5 / 12.5 / 13.5 三个半像素值 —— 它们跟相邻整数档在真机上
+     肉眼无差别，却让基线对不齐、字阶也说不清是几档。
+     现在字号只有一个来源：这里。组件一律 `font-size: var(--text-N)`，
+     scripts/check-ui.mjs 会拦住任何绕过刻度写裸 px 的改法。
+
+     刻度取 iOS Dynamic Type（11/12/13/15/17/20/22/28/34）作骨架，
+     向下补 10（本 App 的信息密度比原生高，底栏标签、工具条提示要用），
+     并保留 14/16/18 三档过渡值 —— 它们已被卡片正文广泛使用，砍掉会动观感。
+     刻意不含 19 / 21：原先只有两处（用户名、登录页品牌名），归到 20 / 22 更整齐。 */
+  --text-10: 10px;  /* 极小注记：底栏标签、工具条提示 */
+  --text-11: 11px;  /* caption2：说明、时间戳、标签 */
+  --text-12: 12px;  /* caption1：次要说明、键位提示 */
+  --text-13: 13px;  /* footnote：脚注、辅助文案 */
+  --text-14: 14px;  /* 卡片正文、列表项、输入框 */
+  --text-15: 15px;  /* subhead：副文、返回键、子词条名 */
+  --text-16: 16px;  /* callout：强调正文、卡片标题 */
+  --text-17: 17px;  /* body：正文、导航栏标题 */
+  --text-18: 18px;  /* 小标题、弹窗标题 */
+  --text-20: 20px;  /* title3：区块标题、统计数字 */
+  --text-22: 22px;  /* title2：页面主标题 */
+  --text-24: 24px;  /* 图标字形（emoji/头像位） */
+  --text-32: 32px;  /* 大标题、启动页品牌名 */
 
   /* === 尺寸 === */
   --header-height: 55px;

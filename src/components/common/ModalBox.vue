@@ -29,21 +29,24 @@ defineEmits(['close'])
   align-items: center; z-index: 999; backdrop-filter: blur(2px);
 }
 .modal-box {
-  background: white; border-radius: var(--radius-3xl, 16px);
+  background: var(--color-bg-card); border-radius: var(--radius-3xl);
   width: 85%; max-width: 340px; padding: 22px;
   box-shadow: var(--shadow-modal);
   animation: popModal 0.25s var(--ease-pop);
 }
 .modal-box h3 {
-  margin-top: 0; margin-bottom: 18px; font-size: 18px;
+  margin-top: 0; margin-bottom: 18px; font-size: var(--text-18);
   text-align: center; font-weight: 600;
 }
 .modal-actions {
   display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;
 }
+/* 弹窗动作键是全 App 的收口：App / EditProfileModal / AiSettingsModal 三处的取消、保存
+   都从这里拿到 44 高，各自不必再写一遍。 */
 .modal-actions :deep(button) {
-  border: none; padding: 9px 18px; border-radius: var(--radius-md, 8px);
-  font-size: 14px; font-weight: 500; cursor: pointer;
+  border: none; padding: 9px 18px; border-radius: var(--radius-md);
+  font-size: var(--text-14); font-weight: 500; cursor: pointer;
+  min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
 }
 @keyframes popModal {
   from { opacity: 0; transform: scale(0.9); }

@@ -54,7 +54,7 @@ const handleSave = () => {
 
 <style scoped>
 .input-label {
-  display: block; font-size: 13px; color: var(--color-text-muted);
+  display: block; font-size: var(--text-13); color: var(--color-text-muted);
   margin-bottom: 8px; font-weight: 500;
 }
 .avatar-selector-grid {
@@ -62,21 +62,23 @@ const handleSave = () => {
   margin-bottom: 18px; background: var(--color-border-light);
   padding: 10px; border-radius: var(--radius-xl);
 }
+/* 5 列网格，格子宽约 52；高度原本只有 emoji 行高 ≈ 37，补到 44 让每个头像是块方正的靶子 */
 .avatar-option {
-  font-size: 24px; text-align: center; padding: 4px 0; cursor: pointer;
+  font-size: var(--text-24); text-align: center; padding: 4px 0; min-height: 44px; cursor: pointer;
   border-radius: var(--radius-md); transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
 }
 .avatar-option.selected {
-  background: white; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  background: var(--color-bg-card); box-shadow: 0 2px 6px rgba(0,0,0,0.1);
   transform: scale(1.1);
 }
 .modal-input {
   width: 100%; border: 1px solid var(--color-border);
   background: var(--color-bg-modal); border-radius: var(--radius-md);
-  padding: 10px 12px; box-sizing: border-box; font-size: 14px;
+  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
   margin-bottom: 0;
 }
-.modal-input:focus { outline: none; border-color: var(--color-accent); background: white; }
+.modal-input:focus { outline: none; border-color: var(--color-accent); background: var(--color-bg-card); }
 .cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); }
-.save-btn   { background: var(--color-accent); color: white; }
+.save-btn   { background: var(--color-accent); color: var(--color-text-on-accent); }
 </style>

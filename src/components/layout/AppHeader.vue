@@ -38,15 +38,17 @@ defineEmits(['update:modelValue', 'add'])
      统一到 16px，和 .detail-header / .sub-editor-header 一致。 */
   display: flex; align-items: center; padding: 0 16px;
 }
-.search-bar { display: flex; width: 100%; gap: 10px; }
+/* 顶栏高 55、内容原本只有 33 —— 白白空掉 22px，输入框和「添加」却都够不着。
+   给这条 44：子项默认 stretch，输入框和按钮一起长到 44，不必各写一遍。 */
+.search-bar { display: flex; width: 100%; height: 44px; gap: 10px; }
 .search-bar input {
   flex: 1; border: none; background-color: var(--color-bg-input);
-  border-radius: var(--radius-lg); padding: 8px 15px; font-size: 14px;
+  border-radius: var(--radius-lg); padding: 8px 15px; font-size: var(--text-14);
 }
 .add-btn {
-  background-color: var(--color-accent); color: white; border: none;
+  background-color: var(--color-accent); color: var(--color-text-on-accent); border: none;
   border-radius: var(--radius-lg); padding: 0 15px;
-  font-weight: 500; font-size: 14px; cursor: pointer;
+  font-weight: 500; font-size: var(--text-14); cursor: pointer;
   display: flex; align-items: center; gap: 4px;
   white-space: nowrap;
 }

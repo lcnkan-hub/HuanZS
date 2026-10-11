@@ -172,7 +172,7 @@ function onGrabEnd() {
 }
 
 .sheet-title {
-  font-size: 17px;
+  font-size: var(--text-17);
   font-weight: 600;
   color: var(--color-text-primary);
 }
@@ -219,13 +219,13 @@ function onGrabEnd() {
 }
 .sheet-empty-title {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--text-16);
   font-weight: 600;
   color: var(--color-text-primary);
 }
 .sheet-empty-body {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-13);
   line-height: 1.6;
   color: var(--color-text-muted);
 }
@@ -236,8 +236,8 @@ function onGrabEnd() {
   border: none;
   border-radius: 999px;
   background: var(--color-accent);
-  color: #ffffff;
-  font-size: 13px;
+  color: var(--color-text-on-accent);
+  font-size: var(--text-13);
   font-weight: 500;
   cursor: pointer;
   transition: transform 0.15s ease-out, opacity 0.2s ease;
@@ -267,7 +267,7 @@ function onGrabEnd() {
   flex-shrink: 0;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--text-12);
   font-weight: 500;
   margin-top: 1px;
 }
@@ -286,14 +286,14 @@ function onGrabEnd() {
 
 .memory-content {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-14);
   line-height: 1.5;
   color: var(--color-text-primary);
   word-break: break-word;
 }
 
 .memory-time {
-  font-size: 12px;
+  font-size: var(--text-12);
   color: var(--color-text-muted);
 }
 

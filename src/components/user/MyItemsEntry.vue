@@ -68,24 +68,24 @@ const totalCount = computed(() => cats.value.reduce((n, c) => n + c.count, 0))
   display: flex; align-items: baseline; justify-content: space-between;
   margin-bottom: 12px;
 }
-.entry-title { font-size: 15px; font-weight: 600; color: var(--color-text-primary); }
-.entry-hint { font-size: 11px; color: var(--color-text-light); }
+.entry-title { font-size: var(--text-15); font-weight: 600; color: var(--color-text-primary); }
+.entry-hint { font-size: var(--text-11); color: var(--color-text-muted); }
 
-.entry-empty { font-size: 12px; color: var(--color-text-muted); line-height: 1.6; }
+.entry-empty { font-size: var(--text-12); color: var(--color-text-muted); line-height: 1.6; }
 
 .entry-chips { display: flex; gap: 8px; }
 .entry-chip {
   flex: 1; min-width: 0;
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 11px 8px; border-radius: var(--radius-lg);
+  padding: 11px 8px; min-height: 44px; border-radius: var(--radius-lg);
   background: #f8f9fc; border: 1px solid var(--color-border-light);
-  font-size: 12.5px; color: var(--color-text-secondary); cursor: pointer;
+  font-size: var(--text-13); color: var(--color-text-secondary); cursor: pointer;
   transition: transform 0.15s, background 0.2s;
 }
 .entry-chip:active { transform: scale(0.97); background: #f1f3f8; }
 .chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip-num {
-  font-size: 14px; font-weight: 700; color: var(--color-accent);
+  font-size: var(--text-14); font-weight: 700; color: var(--color-accent);
   font-family: var(--font-mono);
 }
 

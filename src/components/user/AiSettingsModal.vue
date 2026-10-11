@@ -141,7 +141,7 @@ function handleClear() {
 
 <style scoped>
 .input-label {
-  display: block; font-size: 13px; color: var(--color-text-muted);
+  display: block; font-size: var(--text-13); color: var(--color-text-muted);
   margin-bottom: 8px; font-weight: 500;
 }
 .provider-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
@@ -153,19 +153,20 @@ function handleClear() {
 }
 .provider-item.selected { border-color: var(--color-accent); background: var(--color-bg-card); }
 .provider-main { display: flex; flex-direction: column; gap: 2px; }
-.provider-name { font-size: 14px; font-weight: 500; }
-.provider-note { font-size: 11px; color: var(--color-text-muted); }
+.provider-name { font-size: var(--text-14); font-weight: 500; }
+.provider-note { font-size: var(--text-11); color: var(--color-text-muted); }
 
 .key-saved {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px; background: var(--color-bg-modal);
   border-radius: var(--radius-md); margin-bottom: 4px;
 }
-.key-mask { font-size: 14px; font-family: ui-monospace, monospace; letter-spacing: 0.5px; }
+.key-mask { font-size: var(--text-14); font-family: ui-monospace, monospace; letter-spacing: 0.5px; }
 .key-actions { display: flex; gap: 12px; }
 .link-btn {
-  border: none; background: none; padding: 0; font-size: 13px;
+  border: none; background: none; padding: 0; font-size: var(--text-13);
   color: var(--color-accent); cursor: pointer;
+  min-height: 44px; display: inline-flex; align-items: center;
 }
 .link-btn.danger { color: var(--color-danger); }
 
@@ -174,30 +175,31 @@ function handleClear() {
 .toggle-btn {
   border: 1px solid var(--color-border-input, var(--color-border));
   background: var(--color-bg-card); border-radius: var(--radius-md); padding: 9px 10px;
-  font-size: 12px; color: var(--color-text-muted); cursor: pointer; white-space: nowrap;
+  font-size: var(--text-12); color: var(--color-text-muted); cursor: pointer; white-space: nowrap;
+  min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
 }
-.apply-hint { font-size: 12px; color: var(--color-text-muted); margin: 8px 0 0 0; line-height: 1.6; }
+.apply-hint { font-size: var(--text-12); color: var(--color-text-muted); margin: 8px 0 0 0; line-height: 1.6; }
 .apply-hint a { color: var(--color-accent); text-decoration: none; }
 
-.test-result { font-size: 12px; margin: 12px 0 0 0; }
+.test-result { font-size: var(--text-12); margin: 12px 0 0 0; }
 .test-result.ok { color: var(--color-success); }
 .test-result.bad { color: var(--color-danger); }
 
 .privacy-note {
-  font-size: 11px; color: var(--color-text-muted); margin: 12px 0 0 0;
+  font-size: var(--text-11); color: var(--color-text-muted); margin: 12px 0 0 0;
   line-height: 1.6; padding-top: 10px; border-top: 1px solid var(--color-border-light);
 }
 
 .modal-input {
   width: 100%; border: 1px solid var(--color-border);
   background: var(--color-bg-modal); border-radius: var(--radius-md);
-  padding: 10px 12px; box-sizing: border-box; font-size: 14px;
+  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
 }
 .modal-input:focus { outline: none; border-color: var(--color-accent); background: var(--color-bg-card); }
 
 .cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); }
 .test-btn { background: #eef3fb; color: var(--color-accent); }
 .test-btn:disabled { opacity: 0.5; }
-.save-btn { background: var(--color-accent); color: white; }
+.save-btn { background: var(--color-accent); color: var(--color-text-on-accent); }
 .save-btn:disabled { opacity: 0.5; }
 </style>
