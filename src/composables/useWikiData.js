@@ -8,6 +8,7 @@ import { useLocalStorage } from './useLocalStorage'
 import { extractImageIds, dropUnused } from './useImageStore'
 import { ALL_CATEGORIES, STORAGE_KEYS } from '../constants/categories'
 import { getCurrentTimeString } from '../utils/uniqueId'
+import { scopeKey, SCOPE_SEP } from '../utils/storageScope'
 
 /**
  * 模块级单例：全项目共享同一份响应式百科数据。
@@ -16,6 +17,43 @@ import { getCurrentTimeString } from '../utils/uniqueId'
  * 两边各持一份快照，后写必然覆盖先写，静默丢数据。
  */
 const { data: dbData, error: storageError } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
+
+/**
+ * 读出本机**其它账号**命名空间下的百科数据（不含当前账号，当前账号以内存为准，见 purgeUnusedImages）。
+ *
+ * 为什么回收图片必须把别的账号也算进来：图片库 `huan_zhong_shu_images` 是**全设备单库**、
+ * 不按账号分（见 useImageStore 的 DB_NAME），而百科数据是按账号分键的（`huan_zhong_shu_db@u<id>`）。
+ * 只按当前账号算引用集合，换个账号删一条条目，就会把上个账号的图当成孤儿清掉——
+ * 那比「图多留几张」严重得多，是直接毁数据，而且悄无声息。
+ *
+ * 返回 broken：有读不出来 / 形状不对的账号。调用方据此放弃回收——
+ * 读不全就不敢判定谁是孤儿，宁可这轮不清。
+ */
+function readOtherAccountsDB() {
+  const base = STORAGE_KEYS.DB
+  const curKey = scopeKey(base)
+  const others = []
+  const broken = []
+  const keys = []
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k !== curKey && (k === base || k.startsWith(base + SCOPE_SEP))) keys.push(k)
+    }
+  } catch (e) {
+    broken.push('枚举本机存储失败：' + (e && e.message))
+  }
+  keys.forEach(k => {
+    let v = null
+    try { v = JSON.parse(localStorage.getItem(k)) } catch { broken.push(k); return }
+    // 形状不对的（老数据缺分类算正常，分类不是数组才算坏）→ 不敢用它算引用
+    const okShape = v && typeof v === 'object' &&
+      ALL_CATEGORIES.every(c => v[c] === undefined || Array.isArray(v[c]))
+    if (okShape) others.push(v)
+    else broken.push(k)
+  })
+  return { others, broken }
+}
 
 export function useWikiData() {
   let _idCounter = 0
@@ -59,7 +97,7 @@ export function useWikiData() {
   // ========== 图片回收（A02） ==========
 
   /**
-   * 走一遍全库，收集正文里引用到的所有图片 id。
+   * 走一遍给定的百科数据，收集正文里引用到的所有图片 id。
    *
    * 「全」是这里唯一的正确性要求：dropUnused 会把**不在这个集合里**的图全部删掉，
    * 少走一个字段 = 那张还在用的图被当成孤儿清掉，正文里留下一个坏图，而且一声不吭。
@@ -69,22 +107,33 @@ export function useWikiData() {
    *   ③ 子词条正文走，且**递归**——validateImportData 允许 children 一直套到 10 层，
    *      导入进来的数据真可能更深，只扫一层就会删掉深层正文里的活图。
    * 正文之外没有别的图片引用可存：全项目只有 SubEntryEditor 会插入 id:// 引用（2026-10-11 查过）。
+   *
+   * @param {Array} dbs 要一起算的数据源；不传 = 只算当前账号（测试与单账号场景）
    */
-  function collectUsedImageIds() {
+  function collectUsedImageIds(dbs) {
     const used = new Set()
     const walk = (node) => {
       if (!node || typeof node !== 'object') return
       extractImageIds(node.wiki || '').forEach(id => used.add(id))
       if (Array.isArray(node.children)) node.children.forEach(walk)
     }
-    ALL_CATEGORIES.forEach(cat => (dbData.value[cat] || []).forEach(walk))
+    const list = Array.isArray(dbs) && dbs.length ? dbs : [dbData.value]
+    list.forEach(db => ALL_CATEGORIES.forEach(cat => {
+      const items = db && db[cat]
+      if (Array.isArray(items)) items.forEach(walk)   // 缺这个分类（老数据）按空算
+    }))
     return used
   }
 
   /**
    * 回收没人引用的图片（A02：dropUnused 此前全项目零调用点，是死代码）。
    *
-   * 为什么敢传 allowEmptyRefs：引用集合由 collectUsedImageIds() 走**全库**得出，
+   * 引用集合 = **本机所有账号**的百科正文，不只是当前账号：图片库是全设备单库、不按账号分，
+   * 只按当前账号算就会删掉别的账号的图（详见 readOtherAccountsDB 的说明）。
+   * 当前账号那一份取**内存里**的 —— localStorage 那份由 useLocalStorage 的 watch 异步落盘，
+   * 刚删完这一瞬间它还是旧的：照它算等于「刚删掉的条目还引用着自己的图」，永远清不掉。
+   *
+   * 为什么敢传 allowEmptyRefs：引用集合是把所有账号都走了一遍得出的，
    * 「集合为空」是真话、不是漏算。不传的话「删掉最后一个带图条目」这个最常见的情况
    * 恰好会被闸门挡下——图照样永久留着，正是本条要修的东西。
    *
@@ -93,7 +142,14 @@ export function useWikiData() {
    */
   async function purgeUnusedImages() {
     try {
-      const r = await dropUnused(collectUsedImageIds(), { allowEmptyRefs: true })
+      const { others, broken } = readOtherAccountsDB()
+      if (broken.length) {
+        const reason = '本机有 ' + broken.length + ' 份百科数据读不出来（' + broken[0] + '），这轮不敢判定哪些图是孤儿'
+        console.warn('[图片回收] 放弃本轮回收：' + reason)
+        return { refused: true, reason }
+      }
+      const used = collectUsedImageIds([dbData.value].concat(others))
+      const r = await dropUnused(used, { allowEmptyRefs: true })
       if (r.refused) console.warn('[图片回收] 被闸门挡下，图片暂时留在库里：', r.reason)
       return r
     } catch (e) {
