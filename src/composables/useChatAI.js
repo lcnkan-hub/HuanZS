@@ -1,6 +1,7 @@
 /**
  * 王冠 AI 请求积木
  * 职责：调用 AI 接口（服务商由用户在本机选择），把聊天历史发给模型，取回王冠的回复文本
+ *      另提供 detectCrisis()：不读密钥的危机兜底入口（A01，安全兜底不得被密钥闸门挡住）
  * 纯逻辑积木，不依赖组件；消息结构沿用 { role, content }
  *
  * BYOK（2026-09-28）：密钥改由用户在本机配置（composables/useApiKey.js），
@@ -129,7 +130,24 @@ export function useChatAI() {
     }
   }
 
-  return { isThinking, error, ask, askStructured }
+  /**
+   * 只跑危机管线，不发起任何 AI 请求（问题清单 A01）
+   * 为什么单独开这个口子：密钥闸门原先设在 ask() 之外（ChatView 的 aiConfigured 判断），
+   * 于是「没配密钥 / 密钥失效 / 换服务商的空档期」里，危险表达会整条落进普通流程而无人接住。
+   * 安全兜底与商业功能不能共用同一个前置条件 —— 这条路径不读密钥。
+   * 使用约定：与 ask() 内的管线**互斥**调用，同一条消息只跑一次，
+   * 否则状态机会对同一条消息重复迁移（本文件的两个调用点见 ChatView.handleSend）。
+   * @param {string} text 本轮用户输入
+   * @param {Array} [history] 已有消息数组（取最近几条作上下文）
+   * @returns {Promise<string|null>} 命中返回回复文案；未命中返回 null
+   */
+  async function detectCrisis(text, history = []) {
+    const recentContext = (history || []).slice(-4).map(m => ({ role: m.role, content: m.content }))
+    const crisis = await handleMessage(text || '', recentContext)
+    return crisis ? crisis.reply : null
+  }
+
+  return { isThinking, error, ask, askStructured, detectCrisis }
 }
 
 /**
