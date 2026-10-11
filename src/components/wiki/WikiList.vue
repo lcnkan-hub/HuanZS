@@ -1,10 +1,24 @@
 <!--
   百科列表页积木
   展示某分类下的所有条目，支持搜索过滤
+  「只看我创建的」（2026-10-11）：从「我的」页那个数字入口跳过来时带上的状态。
+  为什么是看得见、点得掉的一个 chip：数字说「我创建的 3 条」，点进来就该只看到那 3 条；
+  但筛选静悄悄生效最招人烦（用户会以为条目丢了），所以状态必须显式、且一键可退。
 -->
 <template>
   <div class="page-content">
     <h2><AppIcon :name="icon" :size="24" /> {{ tabName }}百科</h2>
+
+    <button
+      v-if="mineOnly"
+      class="filter-chip"
+      type="button"
+      @click="$emit('clear-mine-only')"
+    >
+      <i class="chip-dot" :class="'dot-' + icon"></i>
+      只看我创建的
+      <span class="chip-x">✕</span>
+    </button>
 
     <div class="item-list">
       <!-- 空库开局（I04）：这条分类一条都没有时，不显示「暂无数据」，而是给三张能点的卡片。
@@ -15,7 +29,7 @@
         @open-backup="$emit('open-backup')"
       />
       <div v-else-if="items.length === 0" class="empty-tip">
-        没搜到相关条目，换个词试试
+        {{ mineOnly ? '你在这个分类下还没有条目' : '没搜到相关条目，换个词试试' }}
       </div>
       <WikiCard
         v-for="(item, index) in items"
@@ -40,9 +54,10 @@ defineProps({
   tabName:      { type: String,  default: '' },
   items:        { type: Array,   default: () => [] },
   currentUser:  { type: String,  default: '' },
-  libraryEmpty: { type: Boolean, default: false } // 该分类真的一条都没有（不是搜索过滤空）
+  libraryEmpty: { type: Boolean, default: false }, // 该分类真的一条都没有（不是搜索过滤空）
+  mineOnly:     { type: Boolean, default: false }  // 只看我创建的（由 App 的 mineOnly 状态传入）
 })
-defineEmits(['open-item', 'delete-item', 'ask-starter', 'open-backup'])
+defineEmits(['open-item', 'delete-item', 'ask-starter', 'open-backup', 'clear-mine-only'])
 </script>
 
 <style scoped>
@@ -51,6 +66,23 @@ defineEmits(['open-item', 'delete-item', 'ask-starter', 'open-backup'])
   font-size: 22px; font-weight: 600; margin-bottom: 15px;
   display: flex; align-items: center; gap: 6px;
 }
+
+/* 筛选 chip：与「我的」页入口同一套三色点，一眼看出筛的是哪个分类 */
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; margin-bottom: 2px;
+  background: rgba(0, 122, 255, 0.08); color: var(--color-accent);
+  border: 1px solid rgba(0, 122, 255, 0.16); border-radius: 999px;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: background 0.2s;
+}
+.filter-chip:active { background: rgba(0, 122, 255, 0.16); }
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.dot-game { background: var(--color-progress-game); }
+.dot-note { background: var(--color-progress-note); }
+.dot-life { background: var(--color-progress-life); }
+.chip-x { font-size: 10px; opacity: 0.7; margin-left: 1px; }
+
 .item-list { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
 .empty-tip { text-align: center; color: var(--color-text-muted); margin-top: 40px; font-size: 14px; }
 @keyframes fadeInContent {
