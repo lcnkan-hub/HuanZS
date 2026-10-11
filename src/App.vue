@@ -311,6 +311,13 @@ const handleProfileUpdate = (updatedData) => {
   background-color: var(--color-bg-primary); color: var(--color-text-primary);
   font-family: var(--font-system); overflow: hidden; user-select: none;
   position: relative;
+  /* 刘海/挖孔机：整块内容从状态栏下沿起算（A10）。
+     加在容器上而不是各页顶部栏上 —— 顶部栏散在 AppHeader / 详情页 / 子词条编辑器 /
+     王冠聊天好几处，逐处加必漏一处；这里一处全盖住。
+     box-sizing 必须有：不改的话 100dvh 是内容高度，再叠 padding-top 会整体溢出，
+     把底部导航挤出屏幕。非刘海机 --safe-top 为 0px，视觉零变化。 */
+  box-sizing: border-box;
+  padding-top: var(--safe-top);
 }
 .main-content { flex: 1; position: relative; overflow: hidden; }
 .modal-input {

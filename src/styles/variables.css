@@ -3,6 +3,18 @@
  * 全局视觉令牌，组件通过 var() 引用，换肤只需修改此文件
  */
 
+/* 全局兜底：本文件是全项目唯一的全局样式表，浏览器默认样式得在这里清掉。
+   不清的话 body 自带 8px 外边距 —— .app-container 是 100vw/100dvh，
+   被这 8px 一挤就整体下沉、右下各溢出 8px（真浏览器实测 top=8、scrollHeight 比窗口高 16、
+   还多出一条横向滚动条）。A10 要加顶部安全区，得先把这层假的偏移去掉，
+   否则刘海机的 44px 会叠在一个错误的基线上。 */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
 :root {
   /* === 色彩系统 === */
   --color-bg-primary:    #f5f5f7;
@@ -57,6 +69,8 @@
   --ease-slide:cubic-bezier(0.32, 0.94, 0.6, 1);
 
   /* === 间距 === */
+  /* 刘海/挖孔机上沿安全区：Android(Capacitor) 与 iOS 都读同一条 env（A10） */
+  --safe-top:    env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
   /* === 字体 === */

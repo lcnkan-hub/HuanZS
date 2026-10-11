@@ -11,7 +11,7 @@
       v-if="editingChild"
       :childItem="editingChild"
       :parentName="openedItem.name"
-      @back="editingChild = null"
+      @back="editingChildId = null"
       @save="(wiki) => handleChildSave(wiki)"
       @delete="handleChildDelete"
     />
@@ -59,7 +59,7 @@
             :key="child.id"
             class="child-card"
             :style="{ animationDelay: index * 60 + 'ms' }"
-            @click="editingChild = child"
+            @click="editingChildId = child.id"
           >
             <div class="child-card-left">
               <span class="child-name">
@@ -114,12 +114,24 @@ const props = defineProps({
 })
 const emit = defineEmits(['close', 'add-child', 'save-child', 'delete-child'])
 
-const editingChild      = ref(null)
+// 正在编辑的子词条：只存 id，对象由 openedItem 现算，不存引用（A08）
+// 存引用的问题：App 每次保存都用深拷贝整体替换 openedItem（见 handleSaveChildWiki），
+// 存下来的那个对象当场作废；发布时父级又把 editingChild 置空，编辑器 v-if 立刻卸载 ——
+// 用户被弹回列表，而编辑器内部刚切到的阅读态连同图片解析全成了白做。
+// 改成现算之后「发布完留在阅读态看结果」才成立：openedItem 一换，这里自动跟到新对象。
+const editingChildId    = ref(null)
 const showAddChildModal = ref(false)
 const newChildName      = ref('')
 
 // 计算子词条列表
 const children = computed(() => props.openedItem.children || [])
+
+// 正在编辑的子词条（见 editingChildId 处的说明）：id 落空说明它已被删除或数据被替换
+const editingChild = computed(() =>
+  editingChildId.value
+    ? children.value.find(c => c.id === editingChildId.value) || null
+    : null
+)
 
 // 添加子词条
 const handleAddChild = () => {
@@ -130,19 +142,18 @@ const handleAddChild = () => {
 }
 
 // 保存子词条内容
+// 发布后**不能**把 editingChildId 置空（A08）：置空会让 v-if 立刻卸载编辑器，
+// 用户被弹回子词条列表，而编辑器内部刚切到阅读态、刚解析完图片 —— 全白做。
+// 留在编辑器里看发布结果才是「发布」该有的样子；要离开列表有「返回」按钮。
 const handleChildSave = (wiki) => {
-  if (editingChild.value) {
-    emit('save-child', editingChild.value.id, wiki)
-    editingChild.value = { ...editingChild.value, wiki }
-    editingChild.value = null
-  }
+  if (editingChild.value) emit('save-child', editingChild.value.id, wiki)
 }
 
 // 删除子词条
 const handleChildDelete = () => {
   if (editingChild.value && confirm('确定要删除这个子词条吗？')) {
     emit('delete-child', editingChild.value.id)
-    editingChild.value = null
+    editingChildId.value = null
   }
 }
 </script>
