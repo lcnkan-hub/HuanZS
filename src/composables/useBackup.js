@@ -13,12 +13,16 @@
  *  3. **导入前必须先快照、且能回退**（快照逻辑在 useBackupStore.js）。只存不能退 = 假安全感。
  *  4. **报出的数字必须是真的**（A04）：图片逐张验、先备后写；坏了几张就报几张。
  *     绝不允许出现「图片库已清空 / 文本已换代，界面却报导入完成」。
+ *  5. **损坏留证（`__corrupt`）必须跟着备份走**（A09 延伸）：留证是"原文还在、只是读不出来"的
+ *     最后一手。它只在本机就等于没有 —— 用户清一次浏览器数据，那份现场永久消失。
+ *     导入时按**当前账号**重写键名，且本机已有同键留证一律不覆盖（第一次的现场更可能有用）。
  *
  * 环境降级（与 services/storageAdapter.js 同一套思路）：
  *   node 测试环境没有 indexedDB / Blob / btoa —— 全部降级，不抛错，让断言脚本能在纯 node 里跑。
  */
 import { STORAGE_KEYS } from '../constants/categories'
-import { scopeKey } from '../utils/storageScope'
+import { scopeKey, currentScope, GLOBAL_KEYS } from '../utils/storageScope'
+import { CORRUPT_SUFFIX } from './useLocalStorage'
 import { IMAGE_DB_NAME, IMAGE_STORE_NAME, getImageDB, releaseAllImageUrls } from './useImageStore'
 import { saveSnapshot, readSnapshot } from './useBackupStore'
 
@@ -282,6 +286,68 @@ export async function countImages() {
 
 // ========== 导出 ==========
 
+// ========== 损坏留证（救援区 · A09 延伸） ==========
+
+/** 真实键 → { base, uid }；uid=null 表示没有账号后缀（设备级键 / 未登录时写的） */
+function splitScoped(rawKey) {
+  const i = rawKey.indexOf('@u')
+  return i >= 0 ? { base: rawKey.slice(0, i), uid: rawKey.slice(i + 2) } : { base: rawKey, uid: null }
+}
+
+/** 这个留证键属不属于「当前账号」——留证也是数据，不能跨账号带 */
+function isCurrentAccountKey(rawKey) {
+  const { base, uid } = splitScoped(rawKey)
+  if (uid === null) return currentScope() === null || GLOBAL_KEYS.has(base)
+  return String(currentScope()) === uid
+}
+
+/**
+ * 收集本机当前账号的损坏留证：{ 基础键名: 原始串 }
+ * 读不到就当没有 —— 宁可少带，不许让整个导出因此失败。
+ */
+export function readRescueCopies() {
+  const out = {}
+  try {
+    if (typeof localStorage === 'undefined' || typeof localStorage.length !== 'number') return out
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k || !String(k).endsWith(CORRUPT_SUFFIX)) continue
+      // ⚠️ 顺序有讲究：**先剥掉 __corrupt 后缀，再判账号归属**。
+      //    反过来的话 `…@uCUR123__corrupt` 会被当成"账号 id = CUR123__corrupt"，
+      //    和当前账号永远对不上 → 全部留证被判成"别人的"、一个都带不走（断言抓到的第一个 bug）。
+      const scoped = String(k).slice(0, -CORRUPT_SUFFIX.length)
+      if (!isCurrentAccountKey(scoped)) continue
+      const raw = localStorage.getItem(k)
+      if (typeof raw !== 'string' || !raw) continue
+      out[splitScoped(scoped).base] = raw
+    }
+  } catch { /* 枚举失败 → 空手 */ }
+  return out
+}
+
+/**
+ * 写回损坏留证（救援区的反向操作）。
+ * 本机已有同键留证**不覆盖** —— 与 useLocalStorage.rescueCorrupt 同一条口径：
+ * 第一次损坏的那份原文更可能是有用的。
+ */
+export function restoreRescueCopies(rescue) {
+  const out = { restored: 0, skipped: 0, failed: 0 }
+  if (!rescue || typeof rescue !== 'object' || Array.isArray(rescue)) return out
+  Object.keys(rescue).forEach(base => {
+    const raw = rescue[base]
+    if (typeof raw !== 'string' || !raw) { out.failed++; return }
+    try {
+      const target = scopeKey(base) + CORRUPT_SUFFIX
+      if (localStorage.getItem(target) !== null) { out.skipped++; return }
+      localStorage.setItem(target, raw)
+      out.restored++
+    } catch { out.failed++ }
+  })
+  return out
+}
+
+// ========== 导出 ==========
+
 /** 组装完整备份对象。includeImages=false 时 images 为空数组（体积闸门用） */
 export async function buildBackupPayload({ includeImages = true } = {}) {
   const data = { crisis: {} }
@@ -314,7 +380,9 @@ export async function buildBackupPayload({ includeImages = true } = {}) {
       images: images.length
     },
     data,
-    images
+    images,
+    // 损坏留证（A09 延伸）：原文还在、只是读不出来 —— 只留在这台机器上就等于没有
+    rescue: readRescueCopies()
   }
 }
 
@@ -357,6 +425,7 @@ export async function downloadBackup({ includeImages = true } = {}) {
     ',"account_label":', J(payload.account_label),
     ',"counts":', J(payload.counts),
     ',"data":', J(payload.data),
+    ',"rescue":', J(payload.rescue || {}),
     ',"images":[']
   payload.images.forEach((img, i) => {
     if (i) parts.push(',')
@@ -545,6 +614,9 @@ export function validateBackupPayload(raw) {
   if (data.memory != null && !Array.isArray(data.memory)) return { ok: false, error: '记忆数据形状不对' }
   if (data.crisis != null && typeof data.crisis !== 'object') return { ok: false, error: '危机数据形状不对' }
   if (raw.images != null && !Array.isArray(raw.images)) return { ok: false, error: '图片段形状不对' }
+  if (raw.rescue != null && (typeof raw.rescue !== 'object' || Array.isArray(raw.rescue))) {
+    return { ok: false, error: '损坏留证段形状不对' }
+  }
 
   // 条数核对：对不上说明文件在传输/编辑中损坏了
   if (raw.counts && typeof raw.counts === 'object') {
@@ -666,6 +738,13 @@ export async function importBackup(file, options = {}) {
     }
   }
 
+  // 损坏留证（A09 延伸）：文字数据已经换代了，留证也跟着写回来。
+  // 失败不算导入失败 —— 它救的是"上一轮损坏"，不该反过来毁掉这一轮导入。
+  let rescueResult = { restored: 0, skipped: 0, failed: 0 }
+  try {
+    rescueResult = restoreRescueCopies(v.payload.rescue)
+  } catch { /* 保持 0，不阻断 */ }
+
   return {
     ok: true,
     legacy: !!v.legacy,
@@ -678,6 +757,7 @@ export async function importBackup(file, options = {}) {
     imageDroppedDetail: imageResult.droppedDetail || [],
     imageError,
     imageReport: report,
+    rescue: rescueResult,
     counts: (v.payload && v.payload.counts) || {}
   }
 }
@@ -706,5 +786,8 @@ export async function restoreFromSnapshot() {
   } catch {
     /* 图片失败不回滚数据 */
   }
+  try {
+    restoreRescueCopies(rec.payload.rescue)   // 回退也要把留证带回来（快照里本来就有）
+  } catch { /* 忽略 */ }
   return { ok: true, ts: rec.ts }
 }

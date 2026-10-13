@@ -15,6 +15,10 @@
       <!-- 开屏动画 -->
       <SplashScreen v-if="isSplashActive" @close="isSplashActive = false" />
 
+      <!-- 常驻提示条（I15 存储没存上 / I14 该导备份了）：放在顶栏之上，
+           王冠页与百科页都在它下面 —— 这两件事不该只在「我的」页才看得见 -->
+      <NoticeBar v-if="notice" :notice="notice" @action="handleNoticeAction" />
+
       <!-- 顶部搜索栏（内容页且未打开详情时显示，不包含王冠） -->
       <AppHeader
         v-if="isContentTab && !openedItem"
@@ -107,6 +111,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 // 组件积木
 import SplashScreen from './components/common/SplashScreen.vue'
 import ModalBox     from './components/common/ModalBox.vue'
+import NoticeBar    from './components/common/NoticeBar.vue'
 import AppHeader    from './components/layout/AppHeader.vue'
 import BottomNav    from './components/layout/BottomNav.vue'
 import WikiList     from './components/wiki/WikiList.vue'
@@ -125,9 +130,13 @@ import { useChat } from './composables/useChat'
 import { setPendingStarter } from './composables/useStarter'
 import { starterQuestion } from './utils/starterJudge'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
+import { lastExportAt } from './composables/useBackup'
+import { useStorageHealth, formatMB } from './utils/storageHealth'
+import { shouldRemind, reminderText, snoozeUntilTomorrow } from './utils/backupReminder'
+import { scopeKey } from './utils/storageScope'
 
 // 配置常量
-import { TAB_ICONS, TAB_NAMES, ALL_CATEGORIES } from './constants/categories'
+import { TAB_ICONS, TAB_NAMES, ALL_CATEGORIES, STORAGE_KEYS } from './constants/categories'
 
 // ========== 登录闸门 ==========
 // 未登录 → 只渲染 AuthView；登录/注册成功后整页重载，
@@ -194,6 +203,73 @@ const filteredItems = computed(() => {
 // 后者用户明明有一堆条目，弹开局卡片是错的（见 wiki/WikiList.vue 的 v-else-if）
 const categoryEmpty = computed(() => (dbData.value[currentTab.value] || []).length === 0)
 
+// ========== 常驻提示条（I15 存储写失败 / I14 该导备份了）==========
+// 两件事共用一个条：谁更急谁上（存储写失败 > 导出提醒）—— 三个条叠在顶端会互相打架
+const { failures: storageFailures, usage: storageUsage, refreshUsage } = useStorageHealth()
+const { messages: chatMessages } = useChat()
+const noticeCollapsed = ref(false)   // 只能暂时收起（本次会话）；永久消失的提醒等于没有
+const reminderOn     = ref(false)
+const reminderDismissed = ref(false)
+const reminderInfo   = ref(null)
+
+/** 本机「有东西可丢」吗：百科有任意条目，或真的聊过天（只有欢迎语不算） */
+const hasAnyData = computed(() => {
+  const d = dbData.value || {}
+  const wikiCount = ALL_CATEGORIES.reduce((n, c) => n + ((d[c] || []).length), 0)
+  return wikiCount > 0 || (chatMessages.value || []).length > 1
+})
+
+/** 「今天先不提醒」的到期时刻（按账号隔离，走 scopeKey） */
+function readSnooze() {
+  try {
+    return JSON.parse(localStorage.getItem(scopeKey(STORAGE_KEYS.BACKUP_SNOOZE)) || 'null')
+  } catch {
+    return null
+  }
+}
+function writeSnooze(iso) {
+  try {
+    localStorage.setItem(scopeKey(STORAGE_KEYS.BACKUP_SNOOZE), JSON.stringify(iso))
+  } catch { /* 存不下就算了：最多明天再提醒一次，不许因为存不进这一条而崩掉界面 */ }
+}
+
+const notice = computed(() => {
+  if (noticeCollapsed.value) return null
+
+  // ① 先报急的：有数据没存上（I15）
+  const fail = (storageFailures.value || [])[0]
+  if (fail) {
+    const u = storageUsage.value || {}
+    return {
+      kind: 'error',
+      icon: 'close',
+      title: `「${fail.label}」这次的改动没保存下来`,
+      detail: `本机存储满了（已用约 ${formatMB(u.totalBytes)}，上限约 ${formatMB(u.limitBytes)}）。` +
+        `先导一份备份把东西带走，再清理不用的内容。`,
+      actions: [
+        { label: '导出备份', value: 'export', primary: true },
+        { label: '清一清图片', value: 'purge' }
+      ]
+    }
+  }
+
+  // ② 再报该做的事：备份提醒（I14）
+  if (reminderOn.value && !reminderDismissed.value) {
+    const t = reminderText(reminderInfo.value)
+    return {
+      kind: 'info',
+      icon: 'clock',
+      title: t.title,
+      detail: t.detail,
+      actions: [
+        { label: '去导出', value: 'export', primary: true },
+        { label: '今天先不', value: 'snooze' }
+      ]
+    }
+  }
+  return null
+})
+
 // ========== 生命周期 ==========
 // 王冠主动开口的触发点（I02）：挂在 app 上而不是王冠页上 —— 首屏可能是用户上次停留的 Tab，
 // 那时王冠页没挂载，"打开 app 那一刻王冠已经先开过口"就不成立。
@@ -205,6 +281,20 @@ onMounted(() => {
   // 若挂在「随便哪次保存之后」扫一遍就会被当孤儿删掉（这也是它没挂在保存路径上的原因）。
   // 闸门（当前/其它账号数据读得出来）在 purgeUnusedImages 内部，读不全就不清。
   if (loggedIn.value) wikiData.purgeUnusedImages()
+
+  // 备份提醒（I14）：只在「打开 app 那一刻」判一次。
+  // 纯前端没有后台，做不到到点自己冒出来（I05 已认下的天花板）—— 与王冠主动开口同款时机。
+  // 判据在 utils/backupReminder.js（纯函数，可单测）：空库不催、刚导过不催、点了"今天先不"只压到次日 0 点。
+  if (loggedIn.value) {
+    const r = shouldRemind({
+      lastExportAt: lastExportAt(),
+      snoozedUntil: readSnooze(),
+      hasData: hasAnyData.value
+    })
+    reminderOn.value = r.remind
+    reminderInfo.value = r
+    refreshUsage() // 顺带体检一次：提示条一出现就要能报出"用了几 MB"
+  }
 })
 
 // ========== 操作函数 ==========
@@ -227,6 +317,25 @@ function handleStarterAsk(tab) {
 /** 开局那行「换手机了？从旧手机带进来」→ 去「我的」（备份中心在那儿） */
 function handleOpenBackup() {
   currentTab.value = 'mine'
+}
+
+/**
+ * 提示条上的动作（I15 / I14）。
+ * 「导出备份」「今天先不」都跳「我的」页：备份中心就在那儿，体积闸门和结果提示都在那边，
+ * 不在这里再抄一份导出逻辑（抄一份 = 两处口径，早晚走偏）。
+ */
+function handleNoticeAction(value) {
+  if (value === 'collapse') { noticeCollapsed.value = true; return }
+  if (value === 'export') { handleOpenBackup(); return }
+  if (value === 'snooze') {
+    writeSnooze(snoozeUntilTomorrow())
+    reminderDismissed.value = true
+    return
+  }
+  if (value === 'purge') {
+    // 清掉没人引用的图片（A02 的积木，自带"读不全就不清"的双闸门），清完立刻重新体检
+    Promise.resolve(wikiData.purgeUnusedImages()).then(() => refreshUsage())
+  }
 }
 
 /**
