@@ -18,8 +18,14 @@
         {{ busy === 'export' ? '正在打包…' : '导出全量备份' }}
       </button>
       <p class="bk-hint">一个文件带走全部：百科 · 王冠记忆 · 聊天记录 · 图片 · 用户档案</p>
-      <p class="bk-last" v-if="lastAt">上次导出：{{ fmtTime(lastAt) }}</p>
+      <p class="bk-last" v-if="lastAt">
+        上次导出：{{ fmtTime(lastAt) }}<span v-if="daysAgo !== null">（{{ daysAgo }} 天前）</span>
+      </p>
       <p class="bk-last warn" v-else>还没导出过 —— 现在手机丢了，东西就真没了</p>
+      <!-- 容量体检（I15）：给的是同一份估算，界面一律写"约" -->
+      <p class="bk-size" v-if="usageText">
+        本机已用约 {{ usageText }}<span v-if="topUser"> · 最占地方的是{{ topUser }}</span>
+      </p>
 
       <!-- 导入 -->
       <button class="bk-btn ghost" type="button" :disabled="!!busy" @click="triggerImport">
@@ -46,10 +52,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import { downloadBackup, importBackup, restoreFromSnapshot, estimateSize, lastExportAt, humanError, SIZE_GATE_MB } from '../../composables/useBackup'
 import { snapshotInfo, clearSnapshot } from '../../composables/useBackupStore'
+import { refreshUsage, formatMB } from '../../utils/storageHealth'
+import { daysSince } from '../../utils/backupReminder'
 
 const fileEl = ref(null)
 const busy = ref('')       // '' | 'export' | 'import'
@@ -57,10 +65,23 @@ const msg = ref('')
 const msgType = ref('ok')  // 'ok' | 'error'
 const snap = ref(null)
 const lastAt = ref(null)
+const usage  = ref(null)   // 本机存储体检结果（I15）
+const daysAgo = computed(() => (lastAt.value ? daysSince(lastAt.value) : null))
+const usageText = computed(() => {
+  const u = usage.value
+  if (!u || !u.totalBytes) return ''
+  return `${formatMB(u.totalBytes)} / 上限约 ${formatMB(u.limitBytes)}`
+})
+/** 最占地方的那一项（小于 4KB 就不值得点名，省得啰嗦） */
+const topUser = computed(() => {
+  const first = ((usage.value && usage.value.byKey) || [])[0]
+  return first && first.bytes > 4096 ? `「${first.label}」` : ''
+})
 
 onMounted(async () => {
   lastAt.value = lastExportAt()
   snap.value = await snapshotInfo()
+  usage.value = refreshUsage()
 })
 
 const fmtTime = (iso) => {
@@ -221,6 +242,7 @@ const handleRestore = async () => {
 .bk-hint { font-size: var(--text-12); color: var(--color-text-muted); text-align: center; line-height: 1.6; }
 .bk-last { font-size: var(--text-12); color: var(--color-text-muted); text-align: center; }
 .bk-last.warn { color: var(--color-danger); }
+.bk-size { font-size: var(--text-12); color: var(--color-text-muted); text-align: center; }
 
 .bk-msg {
   display: flex; align-items: flex-start; gap: 6px;

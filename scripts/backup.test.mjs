@@ -252,6 +252,41 @@ ok('无 DOM 环境 via 如实报 none', (await backup.downloadBackup({ includeIm
   ok('换 src:data-img-src 仍保留 id:// 原引用（便于二次解析）', fixed.includes('data-img-src="id://img-m3k9x_0"'), fixed)
   ok('换 src:没有 src 的标签会补上', withBlobSrc('<img data-img-src="id://img-1">', 'blob:x').includes(' src="blob:x"'))
   ok('换 src:alt/class 等其它属性保留', fixed.includes('alt="q"') && fixed.includes('class="md-image"'), fixed)
+
+  // ─────────── 损坏留证（救援区 · A09 延伸）───────────
+  // 来历：留证（<key>__corrupt）原先只留在这台机器上 —— 用户清一次浏览器数据就永久没了，
+  // 而那恰恰是这份备份最该救的东西。所以：导出带上、导入写回、本机已有同键的绝不覆盖。
+  console.log('\n【损坏留证：跟着备份走】')
+  const RESCUE_RAW = '{"game":[{"id":"broken'
+  localStorage.setItem(sk(STORAGE_KEYS.DB) + '__corrupt', RESCUE_RAW)
+
+  const p2 = await backup.buildBackupPayload({ includeImages: false })
+  ok('导出:带上本机当前账号的损坏留证', !!(p2.rescue && p2.rescue[STORAGE_KEYS.DB] === RESCUE_RAW), JSON.stringify(p2.rescue))
+
+  localStorage.setItem(STORAGE_KEYS.DB + '@uSOMEONEELSE__corrupt', '{"game":[]}')
+  const p3 = await backup.buildBackupPayload({ includeImages: false })
+  ok('导出:别的账号的留证不带（留证也是数据，不能跨账号带）', Object.keys(p3.rescue).length === 1, JSON.stringify(Object.keys(p3.rescue)))
+  localStorage.removeItem(STORAGE_KEYS.DB + '@uSOMEONEELSE__corrupt')
+
+  // 落文件那条路是**手写拼串**的（为了不把整包拼成一个巨型字符串），最容易漏字段 ——
+  // 所以直接对着源码断言，别让"payload 里有、文件里没有"这种漂移活下来。
+  const { readFileSync } = await import('node:fs')
+  const backupSrc = readFileSync(new URL('../src/composables/useBackup.js', import.meta.url), 'utf8')
+  ok('导出:落文件的 JSON 组装里也写上了 rescue（手写拼串容易漏）', backupSrc.includes('\',"rescue":\''), '')
+
+  localStorage.removeItem(sk(STORAGE_KEYS.DB) + '__corrupt')
+  const r1 = backup.restoreRescueCopies({ [STORAGE_KEYS.DB]: RESCUE_RAW })
+  ok('导入:写回留证，键名按当前账号重写', r1.restored === 1 && localStorage.getItem(sk(STORAGE_KEYS.DB) + '__corrupt') === RESCUE_RAW, JSON.stringify(r1))
+
+  const r2 = backup.restoreRescueCopies({ [STORAGE_KEYS.DB]: '另外一份现场' })
+  ok('导入:本机已有同键留证 → 不覆盖（第一次的现场更可能有用）',
+    r2.skipped === 1 && localStorage.getItem(sk(STORAGE_KEYS.DB) + '__corrupt') === RESCUE_RAW, JSON.stringify(r2))
+
+  ok('导入:坏值（不是字符串）不写，但如实计数', backup.restoreRescueCopies({ db: 123 }).failed === 1, '')
+  ok('导入:老备份没有救援区 → 零动作、不抛错',
+    (() => { const r = backup.restoreRescueCopies(undefined); return r.restored === 0 && r.skipped === 0 && r.failed === 0 })(), '')
+  ok('校验:救援区形状不对（数组）→ 整份拒绝导入',
+    backup.validateBackupPayload({ ...p2, rescue: [] }).ok === false, '')
 }
 
 // ─────────── 汇总 ───────────
