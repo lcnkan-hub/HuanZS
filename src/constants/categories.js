@@ -64,7 +64,40 @@ export const STORAGE_KEYS = {
   PROACTIVE_ENABLED: 'crown_proactive_enabled', // 用户开关（键不存在 = 开；宪法没规定开关，是本产品补的）
 
   // —— 首屏定位（I03）——
-  LAST_TAB: 'huan_zhong_shu_last_tab' // 上次停留的 Tab（键不存在 = 首次进来 → 王冠）
+  LAST_TAB: 'huan_zhong_shu_last_tab', // 上次停留的 Tab（键不存在 = 首次进来 → 王冠）
+
+  // —— 备份提醒（I14）——
+  BACKUP_SNOOZE: 'huan_zhong_shu_backup_snooze' // 「今天先不提醒」的到期时刻（只压一天，不永久消失）
+}
+
+/**
+ * 本机存储容量上限（byte，UTF-16 口径）。
+ * 浏览器普遍按「每个源约 5MB」算配额，且是按 UTF-16 字符计 —— 所以体检里
+ * 一个字符算 2 字节。这个数字是**估算模型的参数**，不是测量值：界面文案一律写"约"。
+ */
+export const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024
+
+/**
+ * 存储键 → 人话标签（I15）。
+ * 为什么需要：存储写失败时不能给用户念 `huan_zhong_shu_memory_v1@u3f2a` ——
+ * 他要知道的是"王冠的记忆没存上"。键名在此统一翻译，全项目一处维护。
+ */
+export const KEY_LABELS = {
+  [STORAGE_KEYS.USER]: '个人资料',
+  [STORAGE_KEYS.DB]: '百科条目',
+  [STORAGE_KEYS.CHAT]: '和王冠的聊天记录',
+  [STORAGE_KEYS.MEMORY]: '王冠的记忆',
+  [STORAGE_KEYS.AI_CONFIG]: 'AI 设置（密钥只在本机）',
+  [STORAGE_KEYS.ACCOUNTS]: '本机账号表',
+  [STORAGE_KEYS.SESSION]: '登录状态',
+  [STORAGE_KEYS.CRISIS_AUDIT]: '危机响应留痕',
+  [STORAGE_KEYS.CRISIS_PENDING]: '危机待确认标记',
+  [STORAGE_KEYS.CRISIS_STATE]: '风险状态',
+  [STORAGE_KEYS.LAST_EXPORT]: '上次导出时间',
+  [STORAGE_KEYS.PROACTIVE_LOG]: '王冠主动开口账本',
+  [STORAGE_KEYS.PROACTIVE_ENABLED]: '主动开口开关',
+  [STORAGE_KEYS.LAST_TAB]: '上次停留的页面',
+  [STORAGE_KEYS.BACKUP_SNOOZE]: '备份提醒暂缓'
 }
 
 /** 全部合法 Tab（校验持久化的 Tab 值用，从导航项派生，不另写一份） */

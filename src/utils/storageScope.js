@@ -35,7 +35,8 @@ export const SCOPED_BASE_KEYS = [
   STORAGE_KEYS.LAST_EXPORT,      // 补漏：本就按账号隔离（scopeKey），但漏在本表 → 首账号认领时丢
   STORAGE_KEYS.PROACTIVE_LOG,     // 主动开口账本
   STORAGE_KEYS.PROACTIVE_ENABLED, // 主动开口开关
-  STORAGE_KEYS.LAST_TAB          // 首屏落地页（谁的习惯归谁，换个账号不该继承）
+  STORAGE_KEYS.LAST_TAB,         // 首屏落地页（谁的习惯归谁，换个账号不该继承）
+  STORAGE_KEYS.BACKUP_SNOOZE     // 备份提醒暂缓（谁压的归谁）
 ]
 
 let _uid = null
