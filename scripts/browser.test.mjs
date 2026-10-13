@@ -154,6 +154,11 @@ await ok('播数据 + 首屏落 game，重载后看到条目', async () => {
 
 // ═══ A10 · 顶部安全区 ═══
 console.log('\n═══ A10 · 顶部安全区 ═══')
+// 2026-10-13 补：这时候顶端可能挂着常驻提示条（I14 —— 刚播过数据、又没导出过，
+// 它就该出现）。它按设计排在顶栏**之上**，会把 .header 整体往下推 —— 那是有意的，
+// 不是布局坏了。所以先把提示条收起，再量"顶栏贴顶"这类基准；
+// 提示条自身的窄屏表现（不溢出、可点件够大）由「移动端适配」那两条用例单独量。
+await ev(`(() => { const x = document.querySelector('.notice-x'); if (x) x.click(); return true })()`)
 await ok('基准：顶栏贴顶、容器正好一屏、无溢出', async () => {
   const r = await ev(`(() => {
     const c = document.querySelector('.app-container'), h = document.querySelector('.header')
@@ -367,6 +372,48 @@ await ok('退出编辑器与详情（连按两次返回）', async () => {
   must(await waitFor(`!document.querySelector('.detail-page-wrapper')`, 5000), '没退出详情页')
 })
 await screen('「我的」页', NAV('我的'), `!!document.querySelector('.account-card')`)
+
+// ── I14 导出提醒：顶端提示条 ───────────────────────────────
+// 为什么必须真浏览器：这条的风险全在"接线"上 —— 判据算对了但没挂到界面上、
+// 或挂上了却在窄屏溢出 / 外扩的命中区被祖先裁掉。单测打不到这两类。
+// 种现场用「按账号加后缀」的键：与 utils/storageScope.js 同口径，不手写死键名。
+// 放在「我的」这一屏做：重载后正好落回「我的」（startTab 就是它），开屏会自己走完，
+// 后面两条用例（进王冠 / 从王冠返回「我的」）仍按原路走，不受影响。
+await ok('提示条：种一份"20 天没导出"的现场 → 重载后条出现，且 375 下不溢出、可点件够大', async () => {
+  await ev(`(() => {
+    const s = JSON.parse(localStorage.getItem('huan_zhong_shu_session') || '{}')
+    const suf = s.userId ? '@u' + s.userId : ''
+    localStorage.setItem('huan_zhong_shu_db' + suf, JSON.stringify({
+      game: [{ id: 'seed1', name: '排期验收用', wiki: '', creator: '我', time: '2026/10/01 10:00' }],
+      note: [], life: []
+    }))
+    localStorage.setItem('huan_zhong_shu_last_export_at' + suf,
+      JSON.stringify(new Date(Date.now() - 20 * 86400000).toISOString()))
+    localStorage.removeItem('huan_zhong_shu_backup_snooze' + suf)
+    return true
+  })()`)
+  await cmd('Page.reload')   // 用 CDP 重载：页面导航时 Runtime.evaluate 的上下文会没，ev 会抛
+  // 重载后先睡一会儿再判"开屏没了"：Vue 尚未挂载的那一瞬间 .splash-screen 是不存在的，
+  // 立刻判会被骗过 —— 开屏随后才挂上来（量测与后续点击都会被它盖住）。
+  await sleep(3000)
+  must(await waitFor(`!document.querySelector('.splash-screen')`, 12000), '开屏没走完，量测会被它挡住')
+  must(await waitFor(`!!document.querySelector('.notice-bar')`, 12000), '20 天没导出了，顶端提示条却没出现')
+  await sleep(600)
+  const txt = await ev(`document.querySelector('.notice-bar').textContent`)
+  must(/20 天前/.test(txt), `提示条文案没带出天数：${txt}`)
+  await mustFit()   // ← 横向不许溢出、可点件不许矮于 44（含新加的两个按钮与收起键）
+})
+await ok('提示条：「今天先不」→ 条收起，并且只压到次日（不是永久消失）', async () => {
+  await ev(`[...document.querySelectorAll('.notice-btn')].find(b => /今天先不/.test(b.textContent)).click()`)
+  must(await waitFor(`!document.querySelector('.notice-bar')`, 5000), '点了「今天先不」提示条还在')
+  const slept = await ev(`(() => {
+    const s = JSON.parse(localStorage.getItem('huan_zhong_shu_session') || '{}')
+    const raw = localStorage.getItem('huan_zhong_shu_backup_snooze' + (s.userId ? '@u' + s.userId : ''))
+    return !!raw && Date.parse(JSON.parse(raw)) > Date.now()
+  })()`)
+  must(slept, '没有写下「暂缓到次日」的标记 —— 那就成了永久闭嘴')
+})
+
 await screen('王冠聊天页（含底部输入栏）', NAV('王冠'), `!!document.querySelector('.chat-container')`, 2500)
 await ok('打开修改资料弹窗 → 量头像格与动作键', async () => {
   // 王冠 Tab 是故意藏底栏的（聊天有自己的输入栏），所以从它自己的返回键出去，
