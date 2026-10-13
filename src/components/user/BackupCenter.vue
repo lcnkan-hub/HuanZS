@@ -118,20 +118,55 @@ const handleFile = async (event) => {
 
   if (!confirm(`导入会用备份内容覆盖当前账号的全部数据。\n\n系统会先自动存一份「导入前快照」，导错了能退回来。\n\n继续？`)) return
 
+  const r = await runImport(file, false)
+  if (!r) return
+  // 备份里有坏图：默认**什么都没动**（A04），把选择权交回用户 ——
+  // 但这份备份可能就是他唯一的一份，所以给一条显式的「仍然导入」。
+  const go = confirm(
+    `${r.error}\n\n` +
+    `点「确定」＝仍然导入（会丢掉这 ${r.imageReport.damaged} 张图）\n` +
+    `点「取消」＝先不导（当前数据没有被改动）`
+  )
+  if (!go) return
+  await runImport(file, true)
+}
+
+/** 跑一次导入；坏图被拦时返回结果交给上层问用户，其余情况在这里收尾 */
+const runImport = async (file, allowDamagedImages) => {
   busy.value = 'import'
   say('')
   try {
-    const r = await importBackup(file)
-    if (!r.ok) { say(r.error || '导入失败', 'error'); return }
-    const c = r.counts || {}
-    const tail = r.legacy ? '（老版备份，只导了百科）' : `（百科 ${c.wiki_items} · 记忆 ${c.memory} · 聊天 ${c.chat} · 图片 ${r.images}）`
-    alert('导入完成 ' + tail + '\n\n页面将重新加载。')
-    location.reload()
+    const r = await importBackup(file, { allowDamagedImages })
+    if (r.ok) { finishImport(r); return null }
+    if (r.code === 'IMAGES_DAMAGED') { say(r.error, 'error'); return r }
+    say(r.error || '导入失败', 'error')
+    return null
   } catch (e) {
     say('导入失败：' + humanError(e), 'error')
+    return null
   } finally {
     busy.value = ''
   }
+}
+
+/**
+ * 收尾报账：这里写的每个数字都必须是**真的写进去了多少**（A04）。
+ * 不许拿 counts（备份自称的条数）充数，也不许把「图片没进来」藏起来。
+ */
+const finishImport = (r) => {
+  const c = r.counts || {}
+  let tail
+  if (r.legacy) {
+    tail = `（老版备份，只导了百科 ${c.wiki_items} 条）`
+  } else {
+    const img = r.imageUnavailable
+      ? '图片：当前环境读不到图片库，这批图没进'
+      : `图片 ${r.images}${r.imagesDropped > 0 ? `（备份里另有 ${r.imagesDropped} 张是坏的，没导入）` : ''}`
+    tail = `（百科 ${c.wiki_items} · 记忆 ${c.memory} · 聊天 ${c.chat} · ${img}）`
+  }
+  const warn = r.imageError ? `\n\n⚠️ 图片没能导入：${r.imageError}\n（文字数据已经导入回来了）` : ''
+  alert('导入完成 ' + tail + warn + '\n\n页面将重新加载。')
+  location.reload()
 }
 
 const handleRestore = async () => {

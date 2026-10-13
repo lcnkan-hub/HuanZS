@@ -55,6 +55,38 @@ function readOtherAccountsDB() {
   return { others, broken }
 }
 
+/**
+ * 当前账号**落盘那一份**的状态（不看内存）。A02 残留② 加启动回收时补的闸门。
+ *
+ * 为什么必须有：当前账号的引用集合是取**内存**的（落盘由 useLocalStorage 的 watch 异步做，
+ * 刚删完那一瞬间落盘那份还是旧的，照它算等于永远清不掉）。但取内存有一个前提 ——
+ * 内存那份确实是用户的数据。若落盘那份**解析失败**，useLocalStorage 会回落成默认空值（A09），
+ * 内存里就是 `{game:[],note:[],life:[]}`：照它算引用集合 = 当前账号所有图片都是孤儿 → 全清，
+ * 而原始文本其实还有救（A09 留了 `__corrupt` 副本），图却是**不可逆**的没了。
+ * 形状不对同理（老代码真出现过 `{game:{}}` 这种）。
+ *
+ * 结论：读不全就不敢判定谁是孤儿 —— 宁可这轮不清，不可错杀。
+ */
+function currentStoredKeyState() {
+  let raw = null
+  try {
+    raw = localStorage.getItem(scopeKey(STORAGE_KEYS.DB))
+  } catch (e) {
+    return { ok: false, why: '本机存储读不到：' + (e && e.message) }
+  }
+  if (raw === null) return { ok: true }   // 没存过 ≠ 坏了，是真没有数据
+  let v = null
+  try {
+    v = JSON.parse(raw)
+  } catch {
+    return { ok: false, why: '当前账号的百科数据解析失败（原始内容还在，没被覆盖）' }
+  }
+  const okShape = v && typeof v === 'object' && !Array.isArray(v) &&
+    ALL_CATEGORIES.every(c => v[c] === undefined || Array.isArray(v[c]))
+  if (!okShape) return { ok: false, why: '当前账号的百科数据形状不对' }
+  return { ok: true }
+}
+
 export function useWikiData() {
   let _idCounter = 0
   function genItemId(){return Date.now().toString(36)+('_'+(_idCounter++))}
@@ -142,6 +174,14 @@ export function useWikiData() {
    */
   async function purgeUnusedImages() {
     try {
+      // 闸门一：当前账号落盘那份必须读得出来（否则内存里是空的默认值，照它算会清光自己的图）
+      const cur = currentStoredKeyState()
+      if (!cur.ok) {
+        const reason = '当前账号的数据状态不明（' + cur.why + '），这轮不敢判定哪些图是孤儿'
+        console.warn('[图片回收] 放弃本轮回收：' + reason)
+        return { refused: true, reason }
+      }
+      // 闸门二：本机其它账号的百科也得全读得出来（图片库是全设备单库，别的账号也在用）
       const { others, broken } = readOtherAccountsDB()
       if (broken.length) {
         const reason = '本机有 ' + broken.length + ' 份百科数据读不出来（' + broken[0] + '），这轮不敢判定哪些图是孤儿'
