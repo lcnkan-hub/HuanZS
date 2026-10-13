@@ -200,6 +200,11 @@ const categoryEmpty = computed(() => (dbData.value[currentTab.value] || []).leng
 // 未登录不启动：登录成功后是整页重载，那时会以已登录的身份重新走到这里。
 onMounted(() => {
   if (loggedIn.value) startProactiveTrigger()
+  // 图片回收的兜底一次（A02 残留②）：导入不触发回收，「正文里删掉一张图」也要等到某个删除动作才顺带扫。
+  // 放启动时是**唯一没有草稿态**的时刻 —— 编辑器里刚插进去、还没保存的图，
+  // 若挂在「随便哪次保存之后」扫一遍就会被当孤儿删掉（这也是它没挂在保存路径上的原因）。
+  // 闸门（当前/其它账号数据读得出来）在 purgeUnusedImages 内部，读不全就不清。
+  if (loggedIn.value) wikiData.purgeUnusedImages()
 })
 
 // ========== 操作函数 ==========

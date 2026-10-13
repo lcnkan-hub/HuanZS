@@ -9,72 +9,10 @@
  *   替身必须**异步**回回调：生产代码是「先发起请求、再挂回调」的写法，
  *   同步回调会让那些回调永远挂不上（Promise 悬着），测试就成了假绿。
  */
-// ─────────── 极简 IndexedDB 替身 ───────────
-// 只实现本项目用到的几件事：open / 单 store 的 add·get·delete·getAllKeys / 事务完成回调
-function makeIDB() {
-  const dbs = new Map()               // 库名 -> Map<store 名, Map<key, record>>
-  const ctl = { failTx: false }       // 用来模拟「图片库用不了」（真实场景：隐私模式 / 库已关闭）
-  const soon = fn => queueMicrotask(fn)
-
-  function makeDB(bag) {
-    return {
-      objectStoreNames: { contains: n => bag.has(n) },
-      createObjectStore: n => { if (!bag.has(n)) bag.set(n, new Map()) },
-      close: () => {},
-      transaction: (n) => {
-        if (ctl.failTx) throw new Error('图片库已关闭')
-        if (!bag.has(n)) throw new Error('One of the specified object stores was not found')
-        const map = bag.get(n)
-        const tx = { error: null, oncomplete: null, onerror: null, onabort: null }
-        const req = fn => {
-          const r = { result: undefined, error: null, onsuccess: null, onerror: null }
-          soon(() => {
-            try { r.result = fn(); r.onsuccess && r.onsuccess({ target: r }) }
-            catch (e) { r.error = e; r.onerror && r.onerror({ target: r }) }
-          })
-          return r
-        }
-        tx.objectStore = () => ({
-          add:        rec => { map.set(rec.id, rec); return req(() => undefined) },
-          get:        k   => req(() => map.get(k)),
-          delete:     k   => { map.delete(k); return req(() => undefined) },
-          getAllKeys: ()  => req(() => Array.from(map.keys()))
-        })
-        // 真实 IDB 在所有请求之后才回调 oncomplete；这里等本轮微任务跑完再交给宏任务
-        setTimeout(() => { tx.oncomplete && tx.oncomplete() }, 0)
-        return tx
-      }
-    }
-  }
-
-  return {
-    ctl,
-    count: (name, store) => (dbs.get(name)?.get(store)?.size ?? 0),
-    keys: (name, store) => Array.from(dbs.get(name)?.get(store)?.keys() ?? []),
-    api: {
-      open (name) {
-        const req = { result: null, error: null, onsuccess: null, onerror: null, onupgradeneeded: null }
-        if (!dbs.has(name)) dbs.set(name, new Map())
-        const bag = dbs.get(name)
-        soon(() => {
-          if (!bag.has('images')) {
-            bag.set('images', new Map())
-            req.onupgradeneeded && req.onupgradeneeded({ target: { result: makeDB(bag) } })
-          }
-          req.result = makeDB(bag)
-          req.onsuccess && req.onsuccess({ target: { result: req.result } })
-        })
-        return req
-      },
-      deleteDatabase (name) {
-        const r = { onsuccess: null, onerror: null, onblocked: null }
-        dbs.delete(name)
-        soon(() => r.onsuccess && r.onsuccess())
-        return r
-      }
-    }
-  }
-}
+// ─────────── IndexedDB 替身（共用一份，唯一出处见 scripts/idb-double.mjs）───────────
+// 为什么共用：两套测试都要铺 IndexedDB（本文件「图片回收」、import-images 「导入图片」），
+// 各写一份必然漂移，而漂移的方向恰好是「替身比真实 IDB 宽松」→ 测试假绿。
+import { makeIDB } from './idb-double.mjs'
 
 const idb = makeIDB()
 globalThis.indexedDB = idb.api

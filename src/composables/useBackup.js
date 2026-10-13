@@ -5,12 +5,14 @@
  * 完成标准是「丢得起」而不是「不丢」：任意时刻点一次导出得到一个文件，
  * 在另一台设备/另一个浏览器导入后，百科、王冠记忆、聊天记录、危机留痕、图片、用户档案全部回来。
  *
- * 三条硬边界（改动前先读）：
+ * 四条硬边界（改动前先读）：
  *  1. **导入一律写进「当前登录账号」的命名空间**（scopeKey）。备份里那个旧 account_label / account.id
  *     不参与写入 —— 否则会把数据写到不存在的账号名下（等于导入后一片空白）。
  *  2. **导出绝不包含**：API 密钥（huan_zhong_shu_ai_config）、登录态（_session）、账号表（_accounts）。
  *     备份文件是要外传的，凭据进文件 = 回到 BYOK 之前那个坑。
  *  3. **导入前必须先快照、且能回退**（快照逻辑在 useBackupStore.js）。只存不能退 = 假安全感。
+ *  4. **报出的数字必须是真的**（A04）：图片逐张验、先备后写；坏了几张就报几张。
+ *     绝不允许出现「图片库已清空 / 文本已换代，界面却报导入完成」。
  *
  * 环境降级（与 services/storageAdapter.js 同一套思路）：
  *   node 测试环境没有 indexedDB / Blob / btoa —— 全部降级，不抛错，让断言脚本能在纯 node 里跑。
@@ -158,27 +160,112 @@ function base64ToBlob(b64, mime) {
   return new Blob([bytes], { type: mime || 'application/octet-stream' })
 }
 
-/** 把备份里的图片写回库：先清空再写，id 原样保留（百科正文靠 id:// 引用，改了就全变死链） */
+/** base64 的**形状**判据：不真的解码，所以有无 atob 的环境都算得出 */
+function isBase64Shape(s) {
+  return typeof s === 'string' && s.length > 0 && s.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(s)
+}
+
+/**
+ * 一条图片记录能不能安全落库（**A04 的核心判据，唯一出处**）。
+ *
+ * 为什么必须有这个函数：修之前，「导入前的校验」和「导入时的写入」是两套东西 ——
+ * 校验只数条数，写入侧遇到坏项直接 `return` 跳过且不计数，于是坏数据导进来
+ * 界面报的是「导入完成」。判据只写一次，两边都用它，这种分叉就不会再出现。
+ *
+ * @param {*} img 备份里的一条图片记录
+ * @param {Set<string>} seenIds 已经见过的 id（用于抓重复）
+ */
+export function checkImageRecord(img, seenIds = new Set()) {
+  if (!img || typeof img !== 'object' || Array.isArray(img)) {
+    return { ok: false, reason: '这条记录不是一张图' }
+  }
+  if (typeof img.id !== 'string' || !img.id) {
+    return { ok: false, reason: '缺图片 id（正文引用它靠的就是这个 id）' }
+  }
+  if (seenIds.has(img.id)) {
+    return { ok: false, id: img.id, reason: '图片 id 重复（同一张图出现两次，只有一条能留下）' }
+  }
+  seenIds.add(img.id)
+  if (typeof img.dataBase64 !== 'string' || !img.dataBase64) {
+    return { ok: false, id: img.id, reason: '缺图片数据（正文里引用了它，导进来会是坏图）' }
+  }
+  if (!isBase64Shape(img.dataBase64)) {
+    return { ok: false, id: img.id, reason: '图片数据不完整（不是合法 base64，多半是文件在传输里被截断）' }
+  }
+  return { ok: true, id: img.id }
+}
+
+/** 导入前的图片预检：只**数**、不碰任何存储 */
+export function inspectImages(images) {
+  const list = Array.isArray(images) ? images : []
+  const seen = new Set()
+  const issues = []
+  list.forEach((img, index) => {
+    const r = checkImageRecord(img, seen)
+    if (!r.ok) issues.push({ index, id: r.id || (img && img.id) || '', reason: r.reason })
+  })
+  return { expected: list.length, damaged: issues.length, usable: list.length - issues.length, issues }
+}
+
+/**
+ * 把备份里的图片写回库：先整批验完、备好，再动旧库（A04）。
+ *
+ * ⚠️ 顺序是这里唯一重要的事。旧实现是 `store.clear()` 之后逐条写、坏项直接 `return`：
+ *    备份被截断或 base64 损坏时，图片库已经清空、文本已换代，界面却仍然报「导入完成」——
+ *    用户以为全恢复了，其实图全没了，而且不可逆。
+ *
+ * 返回的每个数字都必须是**真的**：written = 真写进库的，dropped = 因为坏而没进的。
+ * 调用方拿它们如实报账，不许拿备份自己声称的条数充数。
+ *
+ * @returns {Promise<{written:number, dropped:number, droppedDetail:Array, expected:number, unavailable?:boolean}>}
+ */
 async function replaceAllImages(images) {
+  const list = Array.isArray(images) ? images : []
+  const seen = new Set()
+  const records = []
+  const droppedDetail = []
+
+  // ① 先在内存里过一遍，决定「要写哪些、丢哪些」——这一步不碰存储
+  list.forEach((img, index) => {
+    const check = checkImageRecord(img, seen)
+    if (!check.ok) {
+      droppedDetail.push({ index, id: check.id || '', reason: check.reason })
+      return
+    }
+    let blob = null
+    try { blob = base64ToBlob(img.dataBase64, img.mime) } catch { blob = null }
+    if (!blob) {
+      // 环境解不开（node 没有 atob/Buffer）不算「数据坏」，但也不能假装写成功了
+      droppedDetail.push({ index, id: img.id, reason: '当前环境解不开图片数据' })
+      return
+    }
+    records.push({ id: img.id, blob, mime: img.mime || '', name: img.name || '', time: img.time || Date.now() })
+  })
+
   const db = await openImageDb()
-  if (!db) return 0
+  // node / 无 IndexedDB：**什么都不动**（旧实现在这里返回 0，却已经把「文本已换代」报成成功）
+  if (!db) {
+    return { written: 0, dropped: droppedDetail.length, droppedDetail, expected: list.length, unavailable: true }
+  }
+
   // 旧 blob URL 必须清掉：这批图已经整批换过，旧 URL 指向的数据已经没了
   //（不清的话，页面上正在显示的图会变成坏图 / 读到已删数据）
   try { releaseAllImageUrls() } catch { /* 忽略 */ }
+
+  // ② 再动库：一次事务里 clear + 全部写入，要么整批成，要么整批不成
   return new Promise((resolve, reject) => {
     const tx = db.transaction(IMAGE_STORE_NAME, 'readwrite')
     const store = tx.objectStore(IMAGE_STORE_NAME)
     store.clear()
-    let n = 0
-    ;(images || []).forEach(img => {
-      if (!img || !img.id || !img.dataBase64) return
-      const blob = base64ToBlob(img.dataBase64, img.mime)
-      if (!blob) return
-      store.put({ id: img.id, blob, mime: img.mime || '', name: img.name || '', time: img.time || Date.now() })
-      n++
+    records.forEach(r => store.put(r))
+    tx.oncomplete = () => resolve({
+      written: records.length,
+      dropped: droppedDetail.length,
+      droppedDetail,
+      expected: list.length
     })
-    tx.oncomplete = () => resolve(n)
-    tx.onerror = () => reject(tx.error)
+    tx.onerror = () => reject(tx.error || new Error('图片写入事务失败'))
+    tx.onabort = () => reject(tx.error || new Error('图片写入事务被中止'))
   })
 }
 
@@ -471,7 +558,11 @@ export function validateBackupPayload(raw) {
     if (bad.length) return { ok: false, error: '条数对不上（' + bad.join('、') + '）—— 文件可能损坏' }
   }
 
-  return { ok: true, legacy: false, payload: raw }
+  // 图片段的**逐张**体检（A04）：条数对得上，不代表每一张图都能解开。
+  // 这里只数、不碰存储 —— 真正的写入在 replaceAllImages 里用同一套判据再走一遍。
+  const imageReport = inspectImages(raw.images)
+
+  return { ok: true, legacy: false, payload: raw, imageReport }
 }
 
 /**
@@ -516,11 +607,17 @@ function readFileText(file) {
 }
 
 /**
- * 导入主流程：解析 → 校验 → **快照** → 写入 → 图片。
- * 返回 { ok, error?, written?, legacy?, images? }
+ * 导入主流程：解析 → 校验 →（坏图闸门）→ **快照** → 写入 → 图片。
+ * 返回 { ok, error?, code?, written?, legacy?, images?, imagesDropped?, imageError? }
  * 调用方拿到 ok 之后必须整页重载（业务 composable 的存储键在 import 时就绑定了）。
+ *
+ * 坏图闸门（A04）：备份里有坏图时**默认中止且零改动**——口径与导出侧一致
+ *（readJsonKey 解析失败即中止导出，不导一份缺件的备份）。
+ * 但这份备份可能就是他唯一的一份，所以允许调用方显式 `allowDamagedImages: true` 放行；
+ * 放行之后，丢了几张必须如实报出来（imagesDropped），绝不许再报「导入完成」了事。
  */
-export async function importBackup(file) {
+export async function importBackup(file, options = {}) {
+  const allowDamagedImages = !!(options && options.allowDamagedImages)
   let raw
   try {
     raw = JSON.parse(await readFileText(file))
@@ -530,6 +627,18 @@ export async function importBackup(file) {
 
   const v = validateBackupPayload(raw)
   if (!v.ok) return v
+
+  const report = v.imageReport || inspectImages(raw.images)
+  if (report.damaged > 0 && !allowDamagedImages) {
+    const first = report.issues.slice(0, 3).map(i => i.reason).join('；')
+    return {
+      ok: false,
+      code: 'IMAGES_DAMAGED',
+      error: `这份备份里有 ${report.damaged} 张图片是坏的（${first}${report.issues.length > 3 ? ' 等' : ''}）。` +
+        `已经中止，什么都没动 —— 你可以选「仍然导入」，但会丢掉这 ${report.damaged} 张图。`,
+      imageReport: report
+    }
+  }
 
   // 快照必须在写入之前 —— 存不成就不许往下走（否则一次导错就没得退）
   try {
@@ -546,16 +655,31 @@ export async function importBackup(file) {
     return { ok: false, error: '写入失败：' + (e && e.message ? e.message : '未知错误') }
   }
 
-  let images = 0
+  // 图片：失败不回滚文字数据（数据比图片重要），但必须把失败**报出来**，不许当成功
+  let imageResult = { written: 0, dropped: 0, droppedDetail: [], expected: report.expected, unavailable: false }
+  let imageError = ''
   if (!v.legacy) {
     try {
-      images = await replaceAllImages(v.payload.images || [])
-    } catch {
-      /* 图片失败不回滚数据：数据比图片重要，界面会提示 */
+      imageResult = await replaceAllImages(v.payload.images || [])
+    } catch (e) {
+      imageError = humanError(e)
     }
   }
 
-  return { ok: true, legacy: !!v.legacy, written, images, counts: (v.payload && v.payload.counts) || {} }
+  return {
+    ok: true,
+    legacy: !!v.legacy,
+    written,
+    // 这三个数字是**实际发生的事**，界面报表就用它们，不许拿 counts（备份自称的）充数
+    images: imageResult.written,
+    imagesDropped: imageResult.dropped,
+    imagesExpected: imageResult.expected,
+    imageUnavailable: !!imageResult.unavailable,
+    imageDroppedDetail: imageResult.droppedDetail || [],
+    imageError,
+    imageReport: report,
+    counts: (v.payload && v.payload.counts) || {}
+  }
 }
 
 /**
