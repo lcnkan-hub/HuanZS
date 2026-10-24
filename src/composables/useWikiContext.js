@@ -14,6 +14,7 @@
  */
 import { STORAGE_KEYS, ALL_CATEGORIES, TAB_NAMES } from '../constants/categories'
 import { scopeKey } from '../utils/storageScope'
+import { buildQuery, scoreAgainst } from '../utils/textMatch'
 
 const RECENT_DAYS = 7     // 回退路径：优先取最近 7 天记的（覆盖"我上周记的东西"这类问法）
 const MAX_RECENT = 8      // 回退路径：注入条数上限
@@ -34,18 +35,9 @@ const MATCH_MIN = 3       // 命中门槛：至少一个标题命中（或三个
  * 代价：只出现在正文、标题里没有的说法（如"机关球怎么打"）匹配不到，
  * 但那种情况会走回退路径，王冠仍能从最近条目里认出来。
  */
-const STOP_CHARS = new Set('的了是在有和就都要我你他她它们这那什么怎样吗呢吧啊不没很也还一个上下里来去说想能会可以把被给对从到与及而但又或如让做些之其则同样')
-
-/** 文本 → 双字组集合（只留中文/字母/数字，丢弃含虚字的 gram） */
-function bigrams(text) {
-  const s = (text || '').replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '')
-  const out = new Set()
-  for (let i = 0; i < s.length - 1; i++) {
-    const g = s.slice(i, i + 2)
-    if (!STOP_CHARS.has(g[0]) && !STOP_CHARS.has(g[1])) out.add(g)
-  }
-  return out
-}
+// 2-gram 切分与虚字表已上收到 `src/utils/textMatch.js`（2026-10-24）：
+// 记忆挑选与百科注入要用同一套判据，否则两处各调各的，改一处另一处不跟。
+// 本文件只保留「相关性门槛」这类业务常量（TITLE_HIT / MATCH_MIN 等）。
 
 /** 归一化：只保留三个分类键，非数组一律置空 */
 const normalizeDb = db => Object.fromEntries(ALL_CATEGORIES.map(c => [c, Array.isArray(db[c]) ? db[c] : []]))
@@ -110,25 +102,27 @@ const labelOf = item => TAB_NAMES[item.category] || item.category
 const dateOf = item => (item.time || '').split(' ')[0] || '（无日期）'
 const nameOf = item => (item.parentName ? `${item.parentName} › ${item.name}` : item.name)
 
-/** 打分：标题命中权重高，正文命中权重低；返回 0 表示不相关 */
-function scoreItem(item, queryGrams) {
-  const titleGrams = bigrams(item.name)
-  const bodyGrams = bigrams(item.wiki)
-  let score = 0
-  for (const g of queryGrams) {
-    if (titleGrams.has(g)) score += TITLE_HIT
-    else if (bodyGrams.has(g)) score += BODY_HIT
-  }
-  return score
+/**
+ * 打分：标题权重高、正文权重低（判据统一走 textMatch.scoreAgainst）
+ * 两段式：先字面重叠；字面不足时才走近义归一。
+ * 返回 raw（未折算分数）——门槛按 raw 判，排序按 score 判，
+ * 否则近义命中被 ×0.8 折完之后永远过不了 MATCH_MIN。
+ */
+function scoreItem(item, query) {
+  return scoreAgainst(
+    query,
+    { title: item.name, body: item.wiki },
+    { titleHit: TITLE_HIT, bodyHit: BODY_HIT }
+  )
 }
 
 /** 命中路径：挑最相关的几条（不足门槛的丢弃） */
 function matchItems(items, userText) {
-  const queryGrams = bigrams(userText)
-  if (queryGrams.size === 0) return []
+  const query = buildQuery(userText)
+  if (query.exact.size === 0 && query.near.size === 0) return []
   return items
-    .map(item => ({ item, score: scoreItem(item, queryGrams) }))
-    .filter(x => x.score >= MATCH_MIN)
+    .map(item => ({ item, ...scoreItem(item, query) }))
+    .filter(x => x.raw >= MATCH_MIN)
     .sort((a, b) => b.score - a.score)
     .slice(0, MAX_MATCHED)
     .map(x => x.item)
