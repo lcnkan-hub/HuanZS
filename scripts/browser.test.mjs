@@ -358,6 +358,51 @@ await ok('先退出详情页（底栏被详情页盖着点不到）', async () =
 
 await screen('游戏列表', NAV('游戏'), `!!document.querySelector('.data-card')`)
 await screen('主词条详情', `document.querySelector('.data-card').click()`, `!!document.querySelector('.child-card')`)
+
+// ── 统一样式层（2026-10-29）：WikiDetail 的「添加子词条」弹窗改为复用 common/ModalBox ──
+// 为什么必须真浏览器：这次把 WikiDetail 手抄的一整套弹窗样式删了，形状全靠 ModalBox 的
+// :deep() 穿透到插槽内容。穿透失效、或特异性被组件自己的规则压过时，源码断言全绿，
+// 但弹窗会变成没圆角、按钮塌成文字高度 —— 只有真实布局量得出来。
+// 反向看：把 ModalBox 的 :deep(.modal-input) 删掉，这条必须变红（输入框宽度会掉）。
+await ok('添加子词条弹窗：走公用 ModalBox，输入框有形状、动作键仍够 44 高、遮罩可关', async () => {
+  await ev(`document.querySelector('.add-child-btn').click()`)
+  must(await waitFor(`!!document.querySelector('.modal-box')`, 5000), '弹窗没打开')
+  await sleep(400)   // 等 popModal（0.25s）落定再量，否则量到缩放中的尺寸
+  const m = await ev(`(() => {
+    const box = document.querySelector('.modal-box')
+    const input = document.querySelector('.modal-input')
+    const btns = [...document.querySelectorAll('.modal-actions button')]
+    const cs = getComputedStyle(input)
+    return {
+      h3: document.querySelector('.modal-box h3')?.textContent?.trim() || '',
+      btnText: btns.map(b => b.textContent.trim()),
+      btnH: btns.map(b => Math.round(b.getBoundingClientRect().height)),
+      btnPad: btns.map(b => getComputedStyle(b).padding),
+      inputW: Math.round(input.getBoundingClientRect().width),
+      inputPad: cs.padding,
+      boxRadius: getComputedStyle(box).borderRadius,
+      // 注意：Vue 3 的 scoped CSS 会给组件内 @keyframes 加 scope 后缀改名
+      // （两个组件各写一份同名动画时互不覆盖），所以查不到 name==='popModal'，
+      // 只能看这个元素实际拿到的 animation-name 是不是 popModal 那一脉。
+      animName: getComputedStyle(box).animationName
+    }
+  })()`)
+  // 先关弹窗再断言：任何一条断言失败都不该把遮罩留在页面上 ——
+  // 后面全是窄屏量测，弹窗不移走会连着报一串假红（本次就吃过）。
+  await ev(`document.querySelector('.modal-overlay').click()`)
+  const closed = await waitFor(`!document.querySelector('.modal-box')`, 5000)
+  must(m.h3 === '添加子词条', `标题没走 ModalBox 的 title：${m.h3}`)
+  must(JSON.stringify(m.btnText) === '["取消","保存"]', `动作键不对：${m.btnText}`)
+  must(m.btnH.every(h => h >= 44), `动作键塌了（高 ${m.btnH}）—— 44 没从 ModalBox 拿到`)
+  must(m.btnPad.every(p => p.startsWith('9px 18px')), `动作键内边距不对：${m.btnPad}`)
+  must(m.inputW > 200, `输入框只有 ${m.inputW}px —— ModalBox 的 :deep(.modal-input) 没生效`)
+  must(/10px/.test(m.inputPad) && /12px/.test(m.inputPad), `输入框内边距不对：${m.inputPad}`)
+  must(m.boxRadius !== '0px', `弹窗圆角丢了：${m.boxRadius}`)
+  must(/^popModal/.test(m.animName), `弹窗入场动画丢了：animation-name=${m.animName}`)
+  must(closed, '点遮罩没关掉 —— @click.self 接线断了')
+  await mustFit()
+})
+
 await screen('子词条编辑器（阅读态）', `document.querySelector('.child-card').click()`, `!!document.querySelector('.sub-editor-wrapper')`)
 await ok('编辑器切成编辑态 → 量工具条与输入区', async () => {
   await ev(`[...document.querySelectorAll('.state-toggle-btn')].find(b => /编辑/.test(b.textContent)).click()`)

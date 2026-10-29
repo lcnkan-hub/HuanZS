@@ -84,28 +84,32 @@
     </template>
 
     <!-- 添加子词条弹窗 -->
-    <div v-if="showAddChildModal" class="modal-overlay" @click.self="showAddChildModal = false">
-      <div class="modal-box">
-        <h3>添加子词条</h3>
-        <input
-          type="text"
-          v-model="newChildName"
-          placeholder="请输入子词条名称"
-          class="modal-input"
-          @keyup.enter="handleAddChild"
-        />
-        <div class="modal-actions">
-          <button class="cancel-btn" @click="showAddChildModal = false">取消</button>
-          <button class="save-btn" @click="handleAddChild">保存</button>
-        </div>
-      </div>
-    </div>
+    <!-- 2026-10-29 统一样式层：原来是手抄 ModalBox 的一整套（overlay / box / h3 / actions
+         全部逐字节相同），现在直接用公用积木，四处弹窗只剩一个真相源 -->
+    <ModalBox
+      v-if="showAddChildModal"
+      title="添加子词条"
+      @close="showAddChildModal = false"
+    >
+      <input
+        type="text"
+        v-model="newChildName"
+        placeholder="请输入子词条名称"
+        class="modal-input"
+        @keyup.enter="handleAddChild"
+      />
+      <template #actions>
+        <button class="cancel-btn" @click="showAddChildModal = false">取消</button>
+        <button class="save-btn" @click="handleAddChild">保存</button>
+      </template>
+    </ModalBox>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import ModalBox from '../common/ModalBox.vue'
 import SubEntryEditor from './SubEntryEditor.vue'
 
 const props = defineProps({
@@ -249,41 +253,14 @@ const handleChildDelete = () => {
 }
 .child-arrow { color: #c7c7cc; flex-shrink: 0; }
 
-/* 弹窗 */
-.modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-  background: rgba(0,0,0,0.4); display: flex; justify-content: center;
-  align-items: center; z-index: 999; backdrop-filter: blur(2px);
-}
-.modal-box {
-  background: var(--color-bg-card); border-radius: var(--radius-3xl);
-  width: 85%; max-width: 340px; padding: 22px;
-  box-shadow: var(--shadow-modal);
-  animation: popModal 0.25s var(--ease-pop);
-}
-.modal-box h3 {
-  margin-top: 0; margin-bottom: 18px; font-size: var(--text-18);
-  text-align: center; font-weight: 600;
-}
-.modal-input {
-  width: 100%; border: 1px solid var(--color-border);
-  background: var(--color-bg-modal); border-radius: var(--radius-md);
-  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
-}
-.modal-actions {
-  display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;
-}
-/* 弹窗动作键：9px 上下内边距 + 14px 字 ≈ 35 高，撑到 44 才够指腹 */
-.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
-.save-btn   { background: var(--color-accent); color: var(--color-text-on-accent); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+/* 弹窗（2026-10-29 统一样式层）：overlay / box / h3 / actions / 输入框形状 / 44 高
+   全部由 common/ModalBox.vue 收口，这里只留本页两个颜色。 */
+.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); }
+.save-btn   { background: var(--color-accent); color: var(--color-text-on-accent); }
 
 @keyframes slideInPage { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes cardFadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes popModal {
-  from { opacity: 0; transform: scale(0.9); }
-  to   { opacity: 1; transform: scale(1); }
 }
 </style>
