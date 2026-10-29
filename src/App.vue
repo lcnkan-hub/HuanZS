@@ -434,13 +434,10 @@ const handleProfileUpdate = (updatedData) => {
   padding-top: var(--safe-top);
 }
 .main-content { flex: 1; position: relative; overflow: hidden; }
-.modal-input {
-  width: 100%; border: 1px solid var(--color-border);
-  background: var(--color-bg-modal); border-radius: var(--radius-md);
-  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
-}
-.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; }
-.save-btn   { background: var(--color-accent); color: var(--color-text-on-accent); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; }
+/* 弹窗里的输入框形状与动作键 44 高由 common/ModalBox.vue 收口（2026-10-29 统一样式层），
+   这里只留颜色。App 曾把形状手抄一遍，与 ModalBox 存在两份真相、改动必漏一处。 */
+.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); }
+.save-btn   { background: var(--color-accent); color: var(--color-text-on-accent); }
 
 /* ===== 页面叠层容器 ===== */
 .page-stack {
