@@ -20,6 +20,7 @@ import { STORAGE_KEYS, TAB_NAMES } from '../constants/categories'
 import { generateUniqueId } from '../utils/uniqueId'
 import { askStructured } from './useChatAI'
 import { writeWikiItems, listWikiTitles } from './useWikiWriter'
+import { pickRelevant } from '../utils/retrievalSelect'
 
 // —— 白名单常量 ——
 export const MEMORY_TYPES = ['fact', 'goal', 'event', 'preference'] // v1 白名单四类
@@ -32,9 +33,19 @@ const EVENT_SILENT_DAYS = 5   // ③Event 类：沉默 3~7 天，MVP 先定 5 �
 const GOAL_SILENT_DAYS = 12   // ②Goal 类：沉默 10~14 天，MVP 先定 12 天
 const SILENT_DAYS = { event: EVENT_SILENT_DAYS, goal: GOAL_SILENT_DAYS } // ①④类不在此表 → 天然不进 C 档
 
-// —— 注入配置（方案 A：全量注入，非检索） ——
-const INJECT_LIMIT = 15     // 每次注入最近 N 条（可配置项）
+// —— 注入配置 ——
+// 改之前（方案 A）：按最近时间取前 15 条全量注入，不管这一轮在聊什么。
+// 改之后（A06）：条数由**相关度**决定 —— 15 条都相关就给 15 条，一条都不相关只给 3 条兜底。
+// 所以这个 15 是**硬顶**，不是「固定给 15 条」；兜底条数单独由 RECENT_FILL 控制。
+const INJECT_LIMIT = 15     // 注入硬顶（无论相关多少都不超过）
+const RECENT_FILL = 3       // 相关命中不足时的兜底条数（按最近优先补，别让王冠手里空着）
+const MEMORY_MATCH_MIN = 2  // 记忆相关门槛：记忆只有一句骨架内容，2 个 gram 重合已算相关
 const MAX_CONTENT_LEN = 120 // 骨架内容长度上限（写入/注入二次过滤共用）
+
+// —— 提取提示里百科标题的预算（A06 的账就在这一行）——
+// 原来 listWikiTitles() 全量拼进去，百科记到几百条以后每轮都多付一份全库清单的钱。
+const MAX_WIKI_TITLES = 40  // 提示里最多列几条标题
+const WIKI_FILL = 12        // 无相关时的兜底条数（最近 12 条，够模型判断"该追加还是新建"）
 
 const DAY_MS = 86400000
 
@@ -146,11 +157,26 @@ export function useMemory() {
     return true
   }
 
-  /** 取注入用记忆：未退休，按 last_mentioned_at 倒序，前 N 条 */
-  function getInjectableMemories() {
+  /**
+   * 取注入用记忆：相关优先 + 少量兜底（A06）
+   *
+   * 改之前：按 last_mentioned_at 取最近 15 条全给 —— 不管用户这轮在聊什么。
+   * 改之后：先挑与本轮输入相关的（门槛 2 个 gram 重合），不够就按"最近"补 3 条兜底。
+   * 注意这不是"换一个更小的硬编码数字"：相关 15 条就给 15 条，一条都不相关只给 3 条。
+   */
+  function getInjectableMemories(userText = '') {
     const list = (memories.value || []).filter(m => !isRetired(m))
     list.sort((a, b) => toMs(b.last_mentioned_at) - toMs(a.last_mentioned_at))
-    return list.slice(0, INJECT_LIMIT)
+    const { picked } = pickRelevant(list, userText, {
+      limit: INJECT_LIMIT,
+      fill: RECENT_FILL,
+      minScore: MEMORY_MATCH_MIN,
+      titleHit: 1,            // 记忆没有标题，只有一句骨架内容 → 只有正文通道
+      bodyHit: 1,
+      getTitle: () => '',
+      getBody: m => m.content
+    })
+    return picked
   }
 
   /** C 档候选：三条准入同时满足（sentiment 非 neutral + 沉默超阈值 + care_shown 为 false） */
@@ -203,8 +229,8 @@ export function useMemory() {
     round = { injectedCIds: [], blockUserMemory: false }
     const parts = []
 
-    // 1. 记忆上下文块（方案 A：未退休最近 N 条全量注入，不做语义检索）
-    const ctx = buildContextBlock(getInjectableMemories())
+    // 1. 记忆上下文块（A06：相关优先 + 少量兜底，不再是不管在聊什么都塞最近 15 条）
+    const ctx = buildContextBlock(getInjectableMemories(userText))
     if (ctx) parts.push(ctx)
 
     // 2. C 档候选 → 本轮留门式开口指令
@@ -227,12 +253,24 @@ export function useMemory() {
   }
 
   /** 提取阶段专用系统提示（交给提取模型，期望返回 JSON） */
-  function buildExtractPrompt() {
-    const list = getInjectableMemories()
+  function buildExtractPrompt(userText = '') {
+    const list = getInjectableMemories(userText)
     const memLines = list.map(m => `${m.id}：${m.content}`).join('\n') || '（暂无）'
     // 百科清单：只给「分类｜标题｜日期」，不给正文（控 Token）。
     // 没这份清单，模型无从判断该新建还是补进已有条目 —— 那是「只会新建」的根因。
-    const wikiLines = listWikiTitles()
+    // 但清单**不能是全量**（A06）：百科记到几百条以后，每轮聊天都要多付一份全库的钱，用户完全无感。
+    // 折中：按本轮输入挑相关 + 最近兜底，并在提示里如实说「清单不全」，防止模型因为没看见就乱挂。
+    const titles = listWikiTitles()
+      .slice()
+      .sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))
+    const { picked: wikiPicked, total: wikiTotal } = pickRelevant(titles, userText, {
+      limit: MAX_WIKI_TITLES,
+      fill: WIKI_FILL,
+      minScore: 3,
+      getTitle: w => (w.parent ? `${w.parent} ${w.name}` : w.name),
+      getBody: () => ''
+    })
+    const wikiLines = wikiPicked
       .map(w => `${TAB_NAMES[w.category] || w.category}｜${w.parent ? `${w.parent} › ${w.name}` : w.name}｜${w.time}`)
       .join('\n') || '（暂无）'
     return `你是记忆提取器，根据本轮回合（用户消息 + 王冠回复）判断是否有值得写入长期记忆的信息。
@@ -268,8 +306,13 @@ export function useMemory() {
 已有记忆（id：内容）：
 ${memLines}
 
-已有百科条目（分类｜标题｜日期）：
+已有百科条目（分类｜标题｜日期；库里共 ${wikiTotal} 条，这里按相关度只列了 ${wikiPicked.length} 条）：
 ${wikiLines}
+
+清单不全时的判断规则：**上面没列出来，不代表库里没有**（只列了最相关的一小部分）。
+- 只有清单里**明确列出**的条目，才允许用 append / child
+- 你判断用户说的是清单里没有的主题 → 用 new 新建
+- 宁可新建一条（用户之后能合并），也不要把内容硬挂到不相干的主题下面
 
 请判断本轮回合用户是否提到了某条已有记忆（内容相近即可），把对应 id 放进 mentioned_ids。
 
@@ -287,7 +330,7 @@ writes 与 wiki 都可以是空数组 —— 大多数轮次两个都应该是�
     extracting = true
     try {
       const result = await askStructured(
-        buildExtractPrompt(),
+        buildExtractPrompt(userText),
         `【用户消息】\n${userText}\n\n【王冠回复】\n${assistantReply}`
       )
       if (!result) return

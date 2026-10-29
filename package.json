@@ -18,6 +18,7 @@
     "test:storage": "node scripts/storage-health.test.mjs",
     "test:reminder": "node scripts/backup-reminder.test.mjs",
     "test:sync": "node scripts/storage-sync.test.mjs",
+    "test:retrieval": "node scripts/retrieval.test.mjs",
     "test:browser": "node scripts/browser.test.mjs",
     "check:secret": "node scripts/check-no-secret.mjs",
     "check:tokens": "node scripts/check-tokens.mjs",
