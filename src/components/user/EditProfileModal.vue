@@ -72,10 +72,9 @@ const handleSave = () => {
   background: var(--color-bg-card); box-shadow: 0 2px 6px rgba(0,0,0,0.1);
   transform: scale(1.1);
 }
+/* 形状走 common/ModalBox.vue 收口（2026-10-29 统一样式层），这里只留本组件的两处差异：
+   margin-bottom: 0（覆盖默认外边距）与 focus 高亮 */
 .modal-input {
-  width: 100%; border: 1px solid var(--color-border);
-  background: var(--color-bg-modal); border-radius: var(--radius-md);
-  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
   margin-bottom: 0;
 }
 .modal-input:focus { outline: none; border-color: var(--color-accent); background: var(--color-bg-card); }
