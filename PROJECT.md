@@ -1,6 +1,6 @@
 # 寰中枢 — 个人百科知识库
 
-> 更新：2026-10-11（v2.7，对齐代码现状：我的页重排 / 主动开口 / 空库开局 / 备份中心 / 本地账号 / 形态认下）
+> 更新：2026-11-21（v3.0 单层记录重构：游戏/笔记/生活/我的四页下线，底栏只剩「记录 / 王冠」，「我的」改为右上角呼出的浮层，记录正文首次有编辑入口）
 
 ## 技术栈
 - Vue 3（Composition API + `<script setup>`）
@@ -21,24 +21,22 @@
 
 ## 数据结构
 ```js
-dbData = {
-  game: [ /* note/life 同构 */
-    {
-      id: string, name: string, wiki: string(Markdown),
-      creator: string, time: string("YYYY/MM/DD HH:mm"),
-      children: [ /* 子词条，可选 */
-        { id: string, name: string, wiki: string, creator: string, time: string }
-      ]
-    }
-  ],
-  note: [ /* 同上 */ ],
-  life: [ /* 同上 */ ]
-}
+// 2026-11-21 起：记录是单层数组，存在 huan_zhong_shu_records（按账号隔离）
+records = [
+  {
+    id: string, name: string, wiki: string(Markdown),   // 标题 + 正文
+    creator: string, time: string("YYYY/MM/DD HH:mm"),
+    origin: 'user' | 'crown',                            // 手建 / 王冠代记
+    children: [ /* 子记录，可选，结构同上（无 children） */ ]
+  }
+]
 
 userProfile = { id: string(6位数字), name: string, avatar: string(emoji) }
 chatMessages = [ { id, role: 'user'|'assistant', content, time } ]  // huan_zhong_shu_chat
 memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]  // huan_zhong_shu_memory_v1
 ```
+> 旧的三分类 `dbData = {game, note, life}` 与存储键 `huan_zhong_shu_db` 已于 2026-11-21 删除；
+> 备份 schema 升到 2，旧备份文件会被明确拒绝导入。
 
 ## 核心功能
 1. 百科条目 CRUD + 主词条-子词条二级结构
@@ -128,3 +126,25 @@ memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]
 ## 测试
 - `npm run test:crisis` — 危机响应系统 A/B/C/D 用例矩阵（修改危机结构必跑，见 RULES.md 第 11 条）
 - `npm run check:secret` — 密钥泄漏闸门：扫 `dist/` 里的密钥形态与 `.env` 历史值；已串进 `npm run build`
+
+## 2026-11-21 单层记录重构（v3.0）
+
+> 上面「积木清单」表是 v2.7 的快照，**本次重构后有出入**（删了 6 个文件、加了 4 个）。
+> 以本节为准，等下次整体重写文档时再把表合并。
+
+**删除**：\StarterCards.vue\、\FootprintSummary.vue\、\useWikiData.js\、\useStarter.js\、\utils/starterJudge.js\、\constants/starter.js\（空库开局三张卡 + 三分类数据层 + 足迹统计）。
+
+**新增**：
+- \composables/useRecords.js\ — 单层记录数组的 CRUD / 搜索 / 子记录 / 图片回收
+- \components/user/MineSheet.vue\ — 「我的」浮层（宽 88%，从右滑入，不盖底栏，点遮罩关闭）
+- \components/wiki/ItemBodyEditor.vue\ — 记录正文的阅读/编辑区（主记录 wiki 首次有 UI 入口）
+- \components/wiki/AddRecordBar.vue\ — 搜索框下方占满一行的「记录一条」
+
+**关键变化**：
+1. 底栏只剩「记录 / 王冠」；\NAV_ITEMS\ 两项，\STORAGE_KEYS.DB\ → \RECORDS\。
+2. 「我的」不再是 Tab：顶栏左侧按钮 → 右侧滑入卡片（名片 → 我创建的 → 账号 → 备份 → 王冠 → 修改资料）。
+3. 点「添加」直接进空白详情页，标题与正文都在详情里写；返回时标题正文都空则自动删掉这条空记录。
+4. 王冠代记仍保留「新建 / 追加 / 挂子记录」三种判断，但**不再判断分类**。
+5. 备份 \BACKUP_SCHEMA_VERSION = 2\；旧三分类备份会被拒绝并说明原因。
+6. 危机系统未改动（\
+pm run test:crisis\ 仍 60/60 通过）。

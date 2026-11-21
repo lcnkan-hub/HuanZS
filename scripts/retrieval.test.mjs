@@ -42,25 +42,19 @@ function ok(name, cond, extra = '') {
 }
 
 // ─────────── 造库 ───────────
-const DB = {
-  game: [
-    { name: '塞尔达：神庙的圆球机关', wiki: '把圆球推进墙上的坑里，机关门就开了。', time: '2026/10/01 10:00' },
-    { name: '艾尔登法环：女武神打法', wiki: '二阶段她跳起来放水鸟乱舞，看到起跳就往侧面跑。', time: '2026/10/05 20:00' }
-  ],
-  note: [
-    { name: '番茄工作法', wiki: '25 分钟专注干活，然后休息 5 分钟，四轮之后休息长一点。', time: '2026/10/10 09:00' },
-    { name: '记忆方法：三个要点', wiki: '重复检索、间隔复习、说给别人听。', time: '2026/10/16 21:00' }
-  ],
-  life: [
-    { name: '快递丢了怎么处理', wiki: '先找派件员，再联系网点，最后走平台投诉。', time: '2026/10/12 15:00' },
-    { name: '租房要问清的费用', wiki: '押金、中介费、水电费、网费，还有物业费谁出。', time: '2026/10/14 11:00' },
-    { name: '做饭的基本顺序', wiki: '先备菜再开火，炒菜前把调料摆到手边。', time: '2026/10/15 18:00' },
-    { name: '看病挂号的流程', wiki: '先在手机上挂号选科室，到了自助机取号，再等叫号。', time: '2026/10/17 08:30' }
-  ]
-}
-
-const loadDb = db => STORE.set(STORAGE_KEYS.DB, JSON.stringify(db))
-const HIT_HEADER = '与本次提问相关的条目全文'
+// 2026-11-21 单层记录：一个扁平数组，不再分 game/note/life
+const DB = [
+  { name: '塞尔达：神庙的圆球机关', wiki: '把圆球推进墙上的坑里，机关门就开了。', time: '2026/10/01 10:00' },
+  { name: '艾尔登法环：女武神打法', wiki: '二阶段她跳起来放水鸟乱舞，看到起跳就往侧面跑。', time: '2026/10/05 20:00' },
+  { name: '番茄工作法', wiki: '25 分钟专注干活，然后休息 5 分钟，四轮之后休息长一点。', time: '2026/10/10 09:00' },
+  { name: '记忆方法：三个要点', wiki: '重复检索、间隔复习、说给别人听。', time: '2026/10/16 21:00' },
+  { name: '快递丢了怎么处理', wiki: '先找派件员，再联系网点，最后走平台投诉。', time: '2026/10/12 15:00' },
+  { name: '租房要问清的费用', wiki: '押金、中介费、水电费、网费，还有物业费谁出。', time: '2026/10/14 11:00' },
+  { name: '做饭的基本顺序', wiki: '先备菜再开火，炒菜前把调料摆到手边。', time: '2026/10/15 18:00' },
+  { name: '看病挂号的流程', wiki: '先在手机上挂号选科室，到了自助机取号，再等叫号。', time: '2026/10/17 08:30' }
+]
+const loadDb = db => STORE.set(STORAGE_KEYS.RECORDS, JSON.stringify(db))
+const HIT_HEADER = '与本次提问相关的记录全文'
 const FALLBACK_HEADER = '背景知识，供你理解上下文'
 
 console.log('\nA. 同义不同词 —— 换个说法必须找得到')
@@ -103,10 +97,10 @@ ok('空库不注入（返回空串）', buildWikiContext('随便问问') === '')
 
 loadDb(DB)
 ok('空查询走回退清单', buildWikiContext('').includes(FALLBACK_HEADER))
-ok('未登录时不加账号后缀（读到的是原键）', STORE.has(STORAGE_KEYS.DB))
+ok('未登录时不加账号后缀（读到的是原键）', STORE.has(STORAGE_KEYS.RECORDS))
 
 const longDb = JSON.parse(JSON.stringify(DB))
-longDb.game[0].wiki = '机关'.repeat(600)
+longDb[0].wiki = '机关'.repeat(600)
 loadDb(longDb)
 const longCtx = buildWikiContext('圆球机关怎么过')
 const bodyLine = longCtx.split('\n').find(l => l.includes('机关机关'))
@@ -148,7 +142,6 @@ ok('记忆：完全无关时只给 3 条兜底（不是 15 条）', memPickNone.
 
 // 百科清单场景：300 条标题，目标条在中间
 const wikiTitles = Array.from({ length: 300 }, (_, i) => ({
-  category: 'game',
   name: i === 249 ? '塞尔达：神庙的圆球机关' : `无关主题${i + 1}`,
   time: `2026/09/${String((i % 28) + 1).padStart(2, '0')}`,
   parent: ''

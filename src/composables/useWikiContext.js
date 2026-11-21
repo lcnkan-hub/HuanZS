@@ -1,18 +1,18 @@
 /**
- * 百科上下文积木（王冠读百科 · 第一/二步）
+ * 记录上下文积木（王冠读记录 · 第一/二步）
  * 职责：把用户记过的内容，整理成可注入王冠 system prompt 的文本
  *
  * 两条路（同一入口，自动选择）：
- *   A. 命中：本轮提问与某几条条目相关 → 注入这几条的**正文**（王冠能答细节）
- *   B. 回退：没命中 → 注入**最近记的条目清单**（王冠至少知道你手头有什么）
+ *   A. 命中：本轮提问与某几条记录相关 → 注入这几条的**正文**（王冠能答细节）
+ *   B. 回退：没命中 → 注入**最近记下的清单**（王冠至少知道你手头有什么）
  *
- * 边界：只读不写；不改 dbData 的 { game, note, life } 结构（RULES 第 4 条）；零 API 调用。
+ * 边界：只读不写；不改记录的单层数组结构；零 API 调用。
  *
  * 关键实现决定：**每次调用直接读 localStorage，不用响应式 ref**。
- * useWikiData 在别处会创建自己的 ref 实例，两者不互相同步 ——
+ * useRecords 在别处会创建自己的 ref 实例，两者不互相同步 ——
  * 用快照会导致「用户刚记完，王冠读不到」这种极难查的隐蔽 bug。
  */
-import { STORAGE_KEYS, ALL_CATEGORIES, TAB_NAMES } from '../constants/categories'
+import { STORAGE_KEYS } from '../constants/categories'
 import { scopeKey } from '../utils/storageScope'
 import { buildQuery, scoreAgainst } from '../utils/textMatch'
 
@@ -33,21 +33,19 @@ const MATCH_MIN = 3       // 命中门槛：至少一个标题命中（或三个
  * 门槛故意定高（MATCH_MIN = 3，等于要一个标题命中）：
  * **宁可回退到"最近清单"，也不要引入噪音命中** —— 假命中会让王冠一本正经地答错东西。
  * 代价：只出现在正文、标题里没有的说法（如"机关球怎么打"）匹配不到，
- * 但那种情况会走回退路径，王冠仍能从最近条目里认出来。
+ * 但那种情况会走回退路径，王冠仍能从最近记录里认出来。
  */
 // 2-gram 切分与虚字表已上收到 `src/utils/textMatch.js`（2026-10-24）：
-// 记忆挑选与百科注入要用同一套判据，否则两处各调各的，改一处另一处不跟。
+// 记忆挑选与记录注入要用同一套判据，否则两处各调各的，改一处另一处不跟。
 // 本文件只保留「相关性门槛」这类业务常量（TITLE_HIT / MATCH_MIN 等）。
 
-/** 归一化：只保留三个分类键，非数组一律置空 */
-const normalizeDb = db => Object.fromEntries(ALL_CATEGORIES.map(c => [c, Array.isArray(db[c]) ? db[c] : []]))
-
-/** 读百科数据（实时读，避免拿到别处的旧快照） */
-function readDb() {
+/** 读记录数据（实时读，避免拿到别处的旧快照） */
+function readRecords() {
   try {
-    return normalizeDb(JSON.parse(localStorage.getItem(scopeKey(STORAGE_KEYS.DB)) || 'null') || {})
+    const v = JSON.parse(localStorage.getItem(scopeKey(STORAGE_KEYS.RECORDS)) || 'null')
+    return Array.isArray(v) ? v : []
   } catch {
-    return normalizeDb({}) // localStorage 不可用或数据损坏 → 当空库。绝不因读百科失败打断对话。
+    return [] // localStorage 不可用或数据损坏 → 当空库。绝不因读记录失败打断对话。
   }
 }
 
@@ -80,25 +78,21 @@ function clipBody(wiki) {
   return t.length > BODY_LEN ? t.slice(0, BODY_LEN) + '…' : t
 }
 
-/** 主/子条目展平成一维（子条目带父名，便于王冠理解层级） */
-function flatten(db) {
-  return ALL_CATEGORIES.flatMap(category =>
-    (db[category] || []).flatMap(item => {
-      const parent = { category, name: item.name || '（未命名）', wiki: item.wiki, ts: parseTime(item.time), time: item.time }
-      const children = (item.children || []).map(child => ({
-        category,
-        name: child.name || '（未命名）',
-        wiki: child.wiki,
-        ts: parseTime(child.time || item.time),
-        time: child.time || item.time,
-        parentName: item.name || ''
-      }))
-      return [parent, ...children]
-    })
-  )
+/** 主/子记录展平成一维（子记录带父名，便于王冠理解层级） */
+function flatten(list) {
+  return (list || []).flatMap(item => {
+    const parent = { name: item.name || '（未命名）', wiki: item.wiki, ts: parseTime(item.time), time: item.time }
+    const children = (item.children || []).map(child => ({
+      name: child.name || '（未命名）',
+      wiki: child.wiki,
+      ts: parseTime(child.time || item.time),
+      time: child.time || item.time,
+      parentName: item.name || ''
+    }))
+    return [parent, ...children]
+  })
 }
 
-const labelOf = item => TAB_NAMES[item.category] || item.category
 const dateOf = item => (item.time || '').split(' ')[0] || '（无日期）'
 const nameOf = item => (item.parentName ? `${item.parentName} › ${item.name}` : item.name)
 
@@ -132,19 +126,19 @@ function matchItems(items, userText) {
 function renderMatched(items) {
   const blocks = items.map(i => {
     const body = clipBody(i.wiki)
-    return `· [${labelOf(i)}] ${nameOf(i)}（${dateOf(i)}）\n${body ? '  ' + body : '  （这条没有正文）'}`
+    return `· ${nameOf(i)}（${dateOf(i)}）\n${body ? '  ' + body : '  （这条没有正文）'}`
   })
   return [
-    '【用户自己记下的内容 · 与本次提问相关的条目全文】',
+    '【用户自己记下的内容 · 与本次提问相关的记录全文】',
     ...blocks,
     '',
-    '用法说明：以上是从用户自己的记录里取出的相关条目，内容可直接使用。' +
+    '用法说明：以上是从用户自己的记录里取出的相关内容，可直接使用。' +
       '回答时说清是根据他记的哪一条，不要说"我查一下"。' +
       '如果这些内容不足以回答，就直说记的内容里没有，**不要编**。'
   ].join('\n')
 }
 
-/** 回退路径的渲染：给最近条目清单（摘要） */
+/** 回退路径的渲染：给最近记录清单（摘要） */
 function renderRecent(items) {
   items.sort((a, b) => b.ts - a.ts)
   const cutoff = Date.now() - RECENT_DAYS * 86400000
@@ -153,7 +147,7 @@ function renderRecent(items) {
 
   const lines = picked.map(i => {
     const snippet = toSnippet(i.wiki)
-    return `· [${labelOf(i)}] ${nameOf(i)}${snippet ? ' —— ' + snippet : ''}（${dateOf(i)}）`
+    return `· ${nameOf(i)}${snippet ? ' —— ' + snippet : ''}（${dateOf(i)}）`
   })
 
   return [
@@ -172,7 +166,7 @@ function renderRecent(items) {
  * @returns {string} 可拼进 system prompt 的文本；空库返回 ''（不注入）
  */
 export function buildWikiContext(userText = '') {
-  const items = flatten(readDb())
+  const items = flatten(readRecords())
   if (items.length === 0) return '' // 空库不注入 —— 王冠不该对着一片空白说"你记过什么"
 
   const matched = matchItems(items, userText)

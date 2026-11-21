@@ -8,3 +8,6 @@ Thumbs.db
 # 环境变量/密钥（.env.example 可提交作模板）
 .env
 .env.local
+
+# 本机 DSH 插件包（含 node_modules，只属于这台机器）
+.dsh-plugins/

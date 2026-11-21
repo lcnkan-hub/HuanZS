@@ -70,19 +70,19 @@ console.log('\n【装上了没有】')
 await ok('useLocalStorage 一建就会订阅（不必手动调）', () => {
   store.clear()
   setItemCalls = 0
-  useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
+  useLocalStorage(STORAGE_KEYS.RECORDS, [])
   assert.ok((winHandlers.storage || []).length > 0)
 })
 await ok('键名用的是真实键（带 @u 后缀），不是 base 名', () => {
-  assert.equal(scopeKey(STORAGE_KEYS.DB), STORAGE_KEYS.DB + '@u' + CUR)
+  assert.equal(scopeKey(STORAGE_KEYS.RECORDS), STORAGE_KEYS.RECORDS + '@u' + CUR)
 })
 
 console.log('\n【同步进来：不再静默丢】')
-await ok('★ 另一个标签页改了百科 → 本页数据跟着更新', async () => {
+await ok('★ 另一个标签页改了记录 → 本页数据跟着更新', async () => {
   store.clear(); setItemCalls = 0
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  const remote = { game: [{ id: 'g1', name: '对面写的' }], note: [], life: [] }
-  await fire(scopeKey(STORAGE_KEYS.DB), JSON.stringify(remote))
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  const remote = [{ id: 'g1', name: '对面写的' }]
+  await fire(scopeKey(STORAGE_KEYS.RECORDS), JSON.stringify(remote))
   assert.deepEqual(data.value, remote)
 })
 await ok('★ 同步时绝不回写（回写 = 两个标签页乒乓互写）', async () => {
@@ -119,42 +119,42 @@ await ok('远端把键删了（newValue = null）→ 回落默认值，也不回
 })
 await ok('★ 远端写进来的是坏 JSON → 不拿它覆盖本页内存（保留现场）', async () => {
   store.clear(); setItemCalls = 0
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  data.value = { game: [{ id: 'keep' }], note: [], life: [] }
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  data.value = [{ id: 'keep' }]
   await nextTick()
   const warned = console.warn
   console.warn = () => {}
-  await fire(scopeKey(STORAGE_KEYS.DB), '{"game":[')   // 截断的 JSON
+  await fire(scopeKey(STORAGE_KEYS.RECORDS), '{"game":[')   // 截断的 JSON
   console.warn = warned
-  assert.deepEqual(data.value.game, [{ id: 'keep' }])
+  assert.deepEqual(data.value, [{ id: 'keep' }])
 })
 
 console.log('\n【账号隔离：不能因为同步破一次口】')
 await ok('★ 别的账号的同名键 → 不响应（本页数据不动）', async () => {
   store.clear(); setItemCalls = 0
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  data.value = { game: [{ id: 'mine' }], note: [], life: [] }
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  data.value = [{ id: 'mine' }]
   await nextTick()
-  await fire('huan_zhong_shu_db@uOTHER999', JSON.stringify({ game: [{ id: '别人的' }], note: [], life: [] }))
-  assert.deepEqual(data.value.game, [{ id: 'mine' }])
+  await fire('huan_zhong_shu_records@uOTHER999', JSON.stringify([{ id: '别人的' }]))
+  assert.deepEqual(data.value, [{ id: 'mine' }])
 })
 await ok('没后缀的裸键 → 也不响应（本页是 @uCUR123 那一个）', async () => {
   store.clear(); setItemCalls = 0
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  data.value = { game: [{ id: 'mine' }], note: [], life: [] }
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  data.value = [{ id: 'mine' }]
   await nextTick()
-  await fire(STORAGE_KEYS.DB, JSON.stringify({ game: [{ id: '旧的' }], note: [], life: [] }))
-  assert.deepEqual(data.value.game, [{ id: 'mine' }])
+  await fire(STORAGE_KEYS.RECORDS, JSON.stringify([{ id: '旧的' }]))
+  assert.deepEqual(data.value, [{ id: 'mine' }])
 })
 await ok('整块存储被清空（key = null）→ 订阅者收到，回落默认值', async () => {
   store.clear(); setItemCalls = 0
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  data.value = { game: [{ id: 'mine' }], note: [], life: [] }
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  data.value = [{ id: 'mine' }]
   await nextTick()
   const list = winHandlers.storage || []
   list.forEach(fn => fn({ key: null, newValue: null }))
   await nextTick()
-  assert.deepEqual(data.value, { game: [], note: [], life: [] })
+  assert.deepEqual(data.value, [])
 })
 
 console.log('\n【退订与降级】')

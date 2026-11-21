@@ -31,7 +31,7 @@ onMounted(() => {
 
 <style scoped>
 .splash-screen {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh;
   background-color: var(--color-bg-card); display: flex; justify-content: center;
   align-items: center; z-index: 99999;
   animation: fadeOutScreen 0.4s cubic-bezier(0.25, 1, 0.5, 1) 1.6s forwards;

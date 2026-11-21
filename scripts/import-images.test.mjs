@@ -13,7 +13,11 @@
  *
  * 环境说明：node 没有 localStorage / indexedDB —— 都在此铺替身（IndexedDB 替身见 idb-double.mjs）。
  */
+import { register } from 'node:module'
 import { makeIDB } from './idb-double.mjs'
+
+// src 按 Vite 惯例写无扩展名导入，原生 node 解析不了 → 先注册解析钩子（直接 `node scripts/import-images.test.mjs` 也能跑）
+register('./resolve-hook.mjs', import.meta.url)
 
 const map = new Map()
 globalThis.localStorage = {
@@ -31,7 +35,7 @@ const idb = makeIDB()
 globalThis.indexedDB = idb.api
 
 const backup = await import('../src/composables/useBackup.js')
-const { useWikiData } = await import('../src/composables/useWikiData.js')
+const { useRecords } = await import('../src/composables/useRecords.js')
 const { saveImage, IMAGE_DB_NAME, IMAGE_STORE_NAME } = await import('../src/composables/useImageStore.js')
 const { STORAGE_KEYS } = await import('../src/constants/categories.js')
 const { scopeKey } = await import('../src/utils/storageScope.js')
@@ -49,20 +53,18 @@ const GOOD = 'aGVsbG8='
 const goodImg = (id) => ({ id, mime: 'image/png', name: id + '.png', time: 1700000000000, dataBase64: GOOD })
 
 /** 造一份格式合法的备份（counts 必须与实际一致，否则会被校验层先拦下） */
-function makeBackup(images, db) {
-  const data = db || {
-    game: [{ id: 'g1', name: '带图的条目', wiki: '![p](id://img-good)', creator: '刘', time: '2026/10/13 10:00' }],
-    note: [], life: []
-  }
-  const wiki = ['game', 'note', 'life'].reduce((n, c) => n + (data[c] || []).length, 0)
+function makeBackup(images, records) {
+  const data = records || [
+    { id: 'g1', name: '带图的条目', wiki: '![p](id://img-good)', creator: '刘', time: '2026/10/13 10:00', origin: 'user', children: [] }
+  ]
   return {
     format: 'huanzhongshu-backup',
-    schema_version: 1,
+    schema_version: 2,
     exported_at: '2026-10-13T10:00:00.000Z',
     app_version: '1.0.0',
     account_label: '本机',
-    counts: { wiki_items: wiki, memory: 0, chat: 0, images: images.length },
-    data: { user: null, db: data, chat: [], memory: [], crisis: {}, proactive: { log: [], enabled: false }, last_tab: null },
+    counts: { records: data.length, memory: 0, chat: 0, images: images.length },
+    data: { user: null, records: data, chat: [], memory: [], crisis: {}, proactive: { log: [], enabled: false }, last_tab: null },
     images
   }
 }
@@ -99,7 +101,7 @@ ok('判据:数组也算「不是一张图」', /不是一张图/.test(backup.che
   const oldId = await saveImage(new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }))
   ok('前置:库里已有一张本机原有的图', imgKeys().length === 1 && imgKeys()[0] === oldId, JSON.stringify(imgKeys()))
 
-  set(STORAGE_KEYS.DB, { game: [{ id: 'local', name: '本机原有的条目', wiki: '![p](id://' + oldId + ')', creator: '刘', time: '' }], note: [], life: [] })
+  set(STORAGE_KEYS.RECORDS, [{ id: 'local', name: '本机原有的条目', wiki: '![p](id://' + oldId + ')', creator: '刘', time: '', origin: 'user', children: [] }])
   set(STORAGE_KEYS.CHAT, [{ id: 'm1', role: 'user', content: '本机原有聊天', time: '' }])
 
   const payload = makeBackup([goodImg('img-good'), { id: 'img-bad', mime: 'image/png' }])
@@ -119,7 +121,7 @@ ok('判据:数组也算「不是一张图」', /不是一张图/.test(backup.che
   ok('放行:坏的那张没进库、好的那张进去了', imgKeys().length === 1 && imgKeys()[0] === 'img-good', JSON.stringify(imgKeys()))
   ok('放行:坏图原因留在返回值里（界面能说清为什么）', /缺图片数据/.test(r2.imageDroppedDetail[0].reason || ''), JSON.stringify(r2.imageDroppedDetail))
   ok('放行:本机原有的那张已被整批替换掉（这是导入的正常语义）', !imgKeys().includes(oldId))
-  ok('放行:文字数据也换代了', String(localStorage.getItem(sk(STORAGE_KEYS.DB))).includes('带图的条目'))
+  ok('放行:文字数据也换代了', String(localStorage.getItem(sk(STORAGE_KEYS.RECORDS))).includes('带图的条目'))
   ok('放行:没有图片失败标记', r2.imageError === '')
 }
 
@@ -155,24 +157,25 @@ ok('判据:数组也算「不是一张图」', /不是一张图/.test(backup.che
   ok('只写不进:导入仍然成功（数据比图片重要，不回滚文字）', r.ok === true, JSON.stringify(r).slice(0, 200))
   ok('只写不进:★图片失败必须被报出来（不许静默吞掉）', !!r.imageError && r.imageError.length > 0, JSON.stringify(r.imageError))
   ok('只写不进:图片数为 0 且不假装写了', r.images === 0, JSON.stringify(r.images))
-  ok('只写不进:文字数据确实换代了', String(localStorage.getItem(sk(STORAGE_KEYS.DB))).includes('带图的条目'))
+  ok('只写不进:文字数据确实换代了', String(localStorage.getItem(sk(STORAGE_KEYS.RECORDS))).includes('带图的条目'))
 }
 
-// ═══════════ 六、老版备份（无 images 段）不受影响 ═══════════
+// ═══════════ 六、三分类旧备份：重构后**刻意拒绝**，且不碰图片库 ═══════════
+// 单层记录重构后 {game,note,life} 已下线；拒绝发生在快照/写文字/写图片之前。
 {
   const legacy = { game: [{ id: 'old1', name: '老备份条目', wiki: '', creator: '刘', time: '' }], note: [], life: [] }
   const r = await backup.importBackup(JSON.stringify(legacy))
-  ok('老备份:仍然能导（走 legacy 分支）', r.ok === true && r.legacy === true, JSON.stringify(r))
-  ok('老备份:不碰图片库（库里还是上一轮那三张）', r.images === 0 && imgKeys().length === 3, JSON.stringify(imgKeys()))
+  ok('老备份:三分类旧备份现在被明确拒绝（不再支持）', r.ok === false && /旧版备份|不再支持/.test(r.error || ''), JSON.stringify(r))
+  ok('老备份:不碰图片库（库里还是上一轮那三张）', imgKeys().length === 3, JSON.stringify(imgKeys()))
 }
 
 // ═══════════ 七、图片回收的两道闸门（A02 残留② 挂启动回收时补的）═══════════
 {
-  const wiki = useWikiData()
+  const recordsApi = useRecords()
 
-  // 内存里造一条「引用了 img-keep」的条目（落盘由 watch 异步做，这里不管）
-  const item = wiki.addItem('game', '有图的条目', '刘')
-  wiki.updateItemWiki('game', item.id, '看图：![p](id://img-keep)')
+  // 内存里造一条「引用了 img-keep」的记录（落盘由 watch 异步做，这里不管）
+  const item = recordsApi.addRecord('有图的条目', '刘')
+  recordsApi.updateRecordBody(item.id, '看图：![p](id://img-keep)')
 
   // 库里放两张：一张被引用（img-keep），一张是孤儿（img-orphan）
   // 直接往库里铺指定 id（走 idb 替身，与生产同一套 store 结构）
@@ -189,14 +192,14 @@ ok('判据:数组也算「不是一张图」', /不是一张图/.test(backup.che
 
   // ★闸门：当前账号**落盘那份**坏了 → 拒绝回收（内存里此刻可能是回落后的默认空值，
   //   照它算就会把本账号所有图片清光，而原始文本其实还有救）
-  localStorage.setItem(sk(STORAGE_KEYS.DB), '{坏掉的 json')
-  const refused = await wiki.purgeUnusedImages()
+  localStorage.setItem(sk(STORAGE_KEYS.RECORDS), '{坏掉的 json')
+  const refused = await recordsApi.purgeUnusedImages()
   ok('闸门:当前账号数据坏了 → 放弃回收', refused && refused.refused === true, JSON.stringify(refused))
   ok('闸门:★放弃时一张图都没动', imgKeys().length === 2, JSON.stringify(imgKeys()))
 
   // 反例对照：落盘那份恢复正常 → 正常回收（闸门没有误伤正常路径）
-  set(STORAGE_KEYS.DB, { game: [{ id: 'local2', name: '本机原条目', wiki: '![p](id://img-keep)', creator: '刘', time: '' }], note: [], life: [] })
-  const done = await wiki.purgeUnusedImages()
+  set(STORAGE_KEYS.RECORDS, [{ id: 'local2', name: '本机原条目', wiki: '![p](id://img-keep)', creator: '刘', time: '', origin: 'user', children: [] }])
+  const done = await recordsApi.purgeUnusedImages()
   ok('正常路径:回收执行了（闸门没有误伤）', done && done.refused !== true, JSON.stringify(done))
   ok('正常路径:孤儿被清掉、被引用的还在', imgKeys().length === 1 && imgKeys()[0] === 'img-keep', JSON.stringify(imgKeys()))
 }

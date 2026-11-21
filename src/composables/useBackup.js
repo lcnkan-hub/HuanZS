@@ -27,7 +27,8 @@ import { IMAGE_DB_NAME, IMAGE_STORE_NAME, getImageDB, releaseAllImageUrls } from
 import { saveSnapshot, readSnapshot } from './useBackupStore'
 
 export const BACKUP_FORMAT = 'huanzhongshu-backup'
-export const BACKUP_SCHEMA_VERSION = 1
+// 2 = 单层记录（2026-11-21 重构）。1 及更早是 {game,note,life} 三分类结构，已不再支持导入。
+export const BACKUP_SCHEMA_VERSION = 2
 export const SIZE_GATE_MB = 30 // 预估超过这个体积先问用户（含图片 / 不含图片）
 
 const APP_VERSION = '1.0.0'
@@ -51,7 +52,7 @@ export function humanError(e) {
 // path 是「相对于 payload.data」的路径，别写成 ['data','user']（会多出一层，导入时一条都写不进去）
 const TEXT_SOURCES = [
   { path: ['user'],   key: () => STORAGE_KEYS.USER,   empty: null },
-  { path: ['db'],     key: () => STORAGE_KEYS.DB,     empty: { game: [], note: [], life: [] } },
+  { path: ['records'], key: () => STORAGE_KEYS.RECORDS, empty: [] },
   { path: ['chat'],   key: () => STORAGE_KEYS.CHAT,   empty: [] },
   { path: ['memory'], key: () => STORAGE_KEYS.MEMORY, empty: [] },
   // 主动开口：账本要带走（否则换设备后月配额归零、可能一个月说 6 次），开关也要带走（用户的选择不能被恢复弄丢）
@@ -366,7 +367,7 @@ export async function buildBackupPayload({ includeImages = true } = {}) {
     })))
   }
 
-  const db = data.db || { game: [], note: [], life: [] }
+  const recordList = Array.isArray(data.records) ? data.records : []
   return {
     format: BACKUP_FORMAT,
     schema_version: BACKUP_SCHEMA_VERSION,
@@ -374,7 +375,7 @@ export async function buildBackupPayload({ includeImages = true } = {}) {
     app_version: APP_VERSION,
     account_label: currentAccountLabel(),
     counts: {
-      wiki_items: ['game', 'note', 'life'].reduce((n, c) => n + (Array.isArray(db[c]) ? db[c].length : 0), 0),
+      records: recordList.length,
       memory: (data.memory || []).length,
       chat: (data.chat || []).length,
       images: images.length
@@ -581,21 +582,20 @@ export function lastExportAt() {
 
 /**
  * 校验备份内容。任何一条不过就返回 { ok:false }，调用方必须**中止且不改动任何存储**。
- * v0 兼容：老版导出的就是纯百科对象 {game, note, life}（没有 format / schema_version）。
+ * 结构口径（schema 2 起）：data.records 是单层记录数组。
+ * 旧版（schema 0/1，{game,note,life} 三分类）不再支持 —— 明确拒绝并说明原因，
+ * 绝不尝试半懂不懂地迁移（迁移错了比拒绝更糟：用户以为导进来了）。
  */
 export function validateBackupPayload(raw) {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, error: '文件读不了：内容不是有效的备份数据' }
   }
 
-  const isLegacy = !raw.schema_version && !raw.format &&
+  // v0：老版导出的就是纯百科对象 {game, note, life}
+  const isLegacyShape = !raw.schema_version && !raw.format &&
     Array.isArray(raw.game) && Array.isArray(raw.note) && Array.isArray(raw.life)
-  if (isLegacy) {
-    return {
-      ok: true,
-      legacy: true,
-      payload: { schema_version: 0, data: { db: { game: raw.game, note: raw.note, life: raw.life } }, images: [] }
-    }
+  if (isLegacyShape) {
+    return { ok: false, error: '这是三分类时代的旧备份，当前版本不再支持直接导入（见备份中心说明）' }
   }
 
   if (raw.format !== BACKUP_FORMAT) return { ok: false, error: '这不是寰中枢的备份文件' }
@@ -603,12 +603,14 @@ export function validateBackupPayload(raw) {
   if (raw.schema_version > BACKUP_SCHEMA_VERSION) {
     return { ok: false, error: '这个备份来自更新的版本，请先升级 App 再导入' }
   }
+  if (raw.schema_version < BACKUP_SCHEMA_VERSION) {
+    return { ok: false, error: '这是旧版备份（schema ' + raw.schema_version + '），三分类结构已下线，无法直接导入' }
+  }
 
   const data = raw.data
   if (!data || typeof data !== 'object') return { ok: false, error: '备份缺 data 段' }
-  const db = data.db
-  if (!db || !['game', 'note', 'life'].every(c => Array.isArray(db[c]))) {
-    return { ok: false, error: '百科数据形状不对' }
+  if (!Array.isArray(data.records)) {
+    return { ok: false, error: '记录数据形状不对' }
   }
   if (data.chat != null && !Array.isArray(data.chat)) return { ok: false, error: '聊天记录形状不对' }
   if (data.memory != null && !Array.isArray(data.memory)) return { ok: false, error: '记忆数据形状不对' }
@@ -621,7 +623,7 @@ export function validateBackupPayload(raw) {
   // 条数核对：对不上说明文件在传输/编辑中损坏了
   if (raw.counts && typeof raw.counts === 'object') {
     const actual = {
-      wiki_items: ['game', 'note', 'life'].reduce((n, c) => n + db[c].length, 0),
+      records: data.records.length,
       memory: (data.memory || []).length,
       chat: (data.chat || []).length,
       images: (raw.images || []).length

@@ -8,7 +8,7 @@
  *   - 设备级键（账号表 / 登录态 / AI 密钥）永不重写，见 GLOBAL_KEYS
  *
  * 为什么用「整页重载」而不是运行中切换账号：
- *   业务 composable 是模块级单例（useWikiData / useApiKey 的存储键在 import 时就绑定了），
+ *   业务 composable 是模块级单例（useRecords / useApiKey 的存储键在 import 时就绑定了），
  *   运行中换账号会留下绑在旧键上的 ref，两边各持一份快照 → 静默丢数据。
  *   所以 login / logout 之后一律 location.reload，让键名在 boot 时重新解析。见 useAccount.js。
  */
@@ -26,7 +26,7 @@ export const GLOBAL_KEYS = new Set([
 /** 需要按账号隔离的业务数据键（首个账号「认领本机旧数据」时按这张表走） */
 export const SCOPED_BASE_KEYS = [
   STORAGE_KEYS.USER,
-  STORAGE_KEYS.DB,
+  STORAGE_KEYS.RECORDS,
   STORAGE_KEYS.CHAT,
   STORAGE_KEYS.MEMORY,
   STORAGE_KEYS.CRISIS_AUDIT,

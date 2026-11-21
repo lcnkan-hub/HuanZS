@@ -1,7 +1,7 @@
 <!--
   备份中心积木（2026-10-10 新增 · 对应问题清单 I01「数据会丢」）
   职责：把「能带走 + 能导回」做成用户点得到的东西
-    - 导出全量备份（百科 / 王冠记忆 / 聊天记录 / 危机留痕 / 图片 / 用户档案）
+    - 导出全量备份（记录 / 王冠记忆 / 聊天记录 / 危机留痕 / 图片 / 用户档案）
     - 从备份文件导入（全量覆盖当前账号 + 导入前自动快照）
     - 回退到导入前（导错了能退回来）
   边界：不含 API 密钥、不含登录态、不含账号表；不引任何依赖；不碰危机逻辑
@@ -17,7 +17,7 @@
         <AppIcon name="export" :size="14" />
         {{ busy === 'export' ? '正在打包…' : '导出全量备份' }}
       </button>
-      <p class="bk-hint">一个文件带走全部：百科 · 王冠记忆 · 聊天记录 · 图片 · 用户档案</p>
+      <p class="bk-hint">一个文件带走全部：记录 · 王冠记忆 · 聊天记录 · 图片 · 用户档案</p>
       <p class="bk-last" v-if="lastAt">
         上次导出：{{ fmtTime(lastAt) }}<span v-if="daysAgo !== null">（{{ daysAgo }} 天前）</span>
       </p>
@@ -106,7 +106,7 @@ const handleExport = async () => {
       includeImages = confirm(
         `这份备份预估约 ${mb} MB（主要是图片）。\n\n` +
         `点「确定」＝导出完整备份（含图片）\n` +
-        `点「取消」＝只导文字数据（百科 / 记忆 / 聊天），体积小很多，但图片不带`
+        `点「取消」＝只导文字数据（记录 / 记忆 / 聊天），体积小很多，但图片不带`
       )
     }
     const r = await downloadBackup({ includeImages })
@@ -117,7 +117,7 @@ const handleExport = async () => {
       webshare: '已交给系统保存 / 分享',
       download: '已导出到下载目录'
     }[r.via] || '当前环境不支持直接存文件'
-    say(`${how}（百科 ${c.wiki_items} · 记忆 ${c.memory} · 聊天 ${c.chat} · 图片 ${c.images}）` +
+    say(`${how}（记录 ${c.records} · 记忆 ${c.memory} · 聊天 ${c.chat} · 图片 ${c.images}）` +
       (includeImages ? '' : '；这次没含图片'), r.via === 'none' ? 'error' : 'ok')
     lastAt.value = lastExportAt()
   } catch (e) {
@@ -176,15 +176,11 @@ const runImport = async (file, allowDamagedImages) => {
  */
 const finishImport = (r) => {
   const c = r.counts || {}
-  let tail
-  if (r.legacy) {
-    tail = `（老版备份，只导了百科 ${c.wiki_items} 条）`
-  } else {
-    const img = r.imageUnavailable
-      ? '图片：当前环境读不到图片库，这批图没进'
-      : `图片 ${r.images}${r.imagesDropped > 0 ? `（备份里另有 ${r.imagesDropped} 张是坏的，没导入）` : ''}`
-    tail = `（百科 ${c.wiki_items} · 记忆 ${c.memory} · 聊天 ${c.chat} · ${img}）`
-  }
+  // 2026-11-21 单层记录重构：不再有 legacy 导入分支（schema < 2 的备份在校验阶段就被拒绝）
+  const img = r.imageUnavailable
+    ? '图片：当前环境读不到图片库，这批图没进'
+    : `图片 ${r.images}${r.imagesDropped > 0 ? `（备份里另有 ${r.imagesDropped} 张是坏的，没导入）` : ''}`
+  const tail = `（记录 ${c.records} · 记忆 ${c.memory} · 聊天 ${c.chat} · ${img}）`
   const warn = r.imageError ? `\n\n⚠️ 图片没能导入：${r.imageError}\n（文字数据已经导入回来了）` : ''
   alert('导入完成 ' + tail + warn + '\n\n页面将重新加载。')
   location.reload()

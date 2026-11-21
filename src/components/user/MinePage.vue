@@ -1,11 +1,12 @@
 <!--
-  个人中心页面 — 组装所有用户子组件
-  职责：布局编排，数据计算和事件转发
+  「我的」内容积木（2026-11-21 单层重构版）
+  职责：布局编排，数据计算和事件转发。容器是 MineSheet（右侧滑入的卡片），本组件只管里面放什么。
+  顺序：名片 → 本机锁 → 备份 → 王冠 → 修改资料。
+  2026-11-21 单人化：「我创建的」整块撤掉 —— 只有一个用户时，它是一个会说谎的数字。
+  足迹模块已按决策删除（只剩一个记录池，分类占比失去意义）。
 -->
 <template>
   <div class="page-content mine-page-container">
-    <h2><AppIcon name="mine" :size="24" /> 我的中心</h2>
-
     <!-- 用户名片 -->
     <UserProfileCard
       :avatar="userProfile?.avatar"
@@ -13,22 +14,13 @@
       :id="userProfile?.id"
     />
 
-    <!-- 创造力足迹 -->
-    <FootprintSummary :myFilteredData="myFilteredData" />
-
-    <!-- 我创建的：一行数字入口，替代原来的三块折叠面板（2026-10-11「我的」页 B 档重排） -->
-    <MyItemsEntry
-      :myData="myFilteredData"
-      @jump="(cat) => $emit('jump-category', cat)"
-    />
-
-    <!-- 账号（本地账号系统：当前账号 + 退出 / 换账号） -->
+    <!-- 本机锁：只有一个人用，所以这里不是「账号管理」，只是「锁不锁」 -->
     <AccountSection />
 
-    <!-- 备份中心：导出全量 / 导入 / 回退（2026-10-10 替换只导百科的旧备份盒） -->
+    <!-- 备份中心：导出全量 / 导入 / 回退 -->
     <BackupCenter />
 
-    <!-- 王冠：主动开口开关 + 模型密钥（一张卡说完「能不能开口、拿什么开口」） -->
+    <!-- 王冠：主动开口开关 + 模型密钥 -->
     <CrownSection @open-ai-settings="showAiSettings = true" />
 
     <!-- 底部操作：修改资料（AI 设置已并入上方王冠卡） -->
@@ -53,49 +45,35 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import UserProfileCard   from './UserProfileCard.vue'
-import FootprintSummary  from './FootprintSummary.vue'
-import MyItemsEntry      from './MyItemsEntry.vue'
 import BackupCenter      from './BackupCenter.vue'
 import AccountSection    from './AccountSection.vue'
 import CrownSection      from './CrownSection.vue'
 import EditProfileModal  from './EditProfileModal.vue'
 import AiSettingsModal   from './AiSettingsModal.vue'
-import { ALL_CATEGORIES } from '../../constants/categories'
 
-const props = defineProps({
+defineProps({
   userProfile: { type: Object, default: null },
-  dbData:      { type: Object, required: true }
+  records:     { type: Array,  default: () => [] }
 })
-// 事件：jump-category（点「我创建的」数字跳分类，由 App 接手「切 Tab + 只看我创建的」）、save-profile
-defineEmits(['jump-category', 'save-profile'])
+// 事件：save-profile
+defineEmits(['save-profile'])
 
 const showEditModal = ref(false)
 const showAiSettings = ref(false)
 
-// 当前用户的条目（按分类过滤）—— 足迹数字与「我创建的」入口共用同一份，避免各算各的
-const myFilteredData = computed(() => {
-  const name = props.userProfile?.name || ''
-  const result = {}
-  ALL_CATEGORIES.forEach(cat => {
-    result[cat] = (props.dbData[cat] || []).filter(item => item.creator === name)
-  })
-  return result
-})
 </script>
 
 <style scoped>
-.page-content { padding: 20px; animation: fadeInContent 0.3s ease-out; }
-.page-content h2 {
-  font-size: var(--text-22); font-weight: 600; margin-bottom: 15px;
-  display: flex; align-items: center; gap: 6px;
-}
-.mine-page-container { display: flex; flex-direction: column; min-height: calc(100vh - 120px); }
+/* 2026-11-21：容器从右侧抽屉换成底部卡片后，顶部留白由卡片的横杠+标题接管，
+   这里不再自留 20px，否则第一块名片会被顶下去一截（卡片高度只有 88%，首屏能放的东西少一件） */
+.page-content { padding: 4px 20px 20px; animation: fadeInContent 0.3s ease-out; }
+.mine-page-container { display: flex; flex-direction: column; }
 
 .profile-action-wrapper {
-  margin-top: auto; padding: 25px 0 10px 0;
+  padding: 4px 0 10px 0;
   display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;
 }
 .edit-data-trigger-btn {

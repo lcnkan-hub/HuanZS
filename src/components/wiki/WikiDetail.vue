@@ -1,7 +1,7 @@
 <!--
   主词条详情页积木
   展示主词条的子词条列表，支持添加/删除子词条，点击子词条进入编辑器
-  Props: openedItem(主词条对象), currentUser(当前用户名)
+  Props: openedItem(主词条对象)
   Emits: close, add-child(name), save-child(childId, wiki), delete-child(childId)
 -->
 <template>
@@ -23,8 +23,17 @@
         <button class="back-link-btn" @click="$emit('close')">
           <AppIcon name="back" :size="16" /> 返回
         </button>
-        <span class="detail-page-title">
-          <AppIcon name="book-open" :size="18" /> {{ openedItem.name }}
+        <input
+          v-if="titleEditing"
+          ref="titleInputRef"
+          v-model="draftName"
+          class="detail-title-input"
+          placeholder="未命名"
+          @keyup.enter="commitTitle"
+          @blur="commitTitle"
+        />
+        <span v-else class="detail-page-title" @click="startTitleEdit">
+          <AppIcon name="book-open" :size="18" /> {{ openedItem.name || '未命名' }}
         </span>
         <button class="add-child-btn" @click="showAddChildModal = true">
           <AppIcon name="plus" :size="14" /> 添加子词条
@@ -39,7 +48,6 @@
             <AppIcon name="tag" :size="12" /> 主词条
           </span>
           <span class="meta-author">
-            <AppIcon name="author" :size="12" /> {{ openedItem.creator }}
           </span>
           <span class="meta-time" v-if="openedItem.time">
             <AppIcon name="clock" :size="12" /> {{ openedItem.time }}
@@ -48,6 +56,9 @@
             <AppIcon name="list" :size="12" /> {{ children.length }} 个子词条
           </span>
         </div>
+
+        <!-- 记录正文（2026-11-21 新增：主记录自己的 wiki 字段终于有了入口） -->
+        <ItemBodyEditor :record="openedItem" @save="(text) => $emit('save-body', text)" />
 
         <!-- 子词条列表 -->
         <div class="child-list">
@@ -66,9 +77,6 @@
                 <AppIcon name="doc" :size="15" /> {{ child.name }}
               </span>
               <span class="child-meta">
-                <span v-if="child.creator">
-                  <AppIcon name="author" :size="11" /> {{ child.creator }}
-                </span>
                 <span v-if="child.time">
                   <AppIcon name="clock" :size="11" /> {{ child.time }}
                 </span>
@@ -104,15 +112,35 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import SubEntryEditor from './SubEntryEditor.vue'
+import ItemBodyEditor from './ItemBodyEditor.vue'
 
 const props = defineProps({
   openedItem:  { type: Object, required: true },
-  currentUser: { type: String, required: true }
 })
-const emit = defineEmits(['close', 'add-child', 'save-child', 'delete-child'])
+const emit = defineEmits(['close', 'add-child', 'save-child', 'delete-child', 'rename', 'save-body'])
+
+// ========== 标题就地编辑（2026-11-21） ==========
+// 点「添加」进来时标题是空的，这里就是写标题的地方；返回时若标题正文都空，
+// App.vue 会把这条空记录自动删掉（见 useRecords.dropIfEmpty）。
+const titleEditing  = ref(false)
+const draftName     = ref('')
+const titleInputRef = ref(null)
+
+function startTitleEdit() {
+  draftName.value = props.openedItem.name || ''
+  titleEditing.value = true
+  nextTick(() => titleInputRef.value && titleInputRef.value.focus())
+}
+
+function commitTitle() {
+  if (!titleEditing.value) return
+  titleEditing.value = false
+  const name = (draftName.value || '').trim()
+  if (name && name !== (props.openedItem.name || '')) emit('rename', name)
+}
 
 // 正在编辑的子词条：只存 id，对象由 openedItem 现算，不存引用（A08）
 // 存引用的问题：App 每次保存都用深拷贝整体替换 openedItem（见 handleSaveChildWiki），
@@ -181,6 +209,16 @@ const handleChildDelete = () => {
   font-size: var(--text-16); font-weight: 600; color: var(--color-text-primary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 38%;
   display: flex; align-items: center; gap: 4px;
+  cursor: pointer;
+  /* 它是「点标题改名」的入口，命中区必须撑到 44（真浏览器验收量到过 24px） */
+  min-height: 44px; padding: 0 4px;
+}
+.detail-title-input {
+  width: 46%; min-width: 0;
+  font-size: var(--text-16); font-weight: 600; color: var(--color-text-primary);
+  background: var(--color-bg-input); border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md); padding: 6px 10px;
+  font-family: inherit;
 }
 .add-child-btn {
   background-color: var(--color-accent); color: var(--color-text-on-accent);

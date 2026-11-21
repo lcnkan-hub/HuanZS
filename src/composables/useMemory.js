@@ -16,7 +16,7 @@
  * 时间格式：ISO 8601 字符串；验收构造数据时用 new Date(Date.now()-X*86400000).toISOString() 生成"X天前"
  */
 import { useLocalStorage } from './useLocalStorage'
-import { STORAGE_KEYS, TAB_NAMES } from '../constants/categories'
+import { STORAGE_KEYS } from '../constants/categories'
 import { generateUniqueId } from '../utils/uniqueId'
 import { askStructured } from './useChatAI'
 import { writeWikiItems, listWikiTitles } from './useWikiWriter'
@@ -77,7 +77,7 @@ const EMOTIONAL_DIRECTION_NOTE = `【本轮特别要求】用户刚才表达了�
 2. 不虚假承诺：不要答应"我会一直陪着你""我会记住并经常关心你"这类会落空的承诺。
 正确方向（三个要素，用你自己的话自然表达，不要照抄模板）：真诚接住这句话背后的感受 + 明确这句话不会变成一条自动规则 + 不对做不到的事撒谎。例如可以说："我听到了，这句话我记在这轮对话里"。`
 
-// 记忆库是模块级单例（与 useChat / useWikiData 同一个道理）：同一个键有两个活跃 ref 会各持快照 → 静默丢数据。
+// 记忆库是模块级单例（与 useChat / useRecords 同一个道理）：同一个键有两个活跃 ref 会各持快照 → 静默丢数据。
 // 王冠主动开口要在 app 启动时读记忆（判断"有没有可想起的事"），那时王冠页可能还没挂载。
 const { data: memories, error } = useLocalStorage(STORAGE_KEYS.MEMORY, [])
 
@@ -271,7 +271,7 @@ export function useMemory() {
       getBody: () => ''
     })
     const wikiLines = wikiPicked
-      .map(w => `${TAB_NAMES[w.category] || w.category}｜${w.parent ? `${w.parent} › ${w.name}` : w.name}｜${w.time}`)
+      .map(w => `${w.parent ? `${w.parent} › ${w.name}` : w.name}｜${w.time}`)
       .join('\n') || '（暂无）'
     return `你是记忆提取器，根据本轮回合（用户消息 + 王冠回复）判断是否有值得写入长期记忆的信息。
 只允许以下白名单四类，其余一律不提取：
@@ -281,21 +281,21 @@ export function useMemory() {
 - preference：关于王冠该怎么表现的交互设置（称呼方式、回复长度、语气风格、功能偏好）。
 明确不存（一律不提取）：情感依赖/陪伴期待/主动关心要求（如"你以后多关心我""你要一直陪着我""不要忘记我"）、要求"记住"某段内容的请求、第三方具体行为描述、隐私细节、健康归因猜测、危机信号内容（自伤/伤人/告别等）。
 
-同时判断一次「百科」（与记忆的区别：记忆是关于用户**本人**的，百科是关于**世界的知识**）：
-- 类别只有三个：game（游戏相关：攻略/机制/地图）、note（知识/学习/读书/工作方法）、life（生活经验：居家/健康常识/办事流程）
+同时判断一次「记录」（与记忆的区别：记忆是关于用户**本人**的，记录是关于**世界的知识**）：
+- 记录只有一个池子，**不再分类**（2026-11-21 起游戏/笔记/生活的分类已下线）
 - 判据：**可复用、以后可能想再查**的方法或事实。用户说"帮我记一下…"，或明确讲了某个做法/知识时，优先考虑
 - 不写：关于用户本人的事（那属于记忆）、闲聊、情绪、一次性的临时信息、一句话就说完的小事
-- 保守：**不确定就不写**。宁可漏记，也不能把百科变成垃圾桶（垃圾会毁掉以后检索的质量）
+- 保守：**不确定就不写**。宁可漏记，也不能把记录变成垃圾桶（垃圾会毁掉以后检索的质量）
 - title 用简短名词短语（≤20 字）；content 写清要点、可含步骤，不要写成对话口吻
 - **三种动作**：
-  · 全新内容 → mode: "new"，自拟 title 并给 category
-  · 补充/续写已有条目（主条目或子词条都算）→ mode: "append"，title 只写**该条目名本身**（不要带 " › " 前缀），content 只写新增的部分（不要重复或重抄已有内容）。用户说"给 XX 那条补一句""XX 再记一点""接着记"这类，一律走 append
-  · 内容由**多个并列小主题**组成、挂到某个主题条目下面更清楚 → mode: "child"，parent 填主条目名、title 填子条目名，category 可省略
+  · 全新内容 → mode: "new"，自拟 title
+  · 补充/续写已有记录（主记录或子记录都算）→ mode: "append"，title 只写**该条记录名本身**（不要带 " › " 前缀），content 只写新增的部分（不要重复或重抄已有内容）。用户说"给 XX 那条补一句""XX 再记一点""接着记"这类，一律走 append
+  · 内容由**多个并列小主题**组成、挂到某个主题记录下面更清楚 → mode: "child"，parent 填主记录名、title 填子记录名
 - **分层判据（别硬套壳）**：
-  · 多个并列小主题（"几条攻略""几个要点"这种）→ 先用 new 建一个主题主条目（如「塞尔达老玩家攻略」），再对每个主题 child 一个子词条
-  · 一整段连续的说明 → 主条目正文就够，别拆
-  · 单条小知识 → 直接 new 一个主条目，不要造父子
-  · wiki 数组**按顺序执行**，所以「先 new 主条目、再 child 挂子词条」在同一个数组里就能完成
+  · 多个并列小主题（"几条攻略""几个要点"这种）→ 先用 new 建一个主题主记录（如「塞尔达老玩家攻略」），再对每个主题 child 一个子记录
+  · 一整段连续的说明 → 主记录正文就够，别拆
+  · 单条小知识 → 直接 new 一条主记录，不要造父子
+  · wiki 数组**按顺序执行**，所以「先 new 主记录、再 child 挂子记录」在同一个数组里就能完成
 
 规则：
 1. content 用骨架化一句话，不含逐字引用、不含隐私细节，不超过 120 字。
@@ -306,7 +306,7 @@ export function useMemory() {
 已有记忆（id：内容）：
 ${memLines}
 
-已有百科条目（分类｜标题｜日期；库里共 ${wikiTotal} 条，这里按相关度只列了 ${wikiPicked.length} 条）：
+已有记录（标题｜日期；库里共 ${wikiTotal} 条，这里按相关度只列了 ${wikiPicked.length} 条）：
 ${wikiLines}
 
 清单不全时的判断规则：**上面没列出来，不代表库里没有**（只列了最相关的一小部分）。
@@ -317,8 +317,8 @@ ${wikiLines}
 请判断本轮回合用户是否提到了某条已有记忆（内容相近即可），把对应 id 放进 mentioned_ids。
 
 只返回一个 JSON 对象，不要输出其他文字：
-{ "writes": [{ "type": "...", "content": "...", "source": "...", "sentiment": "..." }], "mentioned_ids": ["..."], "wiki": [{ "mode": "new|append|child", "title": "...", "category": "game|note|life", "parent": "主条目名（仅 child 用）", "content": "..." }] }
-append / child 时 category 可省略（都按名字在库里找）。
+{ "writes": [{ "type": "...", "content": "...", "source": "...", "sentiment": "..." }], "mentioned_ids": ["..."], "wiki": [{ "mode": "new|append|child", "title": "...", "parent": "主记录名（仅 child 用）", "content": "..." }] }
+append / child 时都按名字在库里找，不需要额外字段。
 writes 与 wiki 都可以是空数组 —— 大多数轮次两个都应该是空的。`
   }
 

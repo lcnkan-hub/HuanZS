@@ -75,9 +75,21 @@ function bandOf(conf) {
  */
 function routeAndRespond(d, message, stateBefore) {
   const band = bandOf(d?.confidence ?? 0)
+  const reviewUnavailable =
+    Array.isArray(d?.signals) && d.signals.includes('review_unavailable')
 
   // ── 有风险信号 ──
   if (d && d.risk_level !== 'none') {
+    // A13：复核没做成（分类器不可用）→ 既不许再问第二遍，也不许当误报放行。
+    // 落温和档给一次陪伴（模板与 CONCERN 首响同源），留痕用独立 decision_type 标明原因。
+    if (reviewUnavailable) {
+      markConcernAcknowledged()
+      return {
+        route: 'concern',
+        reply: pickTemplate(INTERVENTION_TEMPLATES.concern, 'concern'),
+        decision_type: 'review_unavailable_concern'
+      }
+    }
     // 中间置信度带 + 用户尚在中低危状态 → 轻量确认（状态升级暂缓，等复核）
     if (band === 'mid' &&
         RISK_STATES.indexOf(stateBefore) < RISK_STATES.indexOf('ELEVATED')) {

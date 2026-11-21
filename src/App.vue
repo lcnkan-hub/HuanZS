@@ -1,12 +1,11 @@
 <!--
   根组件 — 登录闸门 + 全局状态管理与页面调度
   未登录：只渲染 AuthView（本地账号注册/登录门）
-  已登录：条件渲染 SplashScreen / 百科列表 / 详情面板 / 我的页面 / 添加弹窗
-  支持主词条-子词条的二级嵌套结构
-  通过 composables 集中处理用户档案和百科数据
+  已登录：条件渲染 SplashScreen / 记录列表 / 详情面板 / 我的浮层
+  2026-11-21 单层记录重构：底栏只剩「记录 / 王冠」，「我的」改为右上角按钮呼出的浮层
 -->
 <template>
-  <div class="app-container">
+  <div class="app-container" :data-remind="reminderOn">
     <!-- 未登录：本地账号门（注册 / 登录） -->
     <AuthView v-if="!loggedIn" @authed="handleAuthed" />
 
@@ -15,64 +14,53 @@
       <!-- 开屏动画 -->
       <SplashScreen v-if="isSplashActive" @close="isSplashActive = false" />
 
-      <!-- 常驻提示条（I15 存储没存上 / I14 该导备份了）：放在顶栏之上，
-           王冠页与百科页都在它下面 —— 这两件事不该只在「我的」页才看得见 -->
+      <!-- 常驻提示条（I15 存储没存上 / I14 该导备份了） -->
       <NoticeBar v-if="notice" :notice="notice" @action="handleNoticeAction" />
 
-      <!-- 顶部搜索栏（内容页且未打开详情时显示，不包含王冠） -->
+      <!-- 顶部栏：左「我的」+ 搜索框（只在记录页、且没打开详情时显示） -->
       <AppHeader
-        v-if="isContentTab && !openedItem"
-        :tabName="currentTabName"
-        :modelValue="searchQueries[currentTab]"
-        @update:modelValue="(v) => searchQueries[currentTab] = v"
-        @add="openAddModal"
+        v-if="currentTab === 'record' && !openedItem"
+        :modelValue="searchQuery"
+        @update:modelValue="(v) => searchQuery = v"
+        @mine="openMine"
       />
 
       <!-- 主内容区（页面叠层，动画只操作 transform + opacity） -->
       <div class="main-content">
-        <!-- 王冠 AI 伙伴（全屏聊天界面） -->
-        <ChatView v-if="currentTab === 'crown'" @back="handleCrownBack" />
+        <!-- 王冠 AI 伙伴（全屏聊天界面）：从右侧推入；记录页与底栏同时左移让位 -->
+        <Transition name="crown-pane">
+          <ChatView v-if="currentTab === 'crown'" @back="handleCrownBack" />
+        </Transition>
 
-        <!-- 百科叠层（非王冠 Tab 时显示） -->
-        <div v-if="currentTab !== 'crown'" class="page-stack">
+        <!-- 记录叠层：**常驻**。切王冠时靠位移离场，不能 v-if 卸载 —— 卸载了就播不了离场动画 -->
+        <div class="page-stack" :class="{ 'is-pushed': currentTab === 'crown' }">
 
-          <!-- 主面板：百科列表 + 个人中心（同层切换，:key 触发内容动画） -->
+          <!-- 主面板：记录列表 -->
           <div class="page-sheet primary-sheet" :class="pageClass('primary')">
             <div :key="primaryKey" class="sheet-body">
-              <WikiList
-                v-if="isContentTab && !openedItem"
-                :key="'list-' + currentTab"
-                :icon="currentTabIcon"
-                :tabName="currentTabName"
-                :items="filteredItems"
-                :currentUser="profileName"
-                :libraryEmpty="categoryEmpty"
-                :mineOnly="mineOnly"
-                @open-item="(item) => openDetail(item)"
-                @delete-item="(id) => handleDelete(id)"
-                @ask-starter="handleStarterAsk"
-                @open-backup="handleOpenBackup"
-                @clear-mine-only="mineOnly = false"
-              />
-              <MinePage
-                v-else-if="currentTab === 'mine'"
-                key="mine"
-                :userProfile="userProfile"
-                :dbData="dbData"
-                @jump-category="handleJumpCategory"
-                @save-profile="handleProfileUpdate"
-              />
+              <template v-if="!openedItem">
+                <!-- 添加：搜索框下占满一行 -->
+                <AddRecordBar @add="handleCreateRecord" />
+
+                <WikiList
+                  :items="filteredItems"
+                  :emptyHint="emptyHint"
+                  @open-item="(item) => openDetail(item)"
+                  @delete-item="(id) => handleDelete(id)"
+                />
+              </template>
             </div>
           </div>
 
-          <!-- 详情面板（主词条详情页，独立 sheet 做滑入滑出） -->
+          <!-- 详情面板（记录详情，独立 sheet 做滑入滑出） -->
           <div class="page-sheet detail-sheet" :class="pageClass('detail')">
             <WikiDetail
               v-if="openedItem"
               :key="'detail-' + openedItem.id"
               :openedItem="openedItem"
-              :currentUser="profileName"
-              @close="closeDetail"
+              @close="closeDetailAndCleanup"
+              @rename="handleRename"
+              @save-body="handleSaveBody"
               @add-child="handleAddChild"
               @save-child="handleSaveChildWiki"
               @delete-child="handleDeleteChild"
@@ -80,27 +68,26 @@
           </div>
 
         </div>
+
+        <!-- 「我的」浮层：放在主内容区内，天然不盖顶栏与底栏，左侧露出记录页一小条 -->
+        <MineSheet
+          v-if="mineOpen"
+          :userProfile="userProfile"
+          :records="records"
+          @close="closeMine"
+          @save-profile="handleProfileUpdate"
+        />
       </div>
 
-      <!-- 添加条目弹窗 -->
-      <ModalBox
-        v-if="showAddModal"
-        :title="'添加' + currentTabName"
-        @close="showAddModal = false"
-      >
-        <input
-          type="text" v-model="newItemName"
-          :placeholder="'请输入' + currentTabName + '名称'"
-          class="modal-input"
-        />
-        <template #actions>
-          <button class="cancel-btn" @click="showAddModal = false">取消</button>
-          <button class="save-btn" @click="handleAddItem">保存</button>
-        </template>
-      </ModalBox>
-
-      <!-- 底部导航栏（王冠 Tab 隐藏，聊天有独立输入栏） -->
-      <BottomNav v-if="!openedItem && currentTab !== 'crown'" v-model="currentTab" />
+      <!-- 底部导航栏：常驻。切王冠随记录页一同左滑出、开「我的」时下沉；
+           只有进详情页才真正卸载（详情页是叠层，底栏本来就该被盖住） -->
+      <BottomNav
+        v-if="!openedItem"
+        v-model="currentTab"
+        :pushed="currentTab === 'crown'"
+        :sunk="mineOpen"
+        :crownReady="crownReady"
+      />
     </template>
   </div>
 </template>
@@ -110,25 +97,24 @@ import { ref, computed, watch, onMounted } from 'vue'
 
 // 组件积木
 import SplashScreen from './components/common/SplashScreen.vue'
-import ModalBox     from './components/common/ModalBox.vue'
 import NoticeBar    from './components/common/NoticeBar.vue'
 import AppHeader    from './components/layout/AppHeader.vue'
 import BottomNav    from './components/layout/BottomNav.vue'
+import AddRecordBar from './components/wiki/AddRecordBar.vue'
 import WikiList     from './components/wiki/WikiList.vue'
 import WikiDetail   from './components/wiki/WikiDetail.vue'
-import MinePage     from './components/user/MinePage.vue'
+import MineSheet    from './components/user/MineSheet.vue'
 import ChatView     from './components/crown/ChatView.vue'
 import AuthView     from './components/user/AuthView.vue'
 
 // 逻辑积木
 import { useUserProfile } from './composables/useUserProfile'
-import { useWikiData }    from './composables/useWikiData'
+import { useRecords }     from './composables/useRecords'
 import { usePageRouter }  from './composables/usePageRouter'
 import { readLastTab, writeLastTab } from './composables/useLastTab'
 import { startProactiveTrigger } from './composables/useProactiveTrigger'
 import { useChat } from './composables/useChat'
-import { setPendingStarter } from './composables/useStarter'
-import { starterQuestion } from './utils/starterJudge'
+import { useAIConfig } from './composables/useApiKey'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
 import { lastExportAt } from './composables/useBackup'
 import { useStorageHealth, formatMB } from './utils/storageHealth'
@@ -136,7 +122,7 @@ import { shouldRemind, reminderText, snoozeUntilTomorrow } from './utils/backupR
 import { scopeKey } from './utils/storageScope'
 
 // 配置常量
-import { TAB_ICONS, TAB_NAMES, ALL_CATEGORIES, STORAGE_KEYS } from './constants/categories'
+import { TAB_NAMES, STORAGE_KEYS } from './constants/categories'
 
 // ========== 登录闸门 ==========
 // 未登录 → 只渲染 AuthView；登录/注册成功后整页重载，
@@ -150,61 +136,53 @@ const handleAuthed = () => {
 
 // ========== 状态 ==========
 const { userProfile, updateProfile } = useUserProfile()
-const wikiData = useWikiData()
-const { dbData } = wikiData
-const { syncCreatorName } = wikiData
+const recordsApi = useRecords()
+const { records } = recordsApi
+const { syncCreatorName } = recordsApi
 
-// 首屏 Tab（I03）：首次进来 → 王冠；之后 → 你上次待的地方（见 composables/useLastTab.js）
+// 首屏 Tab（I03）：首次进来 → 王冠；之后 → 你上次待的地方
 const startTab       = readLastTab()
 const currentTab     = ref(startTab)
 // 王冠为全屏界面（隐藏底栏），进入前先记住来源 Tab，左上角返回按钮据此决定回哪
-// 首屏就是王冠时这里是初值 'game'：从首屏点返回，落到百科（王冠页没有底栏，返回是唯一出口）
-const lastNonCrownTab = ref('game')
-// 「只看我创建的」（2026-10-11「我的」页 B 档）：只有从「我的」点分类数字跳过来才带上；
-// 手动切 Tab 一律回到全量 —— 否则用户切走了还带着筛选，会莫名其妙少东西。
-const mineOnly = ref(false)
-let jumpMineOnly = false
+const lastNonCrownTab = ref('record')
 watch(currentTab, (val, oldVal) => {
   if (val === 'crown' && oldVal && oldVal !== 'crown') lastNonCrownTab.value = oldVal
   writeLastTab(val)
-  if (val !== oldVal) {
-    mineOnly.value = jumpMineOnly
-    jumpMineOnly = false
-  }
+  mineOpen.value = false // 切 Tab 时收起「我的」，避免它盖在另一个页面上
 })
-const searchQueries  = ref({ game: '', note: '', life: '' })
-// 开屏只在「首屏不是王冠」时播（I03 决定 b）：首屏是王冠时，开场交给「灯醒」入场动画。
-// 两个都是开场动画，叠着播的结果是开屏 2000ms 把灯醒的前 2 秒全盖住 —— 灯醒 quick 档才 800ms，等于白播。
-// 用 startTab 而不是 currentTab 判断：进过王冠再切走，不该把开屏又放出来。
+// 搜索词（单层记录后只有一个搜索框）
+const searchQuery = ref('')
+// 「我的」浮层
+const mineOpen = ref(false)
+
+// 王冠图标「就绪」状态：配过可用密钥 → 底栏那颗王冠点亮成金。
+// 只读不写，写密钥的地方在 AI 设置里；这里跟着 storage 的 ref 走。
+const { config: aiConfig } = useAIConfig()
+const crownReady = computed(() => !!aiConfig.value?.apiKey)
+// 开屏只在「首屏不是王冠」时播（I03 决定 b）
 const isSplashActive = ref(startTab !== 'crown')
-const showAddModal   = ref(false)
-const newItemName    = ref('')
+// 刚由「添加」创建、还没写任何内容的记录 id：返回时若仍为空就自动清掉
+const pendingNewId = ref(null)
 
 // 页面路由（详情打开/关闭 + 动画状态机）
 const { openedItem, primaryKey, pageClass, openDetail, closeDetail } = usePageRouter(currentTab)
 
 // ========== 计算属性 ==========
 // 昵称统一走这里取值：档案还没建好时给空串，避免模板里直接 .name 崩掉
-// （2026-10-10 真浏览器验收抓到过一次 Cannot read properties of null (reading 'name')）
 const profileName = computed(() => (userProfile.value && userProfile.value.name) || '')
 
-const isContentTab   = computed(() => ALL_CATEGORIES.includes(currentTab.value))
-const currentTabName = computed(() => TAB_NAMES[currentTab.value] || '')
-const currentTabIcon = computed(() => TAB_ICONS[currentTab.value] || '')
-
 const filteredItems = computed(() => {
-  const list = wikiData.searchItems(currentTab.value, searchQueries.value[currentTab.value])
-  // 只看我创建的：搜索之后再过一道，与「我的」页那个数字入口保持一致（数字是几条，点进去就该看到几条）
-  if (!mineOnly.value) return list
-  return list.filter(item => item.creator === profileName.value)
+  return recordsApi.searchRecords(searchQuery.value)
 })
 
-// 空库开局（I04）：这个分类一条都没有。必须与「搜索过滤后为空」分开 ——
-// 后者用户明明有一堆条目，弹开局卡片是错的（见 wiki/WikiList.vue 的 v-else-if）
-const categoryEmpty = computed(() => (dbData.value[currentTab.value] || []).length === 0)
+// 空列表提示：空库要给引导（整片白比空列表更让人不知道下一步），
+// 「搜不到」必须说清是筛出来的空，否则用户会以为数据丢了。
+const emptyHint = computed(() => {
+  if (searchQuery.value.trim()) return '没搜到相关记录，换个词试试'
+  return '还没有记录。随手记一条，王冠也会替你记。'
+})
 
 // ========== 常驻提示条（I15 存储写失败 / I14 该导备份了）==========
-// 两件事共用一个条：谁更急谁上（存储写失败 > 导出提醒）—— 三个条叠在顶端会互相打架
 const { failures: storageFailures, usage: storageUsage, refreshUsage } = useStorageHealth()
 const { messages: chatMessages } = useChat()
 const noticeCollapsed = ref(false)   // 只能暂时收起（本次会话）；永久消失的提醒等于没有
@@ -212,11 +190,9 @@ const reminderOn     = ref(false)
 const reminderDismissed = ref(false)
 const reminderInfo   = ref(null)
 
-/** 本机「有东西可丢」吗：百科有任意条目，或真的聊过天（只有欢迎语不算） */
+/** 本机「有东西可丢」吗：有记录，或真的聊过天（只有欢迎语不算） */
 const hasAnyData = computed(() => {
-  const d = dbData.value || {}
-  const wikiCount = ALL_CATEGORIES.reduce((n, c) => n + ((d[c] || []).length), 0)
-  return wikiCount > 0 || (chatMessages.value || []).length > 1
+  return (records.value || []).length > 0 || (chatMessages.value || []).length > 1
 })
 
 /** 「今天先不提醒」的到期时刻（按账号隔离，走 scopeKey） */
@@ -271,83 +247,89 @@ const notice = computed(() => {
 })
 
 // ========== 生命周期 ==========
-// 王冠主动开口的触发点（I02）：挂在 app 上而不是王冠页上 —— 首屏可能是用户上次停留的 Tab，
-// 那时王冠页没挂载，"打开 app 那一刻王冠已经先开过口"就不成立。
-// 未登录不启动：登录成功后是整页重载，那时会以已登录的身份重新走到这里。
 onMounted(() => {
   if (loggedIn.value) startProactiveTrigger()
-  // 图片回收的兜底一次（A02 残留②）：导入不触发回收，「正文里删掉一张图」也要等到某个删除动作才顺带扫。
-  // 放启动时是**唯一没有草稿态**的时刻 —— 编辑器里刚插进去、还没保存的图，
-  // 若挂在「随便哪次保存之后」扫一遍就会被当孤儿删掉（这也是它没挂在保存路径上的原因）。
-  // 闸门（当前/其它账号数据读得出来）在 purgeUnusedImages 内部，读不全就不清。
-  if (loggedIn.value) wikiData.purgeUnusedImages()
-
-  // 备份提醒（I14）：只在「打开 app 那一刻」判一次。
-  // 纯前端没有后台，做不到到点自己冒出来（I05 已认下的天花板）—— 与王冠主动开口同款时机。
-  // 判据在 utils/backupReminder.js（纯函数，可单测）：空库不催、刚导过不催、点了"今天先不"只压到次日 0 点。
-  if (loggedIn.value) {
-    const r = shouldRemind({
-      lastExportAt: lastExportAt(),
-      snoozedUntil: readSnooze(),
-      hasData: hasAnyData.value
-    })
-    reminderOn.value = r.remind
-    reminderInfo.value = r
-    refreshUsage() // 顺带体检一次：提示条一出现就要能报出"用了几 MB"
-  }
+  // 图片回收的兜底一次（A02 残留②）
+  if (loggedIn.value) recordsApi.purgeUnusedImages()
 })
+
+// 备份提醒（I14）：判「有没有东西可丢」那一次。
+// 为什么不在 onMounted 里判：那一刻可能还没登录（本机账号门挡在前面），也可能库里还空着
+// —— 两种情况都会把提醒永久判成 false，之后用户记了一堆东西也不会再提醒。
+// 改成盯着 hasAnyData：一旦出现可丢的数据就判一次，判过就不再重复。
+const reminderJudged = ref(false)
+watch([hasAnyData, loggedIn], ([has, logged]) => {
+  if (!has || !logged || reminderJudged.value) return
+  reminderJudged.value = true
+  const r = shouldRemind({
+    lastExportAt: lastExportAt(),
+    snoozedUntil: readSnooze(),
+    hasData: has
+  })
+  reminderOn.value = r.remind
+  reminderInfo.value = r
+  refreshUsage()
+}, { immediate: true })
 
 // ========== 操作函数 ==========
 
-/**
- * 空库开局（I04）：点卡片 = 让王冠先问一句，并记下「这一轮在等哪个分类的回答」。
- * 回答在王冠页的输入框里打出来，那句话由 ChatView 顺手落成该分类的第一条词条（见 composables/useStarter.js）。
- * 为什么不就地开个表单：这个产品的差别化就是「它替我记得」，不是「我自己填表」——
- * 空列表应该是一次对话的开头，而不是一个空表单。
- */
-function handleStarterAsk(tab) {
-  const q = starterQuestion(tab)
-  if (!q) return
-  setPendingStarter(tab)
-  const { addReply } = useChat()
-  addReply(q)                 // 王冠先开口：用户看到的是「它在问我」
-  currentTab.value = 'crown'  // 切到王冠（切 Tab 会写 LAST_TAB，沿用 I03 的记忆口径）
+/** 「我的」浮层开 / 关 */
+function openMine() {
+  mineOpen.value = true
+}
+function closeMine() {
+  mineOpen.value = false
 }
 
-/** 开局那行「换手机了？从旧手机带进来」→ 去「我的」（备份中心在那儿） */
-function handleOpenBackup() {
-  currentTab.value = 'mine'
-}
-
-/**
- * 提示条上的动作（I15 / I14）。
- * 「导出备份」「今天先不」都跳「我的」页：备份中心就在那儿，体积闸门和结果提示都在那边，
- * 不在这里再抄一份导出逻辑（抄一份 = 两处口径，早晚走偏）。
- */
+/** 提示条上的动作（I15 / I14）→ 都去「我的」浮层，备份中心在那儿 */
 function handleNoticeAction(value) {
   if (value === 'collapse') { noticeCollapsed.value = true; return }
-  if (value === 'export') { handleOpenBackup(); return }
+  if (value === 'export') { openMine(); return }
   if (value === 'snooze') {
     writeSnooze(snoozeUntilTomorrow())
     reminderDismissed.value = true
     return
   }
   if (value === 'purge') {
-    // 清掉没人引用的图片（A02 的积木，自带"读不全就不清"的双闸门），清完立刻重新体检
-    Promise.resolve(wikiData.purgeUnusedImages()).then(() => refreshUsage())
+    Promise.resolve(recordsApi.purgeUnusedImages()).then(() => refreshUsage())
   }
 }
 
+
 /**
- * 「我的」页点分类数字 → 跳到该分类，并只看我创建的（2026-10-11「我的」页 B 档）
- * 跳过去先清掉那个 Tab 里残留的搜索词：不清的话可能落进「没搜到」的空列表，
- * 用户会以为自己那些条目丢了。
+ * 点「添加」：立刻建一条空记录并进详情页写标题与正文。
+ * 为什么先落库：详情页的所有读写都依赖 openedItem.id 真实存在（子记录、正文保存都是按 id 定位）；
+ * 造一个"假条目"要把每个调用点都判空，改动面反而大。
+ * 收尾：返回时若标题正文都空，dropIfEmpty 会把它删掉（见 closeDetailAndCleanup）。
  */
-function handleJumpCategory(cat) {
-  if (!ALL_CATEGORIES.includes(cat)) return
-  searchQueries.value[cat] = ''
-  jumpMineOnly = true
-  currentTab.value = cat
+function handleCreateRecord() {
+  const item = recordsApi.addRecord('', profileName.value)
+  pendingNewId.value = item.id
+  openDetail(item)
+}
+
+/** 返回列表：若是刚建的空记录，先清掉再关面板 */
+async function closeDetailAndCleanup() {
+  const id = pendingNewId.value
+  closeDetail()
+  if (id) {
+    pendingNewId.value = null
+    await recordsApi.dropIfEmpty(id)
+  }
+}
+
+/** 详情页改名 */
+function handleRename(name) {
+  const updated = recordsApi.updateRecordName(openedItem.value.id, name)
+  if (updated) openedItem.value = JSON.parse(JSON.stringify(updated))
+  pendingNewId.value = null // 已经写过标题，不再算"待清理的空记录"
+}
+
+/** 详情页保存正文 */
+function handleSaveBody(wiki) {
+  const updated = recordsApi.updateRecordBody(openedItem.value.id, wiki)
+  if (updated) openedItem.value = JSON.parse(JSON.stringify(updated))
+  pendingNewId.value = null
 }
 
 /** 王冠返回：回到进入王冠之前所在的 Tab（底栏在王冠页隐藏，这是唯一出口） */
@@ -355,58 +337,38 @@ const handleCrownBack = () => {
   currentTab.value = lastNonCrownTab.value
 }
 
-const openAddModal = () => {
-  newItemName.value = ''
-  showAddModal.value = true
-}
-
-const handleAddItem = () => {
-  if (!newItemName.value.trim()) return alert('名称不能为空')
-  wikiData.addItem(currentTab.value, newItemName.value, profileName.value)
-  showAddModal.value = false
-}
-
 const handleDelete = (id) => {
-  if (confirm('确定要删除这个条目吗？')) {
-    wikiData.deleteItem(currentTab.value, id)
-  }
+  // 2026-11-21：去掉原生 confirm —— 它在 WebView（Capacitor）和部分浏览器里会被直接拦掉，
+  // 用户点删除毫无反应。确认动作改成「⋯ → 删除」两步点击，已经够防误触了。
+  if (id) recordsApi.deleteRecord(id)
 }
 
-// ========== 子词条操作 ==========
+// ========== 子记录操作 ==========
 
-/** 在主词条下添加子词条 */
+/** 在主记录下添加子记录 */
 const handleAddChild = (name) => {
-  const child = wikiData.addChildItem(currentTab.value, openedItem.value.id, name, profileName.value)
+  const child = recordsApi.addChild(openedItem.value.id, name, profileName.value)
   if (child) {
-    // 同步更新 openedItem 以便 WikiDetail 即时渲染新子词条
-    const parent = dbData.value[currentTab.value].find(i => i.id === openedItem.value.id)
-    if (parent) {
-      openedItem.value = JSON.parse(JSON.stringify(parent))
-    }
+    const parent = (records.value || []).find(i => i.id === openedItem.value.id)
+    if (parent) openedItem.value = JSON.parse(JSON.stringify(parent))
   }
 }
 
-/** 保存子词条正文 */
+/** 保存子记录正文 */
 const handleSaveChildWiki = (childId, wiki) => {
-  const updated = wikiData.updateChildWiki(currentTab.value, openedItem.value.id, childId, wiki)
+  const updated = recordsApi.updateChildWiki(openedItem.value.id, childId, wiki)
   if (updated) {
-    // 同步更新 openedItem
-    const parent = dbData.value[currentTab.value].find(i => i.id === openedItem.value.id)
-    if (parent) {
-      openedItem.value = JSON.parse(JSON.stringify(parent))
-    }
-    alert('子词条内容已保存')
+    const parent = (records.value || []).find(i => i.id === openedItem.value.id)
+    if (parent) openedItem.value = JSON.parse(JSON.stringify(parent))
+    alert('子记录内容已保存')
   }
 }
 
-/** 删除子词条 */
+/** 删除子记录 */
 const handleDeleteChild = (childId) => {
-  wikiData.deleteChildItem(currentTab.value, openedItem.value.id, childId)
-  // 同步更新 openedItem
-  const parent = dbData.value[currentTab.value].find(i => i.id === openedItem.value.id)
-  if (parent) {
-    openedItem.value = JSON.parse(JSON.stringify(parent))
-  }
+  recordsApi.deleteChild(openedItem.value.id, childId)
+  const parent = (records.value || []).find(i => i.id === openedItem.value.id)
+  if (parent) openedItem.value = JSON.parse(JSON.stringify(parent))
 }
 
 // ========== 用户操作 ==========
@@ -425,22 +387,11 @@ const handleProfileUpdate = (updatedData) => {
   background-color: var(--color-bg-primary); color: var(--color-text-primary);
   font-family: var(--font-system); overflow: hidden; user-select: none;
   position: relative;
-  /* 刘海/挖孔机：整块内容从状态栏下沿起算（A10）。
-     加在容器上而不是各页顶部栏上 —— 顶部栏散在 AppHeader / 详情页 / 子词条编辑器 /
-     王冠聊天好几处，逐处加必漏一处；这里一处全盖住。
-     box-sizing 必须有：不改的话 100dvh 是内容高度，再叠 padding-top 会整体溢出，
-     把底部导航挤出屏幕。非刘海机 --safe-top 为 0px，视觉零变化。 */
+  /* 刘海/挖孔机：整块内容从状态栏下沿起算（A10） */
   box-sizing: border-box;
   padding-top: var(--safe-top);
 }
 .main-content { flex: 1; position: relative; overflow: hidden; }
-.modal-input {
-  width: 100%; border: 1px solid var(--color-border);
-  background: var(--color-bg-modal); border-radius: var(--radius-md);
-  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
-}
-.cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; }
-.save-btn   { background: var(--color-accent); color: var(--color-text-on-accent); border: none; padding: 9px 18px; border-radius: var(--radius-md); font-size: var(--text-14); font-weight: 500; cursor: pointer; }
 
 /* ===== 页面叠层容器 ===== */
 .page-stack {
@@ -448,6 +399,23 @@ const handleProfileUpdate = (updatedData) => {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* 切王冠时整块左移离场。曲线与时长**必须**和 BottomNav 的 .nav-dock、ChatView 的入场一致
+     （0.36s / cubic-bezier(0.2,0.8,0.2,1)），三处任何一处不同，看起来就不是「一同滑出」。 */
+  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity   0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.page-stack.is-pushed {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ===== 王冠页：从右侧推入 / 向右退出（回程与去程同一路径 = 原路返回） ===== */
+.crown-pane-enter-from,
+.crown-pane-leave-to { transform: translateX(100%); }
+.crown-pane-enter-active,
+.crown-pane-leave-active {
+  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* ===== 面板卡片（叠层切换，禁止 Layout 属性动画） ===== */
@@ -467,7 +435,7 @@ const handleProfileUpdate = (updatedData) => {
               opacity   0.36s cubic-bezier(0.2, 0.8, 0.2, 1.0);
 }
 
-/* ---- 主面板（列表 / 我的）：默认和离开态一致，避免归位闪烁 ---- */
+/* ---- 主面板（记录列表）：默认和离开态一致，避免归位闪烁 ---- */
 .primary-sheet {
   transform: translateY(-18px);
   opacity: 0;

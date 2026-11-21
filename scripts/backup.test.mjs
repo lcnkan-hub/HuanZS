@@ -2,13 +2,17 @@
  * 备份 / 导入 断言套件（零依赖 · 纯 node）· 配套问题清单 I01「数据会丢」
  * 用法：npm run test:backup
  *
- * 覆盖：导出完整性 / 敏感项绝不入文件 / 导入只写当前账号 / v0 老备份兼容 /
+ * 覆盖：导出完整性 / 敏感项绝不入文件 / 导入只写当前账号 / 旧版备份被拒绝 /
  *       损坏文件被拦且零改动 / 导入前快照 / 回退 / 条数核对 / 本机数据损坏时拒绝导出
  *
  * 环境说明：node 没有 localStorage —— 在此 polyfill；
  *   IndexedDB **故意不** polyfill，用来验证「无 IndexedDB 环境自动降级」这条路径（快照走内存兜底）。
  *   node 也没有 document / navigator → 落文件走 none 分支，只验不抛错与文件名。
  */
+// src 按 Vite 惯例写无扩展名导入，原生 node 解析不了 → 先注册解析钩子（直接 `node scripts/backup.test.mjs` 也能跑）
+import { register } from 'node:module'
+register('./resolve-hook.mjs', import.meta.url)
+
 // ─────────── 先铺环境，再 import 被测模块 ───────────
 // storageScope 在模块加载时就解析登录态，所以 localStorage 必须提前就位
 const map = new Map()
@@ -38,15 +42,15 @@ const dumpAll = () => JSON.stringify(Array.from(map.entries()).sort())
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 // ─────────── 造一份有代表性的本机数据 ───────────
-const db = {
-  game: [{
-    id: 'g1', name: '艾尔登法环', wiki: '带图：![图](id://img-111)', creator: '刘', time: '2026/10/10 10:00',
+// 2026-11-21 单层记录重构：一个账号就是一条记录数组，不再有 game/note/life 三分类。
+const records = [
+  {
+    id: 'g1', name: '艾尔登法环', wiki: '带图：![图](id://img-111)', creator: '刘', time: '2026/10/10 10:00', origin: 'user',
     children: [{ id: 'g1c1', name: 'DLC', wiki: '', creator: '刘', time: '2026/10/10 10:01' }]
-  }],
-  note: [],
-  life: [{ id: 'l1', name: '作息', wiki: '', creator: '刘', time: '2026/10/10 10:02' }]
-}
-set(STORAGE_KEYS.DB, db)
+  },
+  { id: 'l1', name: '作息', wiki: '', creator: '刘', time: '2026/10/10 10:02', origin: 'user', children: [] }
+]
+set(STORAGE_KEYS.RECORDS, records)
 set(STORAGE_KEYS.USER, { id: 'u1', name: '刘', avatar: '🐱' })
 set(STORAGE_KEYS.CHAT, [{ id: 'm1', role: 'user', content: '今天好累', time: '2026/10/10 10:03' }])
 set(STORAGE_KEYS.MEMORY, [{ id: 'mem1', type: 'goal', content: '准备考研', created_at: '2026-10-01T00:00:00Z' }])
@@ -64,19 +68,19 @@ localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify([{ id: CUR, username:
 
 // ─────────── A1 导出完整性 ───────────
 const payload = await backup.buildBackupPayload()
-ok('A1 导出含 user/db/chat/memory/crisis 五段', ['user', 'db', 'chat', 'memory', 'crisis'].every(k => k in payload.data))
+ok('A1 导出含 user/records/chat/memory/crisis 五段', ['user', 'records', 'chat', 'memory', 'crisis'].every(k => k in payload.data))
 ok('A1 导出含 proactive（账本+开关）与 last_tab', ['proactive', 'last_tab'].every(k => k in payload.data))
 ok('A1 主动开口账本原样带走', (payload.data.proactive.log || []).length === 1 && payload.data.proactive.enabled === false && payload.data.last_tab === 'note')
-ok('A1 db 三分类都是数组', ['game', 'note', 'life'].every(c => Array.isArray(payload.data.db[c])))
+ok('A1 records 是单层数组（旧 db 三分类已不存在）', Array.isArray(payload.data.records) && !('db' in payload.data))
 ok('A1 crisis 三段齐（null 也保留键）', ['audit_log', 'pending', 'state'].every(k => k in payload.data.crisis))
-ok('A1 格式头正确', payload.format === 'huanzhongshu-backup' && payload.schema_version === 1)
-ok('A1 空分类也保留（note 是空数组）', Array.isArray(payload.data.db.note) && payload.data.db.note.length === 0)
-ok('A1 子词条跟着导出', JSON.stringify(payload.data.db.game[0].children || []).includes('DLC'))
-ok('A1 正文里的图片引用原样保留', String(payload.data.db.game[0].wiki).includes('id://img-111'))
+ok('A1 格式头正确', payload.format === 'huanzhongshu-backup' && payload.schema_version === 2)
+ok('A1 记录条目保持单层结构（每条都有 children 数组）', payload.data.records.length === 2 && payload.data.records.every(r => Array.isArray(r.children)), JSON.stringify(payload.data.records))
+ok('A1 子词条跟着导出', JSON.stringify((payload.data.records.find(r => r.id === 'g1') || {}).children || []).includes('DLC'))
+ok('A1 正文里的图片引用原样保留', String((payload.data.records.find(r => r.id === 'g1') || {}).wiki).includes('id://img-111'))
 
 // ─────────── A10 条数核对 ───────────
 const c = payload.counts
-ok('A10 counts 与实际一致', c.wiki_items === 2 && c.memory === 1 && c.chat === 1 && c.images === 0, JSON.stringify(c))
+ok('A10 counts 与实际一致', c.records === 2 && c.memory === 1 && c.chat === 1 && c.images === 0, JSON.stringify(c))
 
 // ─────────── A2/A3 敏感项绝不进备份 ───────────
 const serialized = JSON.stringify(payload)
@@ -88,11 +92,11 @@ ok('A3 全文搜不到真实 API 密钥', !serialized.includes(FAKE_KEY))
 // ─────────── A4 导入只写「当前账号」 ───────────
 const foreign = JSON.parse(JSON.stringify(payload))
 foreign.account_label = 'OLDID'
-foreign.data.db.life.push({ id: 'l2', name: '从别的设备带来的', wiki: '', creator: '刘', time: '2026/10/10 11:00' })
-foreign.counts.wiki_items = 3
+foreign.data.records.push({ id: 'l2', name: '从别的设备带来的', wiki: '', creator: '刘', time: '2026/10/10 11:00', origin: 'user', children: [] })
+foreign.counts.records = 3
 const res4 = await backup.importBackup(JSON.stringify(foreign))
 ok('A4 导入成功', res4.ok === true, JSON.stringify(res4).slice(0, 200))
-ok('A4 数据写进当前账号', String(localStorage.getItem(sk(STORAGE_KEYS.DB))).includes('从别的设备带来的'))
+ok('A4 数据写进当前账号', String(localStorage.getItem(sk(STORAGE_KEYS.RECORDS))).includes('从别的设备带来的'))
 ok('A4 没有任何键带旧账号 id', !Array.from(map.keys()).some(k => k.includes('OLDID')))
 ok('A4 写过的键都在当前账号前缀下', (res4.written || []).every(b => map.has(b + '@u' + CUR)), JSON.stringify(res4.written))
 ok('A4 首屏落地页与主动开口账本都跟着导入回来', get(STORAGE_KEYS.LAST_TAB) === 'note' && (get(STORAGE_KEYS.PROACTIVE_LOG) || []).length === 1 && get(STORAGE_KEYS.PROACTIVE_ENABLED) === false)
@@ -104,8 +108,8 @@ ok('A4 开关键落盘后是布尔值而不是对象', typeof get(STORAGE_KEYS.P
 // ─────────── A6 损坏文件被拦且零改动 ───────────
 const badCases = [
   ['非 JSON', '这不是 json{{{'],
-  ['缺 format', JSON.stringify({ schema_version: 1, data: { db: { game: [], note: [], life: [] } } })],
-  ['版本过高', JSON.stringify({ format: 'huanzhongshu-backup', schema_version: 99, data: { db: { game: [], note: [], life: [] } } })]
+  ['缺 format', JSON.stringify({ schema_version: 2, data: { records: [] } })],
+  ['版本过高', JSON.stringify({ format: 'huanzhongshu-backup', schema_version: 99, data: { records: [] } })]
 ]
 for (const [label, content] of badCases) {
   const before = dumpAll()
@@ -122,14 +126,16 @@ for (const [label, content] of badCases) {
   ok('A6 条数对不上 → 存储零改动', dumpAll() === before)
 }
 
-// ─────────── A5 v0 老备份兼容 ───────────
+// ─────────── A5 v0 老备份：重构后**刻意拒绝**（行为变更，原「能导」用例反转）───────────
+// 单层记录重构后三分类结构已下线，半懂不懂地迁移比拒绝更糟：用户会以为导进来了。
 {
   const legacyDb = { game: [{ id: 'old1', name: '老备份里的条目', wiki: '', creator: '刘', time: '2026/01/01 00:00' }], note: [], life: [] }
+  const beforeRecords = localStorage.getItem(sk(STORAGE_KEYS.RECORDS))
   const beforeMem = localStorage.getItem(sk(STORAGE_KEYS.MEMORY))
   const beforeChat = localStorage.getItem(sk(STORAGE_KEYS.CHAT))
   const r = await backup.importBackup(JSON.stringify(legacyDb))
-  ok('A5 老备份能导', r.ok === true && r.legacy === true, JSON.stringify(r))
-  ok('A5 百科被覆盖成老备份内容', String(localStorage.getItem(sk(STORAGE_KEYS.DB))).includes('老备份里的条目'))
+  ok('A5 三分类旧备份现在被明确拒绝（不再支持，而不是静默迁移）', r.ok === false && /旧版备份|不再支持/.test(r.error || ''), JSON.stringify(r))
+  ok('A5 拒绝时本机记录零改动', localStorage.getItem(sk(STORAGE_KEYS.RECORDS)) === beforeRecords)
   ok('A5 记忆没被动', localStorage.getItem(sk(STORAGE_KEYS.MEMORY)) === beforeMem)
   ok('A5 聊天没被动', localStorage.getItem(sk(STORAGE_KEYS.CHAT)) === beforeChat)
 }
@@ -141,23 +147,24 @@ ok('A7 快照里含图片段与 counts', !!snap.payload.images && !!snap.payload
 
 // ─────────── A8 回退真的能回 ───────────
 {
-  set(STORAGE_KEYS.DB, { game: [], note: [], life: [{ id: 'junk', name: '导入之后又乱改的', wiki: '', creator: 'x', time: '' }] })
+  set(STORAGE_KEYS.RECORDS, [{ id: 'junk', name: '导入之后又乱改的', wiki: '', creator: 'x', time: '', origin: 'user', children: [] }])
   set(STORAGE_KEYS.MEMORY, [])
   const r = await backup.restoreFromSnapshot()
-  const after = get(STORAGE_KEYS.DB)
+  const after = get(STORAGE_KEYS.RECORDS)
   ok('A8 回退成功', r.ok === true, JSON.stringify(r))
-  ok('A8 百科回到快照状态', JSON.stringify(after).includes('从别的设备带来的'))
+  // 快照是 A4 那次导入**之前**的现场：回退就该把 A4 带进来的内容撤掉、回到本机原有记录
+  ok('A8 记录回到快照状态（A4 导入被回退）', JSON.stringify(after).includes('艾尔登法环') && !JSON.stringify(after).includes('从别的设备带来的'))
   ok('A8 脏数据没了', !JSON.stringify(after).includes('导入之后又乱改的'))
   ok('A8 记忆也回到快照状态', (get(STORAGE_KEYS.MEMORY) || []).length === 1)
 }
 
 // ─────────── 拒绝导出「缺件的备份」 ───────────
 {
-  localStorage.setItem(sk(STORAGE_KEYS.DB), '{坏掉的 json')
+  localStorage.setItem(sk(STORAGE_KEYS.RECORDS), '{坏掉的 json')
   let threw = false
   try { await backup.buildBackupPayload() } catch { threw = true }
   ok('本机数据损坏 → 拒绝导出（不产半份备份）', threw)
-  set(STORAGE_KEYS.DB, db)
+  set(STORAGE_KEYS.RECORDS, records)
 }
 
 // ─────────── 落文件路径（node 无 document → 走 none，但不能抛） ───────────
@@ -257,16 +264,16 @@ ok('无 DOM 环境 via 如实报 none', (await backup.downloadBackup({ includeIm
   // 来历：留证（<key>__corrupt）原先只留在这台机器上 —— 用户清一次浏览器数据就永久没了，
   // 而那恰恰是这份备份最该救的东西。所以：导出带上、导入写回、本机已有同键的绝不覆盖。
   console.log('\n【损坏留证：跟着备份走】')
-  const RESCUE_RAW = '{"game":[{"id":"broken'
-  localStorage.setItem(sk(STORAGE_KEYS.DB) + '__corrupt', RESCUE_RAW)
+  const RESCUE_RAW = '[{"id":"broken'
+  localStorage.setItem(sk(STORAGE_KEYS.RECORDS) + '__corrupt', RESCUE_RAW)
 
   const p2 = await backup.buildBackupPayload({ includeImages: false })
-  ok('导出:带上本机当前账号的损坏留证', !!(p2.rescue && p2.rescue[STORAGE_KEYS.DB] === RESCUE_RAW), JSON.stringify(p2.rescue))
+  ok('导出:带上本机当前账号的损坏留证', !!(p2.rescue && p2.rescue[STORAGE_KEYS.RECORDS] === RESCUE_RAW), JSON.stringify(p2.rescue))
 
-  localStorage.setItem(STORAGE_KEYS.DB + '@uSOMEONEELSE__corrupt', '{"game":[]}')
+  localStorage.setItem(STORAGE_KEYS.RECORDS + '@uSOMEONEELSE__corrupt', '[]')
   const p3 = await backup.buildBackupPayload({ includeImages: false })
   ok('导出:别的账号的留证不带（留证也是数据，不能跨账号带）', Object.keys(p3.rescue).length === 1, JSON.stringify(Object.keys(p3.rescue)))
-  localStorage.removeItem(STORAGE_KEYS.DB + '@uSOMEONEELSE__corrupt')
+  localStorage.removeItem(STORAGE_KEYS.RECORDS + '@uSOMEONEELSE__corrupt')
 
   // 落文件那条路是**手写拼串**的（为了不把整包拼成一个巨型字符串），最容易漏字段 ——
   // 所以直接对着源码断言，别让"payload 里有、文件里没有"这种漂移活下来。
@@ -274,15 +281,15 @@ ok('无 DOM 环境 via 如实报 none', (await backup.downloadBackup({ includeIm
   const backupSrc = readFileSync(new URL('../src/composables/useBackup.js', import.meta.url), 'utf8')
   ok('导出:落文件的 JSON 组装里也写上了 rescue（手写拼串容易漏）', backupSrc.includes('\',"rescue":\''), '')
 
-  localStorage.removeItem(sk(STORAGE_KEYS.DB) + '__corrupt')
-  const r1 = backup.restoreRescueCopies({ [STORAGE_KEYS.DB]: RESCUE_RAW })
-  ok('导入:写回留证，键名按当前账号重写', r1.restored === 1 && localStorage.getItem(sk(STORAGE_KEYS.DB) + '__corrupt') === RESCUE_RAW, JSON.stringify(r1))
+  localStorage.removeItem(sk(STORAGE_KEYS.RECORDS) + '__corrupt')
+  const r1 = backup.restoreRescueCopies({ [STORAGE_KEYS.RECORDS]: RESCUE_RAW })
+  ok('导入:写回留证，键名按当前账号重写', r1.restored === 1 && localStorage.getItem(sk(STORAGE_KEYS.RECORDS) + '__corrupt') === RESCUE_RAW, JSON.stringify(r1))
 
-  const r2 = backup.restoreRescueCopies({ [STORAGE_KEYS.DB]: '另外一份现场' })
+  const r2 = backup.restoreRescueCopies({ [STORAGE_KEYS.RECORDS]: '另外一份现场' })
   ok('导入:本机已有同键留证 → 不覆盖（第一次的现场更可能有用）',
-    r2.skipped === 1 && localStorage.getItem(sk(STORAGE_KEYS.DB) + '__corrupt') === RESCUE_RAW, JSON.stringify(r2))
+    r2.skipped === 1 && localStorage.getItem(sk(STORAGE_KEYS.RECORDS) + '__corrupt') === RESCUE_RAW, JSON.stringify(r2))
 
-  ok('导入:坏值（不是字符串）不写，但如实计数', backup.restoreRescueCopies({ db: 123 }).failed === 1, '')
+  ok('导入:坏值（不是字符串）不写，但如实计数', backup.restoreRescueCopies({ [STORAGE_KEYS.RECORDS]: 123 }).failed === 1, '')
   ok('导入:老备份没有救援区 → 零动作、不抛错',
     (() => { const r = backup.restoreRescueCopies(undefined); return r.restored === 0 && r.skipped === 0 && r.failed === 0 })(), '')
   ok('校验:救援区形状不对（数组）→ 整份拒绝导入',

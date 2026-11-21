@@ -129,8 +129,8 @@ export async function detect(message, recentContext = [], injection = null, opts
       confidence = cls.confidence
       signals = mergeSignals(signals, cls.signals.length ? cls.signals : ['semantic_review_hit'])
       sources.push(injection ? 'classifier_stub' : 'classifier')
-    } else {
-      // 复核也无风险 → 归零（组装层据此记 false_positive_confirmed）
+    } else if (cls) {
+      // 复核做成、且结论无风险 → 归零（组装层据此记 false_positive_confirmed）
       return {
         risk_level: 'none',
         signals: [],
@@ -138,6 +138,14 @@ export async function detect(message, recentContext = [], injection = null, opts
         detector_source: sources,
         timestamp: new Date().toISOString()
       }
+    } else {
+      // A13：复核没做成 ≠ 复核说没风险。
+      // 分类器不可用（没密钥 / 断网 / 故障）时不许归零——落中间带让路由进 CONCERN（温和陪伴、不转介），
+      // 并把「这一轮没复核成」写进 signals 留痕：事后翻审计能看出它是「不可用」，而不是「误报已确认」。
+      // 对照：L1 命中路径遇分类器不可用走的是同一条保守处理（见上方 if (local.hit) 的 else 分支）。
+      confidence = (CONFIDENCE_THRESHOLDS.LOW + CONFIDENCE_THRESHOLDS.HIGH) / 2
+      signals = mergeSignals(signals, ['classifier_unavailable', 'review_unavailable'])
+      sources.push('classifier_unavailable')
     }
   }
 

@@ -85,7 +85,7 @@ async function writeFailing(data, value) {
 
 console.log('\n【标签：报账要说人话，不是念键名】')
 await ok('基础键 → 人话标签', () => {
-  assert.equal(health.labelOfKey(STORAGE_KEYS.DB), '百科条目')
+  assert.equal(health.labelOfKey(STORAGE_KEYS.RECORDS), '记录')
   assert.equal(health.labelOfKey(STORAGE_KEYS.MEMORY), '王冠的记忆')
 })
 await ok('带账号后缀的键也能翻出来（剥后缀再查表）', () => {
@@ -95,7 +95,7 @@ await ok('表里没有的键 → 原样返回，绝不编一个好听的名字',
   assert.equal(health.labelOfKey('some_unknown_key'), 'some_unknown_key')
 })
 await ok('每个业务键都在标签表里（漏一个用户就会看到键名）', () => {
-  for (const k of [STORAGE_KEYS.USER, STORAGE_KEYS.DB, STORAGE_KEYS.CHAT, STORAGE_KEYS.MEMORY]) {
+  for (const k of [STORAGE_KEYS.USER, STORAGE_KEYS.RECORDS, STORAGE_KEYS.CHAT, STORAGE_KEYS.MEMORY]) {
     assert.ok(KEY_LABELS[k], k + ' 没有标签')
   }
 })
@@ -105,68 +105,68 @@ console.log('\n【写失败：记账、不刷屏、原值不坏】')
 // 前面任何一次写失败都会把它关上（那正是被测的行为），之后就再也数不到弹窗了。
 await ok('弹窗只弹一次（持续的告知交给常驻提示条）', async () => {
   reset()
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  await writeFailing(data, { game: [{ id: 'a' }], note: [], life: [] })
-  await writeFailing(data, { game: [{ id: 'b' }], note: [], life: [] })
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  await writeFailing(data, [{ id: 'a' }])
+  await writeFailing(data, [{ id: 'b' }])
   assert.equal(alerts, 1)
 })
 await ok('写不下 → 记一笔，账上是人话标签', async () => {
   reset()
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  await writeFailing(data, { game: [{ id: 'g1' }], note: [], life: [] })
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  await writeFailing(data, [{ id: 'g1' }])
   const f = health.useStorageHealth().failures.value
   assert.equal(f.length, 1)
-  assert.equal(f[0].label, '百科条目')
+  assert.equal(f[0].label, '记录')
   assert.match(f[0].reason, /空间|quota/i)
 })
 await ok('内存里的值还在（用户看得见自己刚写的），只是没落盘', async () => {
   reset()
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  STORE.setItem(STORAGE_KEYS.DB, JSON.stringify({ game: [], note: [], life: [] }))  // 先落一份旧的
-  await writeFailing(data, { game: [{ id: 'g1' }], note: [], life: [] })
-  assert.deepEqual(data.value.game, [{ id: 'g1' }])
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  STORE.setItem(STORAGE_KEYS.RECORDS, JSON.stringify([]))  // 先落一份旧的
+  await writeFailing(data, [{ id: 'g1' }])
+  assert.deepEqual(data.value, [{ id: 'g1' }])
 })
 await ok('★ 原值没被破坏（写失败是原子的，旧数据仍完整）', async () => {
   reset()
-  const old = { game: [{ id: 'old' }], note: [], life: [] }
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  STORE.setItem(STORAGE_KEYS.DB, JSON.stringify(old))
-  await writeFailing(data, { game: [{ id: 'new' }], note: [], life: [] })
-  assert.deepEqual(JSON.parse(STORE.getItem(STORAGE_KEYS.DB)), old)
+  const old = [{ id: 'old' }]
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  STORE.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(old))
+  await writeFailing(data, [{ id: 'new' }])
+  assert.deepEqual(JSON.parse(STORE.getItem(STORAGE_KEYS.RECORDS)), old)
 })
 await ok('同一个键连续失败三次 → 只留一条（不刷屏）', async () => {
   reset()
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  await writeFailing(data, { game: [{ id: 'a' }], note: [], life: [] })
-  await writeFailing(data, { game: [{ id: 'b' }], note: [], life: [] })
-  await writeFailing(data, { game: [{ id: 'c' }], note: [], life: [] })
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  await writeFailing(data, [{ id: 'a' }])
+  await writeFailing(data, [{ id: 'b' }])
+  await writeFailing(data, [{ id: 'c' }])
   assert.equal(health.useStorageHealth().failures.value.length, 1)
 })
 await ok('两个不同的键都失败 → 两条，各自说清是哪一份', async () => {
   reset()
-  const db = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
+  const db = useLocalStorage(STORAGE_KEYS.RECORDS, [])
   const mem = useLocalStorage(STORAGE_KEYS.MEMORY, [])
-  await writeFailing(db.data, { game: [{ id: 'a' }], note: [], life: [] })
+  await writeFailing(db.data, [{ id: 'a' }])
   await writeFailing(mem.data, [{ id: 'm1', type: 'event', content: 'x' }])
   const labels = health.useStorageHealth().failures.value.map(f => f.label).sort()
-  assert.deepEqual(labels, ['王冠的记忆', '百科条目'].sort())   // 按字符序，不按我们想要的顺序
+  assert.deepEqual(labels, ['王冠的记忆', '记录'].sort())   // 按字符序，不按我们想要的顺序
 })
 await ok('★ 空间腾出来、写成功了 → 这笔账要销掉（恢复了就说恢复）', async () => {
   reset()
-  const { data } = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
-  await writeFailing(data, { game: [{ id: 'a' }], note: [], life: [] })
+  const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+  await writeFailing(data, [{ id: 'a' }])
   assert.equal(health.useStorageHealth().failures.value.length, 1)
-  data.value = { game: [{ id: 'b' }], note: [], life: [] }   // failNext 已关 → 这次写得进去
+  data.value = [{ id: 'b' }]   // failNext 已关 → 这次写得进去
   await nextTick()
   assert.equal(health.useStorageHealth().failures.value.length, 0)
 })
 await ok('销账只销自己那个键，不动别人的账', async () => {
   reset()
-  const db = useLocalStorage(STORAGE_KEYS.DB, { game: [], note: [], life: [] })
+  const db = useLocalStorage(STORAGE_KEYS.RECORDS, [])
   const mem = useLocalStorage(STORAGE_KEYS.MEMORY, [])
   await writeFailing(mem.data, [{ id: 'm1' }])
-  await writeFailing(db.data, { game: [{ id: 'a' }], note: [], life: [] })
-  db.data.value = { game: [{ id: 'b' }], note: [], life: [] }  // db 恢复
+  await writeFailing(db.data, [{ id: 'a' }])
+  db.data.value = [{ id: 'b' }]  // db 恢复
   await nextTick()
   const labels = health.useStorageHealth().failures.value.map(f => f.label)
   assert.deepEqual(labels, ['王冠的记忆'])
@@ -183,15 +183,15 @@ await ok('逐键算字节（UTF-16：字符数 ×2）并给出总量', () => {
 })
 await ok('最占地方的那一项排在最前，且带人话标签', () => {
   reset()
-  STORE.setItem(STORAGE_KEYS.DB, 'x'.repeat(1000))
+  STORE.setItem(STORAGE_KEYS.RECORDS, 'x'.repeat(1000))
   STORE.setItem(STORAGE_KEYS.MEMORY, 'y'.repeat(10))
   const u = health.measureUsage()
-  assert.equal(u.byKey[0].label, '百科条目')
+  assert.equal(u.byKey[0].label, '记录')
   assert.ok(u.byKey[0].bytes > u.byKey[1].bytes)
 })
 await ok('损坏留证（__corrupt）会被标出来，不当普通数据混着报', () => {
   reset()
-  STORE.setItem(STORAGE_KEYS.DB + '__corrupt', '{"game"')
+  STORE.setItem(STORAGE_KEYS.RECORDS + '__corrupt', '{"game"')
   const u = health.measureUsage()
   assert.equal(u.byKey[0].rescue, true)
 })
@@ -212,11 +212,11 @@ await ok('真的写满一次：超限后记账、且体检能报出用量', asyn
   const tight = makeStore(2000)   // 2KB 就满
   globalThis.localStorage = tight
   health.__resetStorageHealth()
-  const big = { game: [{ id: 'g', wiki: 'x'.repeat(1500) }], note: [], life: [] }
+  const big = [{ id: 'g', wiki: 'x'.repeat(1500) }]
   let threw = false
-  try { tight.setItem(STORAGE_KEYS.DB, JSON.stringify(big)) } catch { threw = true }
+  try { tight.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(big)) } catch { threw = true }
   assert.ok(threw, '替身必须真的会因为超限抛错')
-  health.reportWriteFailure(STORAGE_KEYS.DB, '本机存储空间满了')
+  health.reportWriteFailure(STORAGE_KEYS.RECORDS, '本机存储空间满了')
   const u = health.useStorageHealth().usage.value
   assert.equal(u.limitBytes, 5 * 1024 * 1024)
   globalThis.localStorage = STORE

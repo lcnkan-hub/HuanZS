@@ -62,9 +62,7 @@ html, body {
   --color-border-light:  #f2f2f7;
   --color-border-input:  #e5e5ea;
 
-  --color-progress-game: #5ac8fa;
-  --color-progress-note: #ffcc00;
-  --color-progress-life: #4cd964;
+  /* 原 --color-progress-game / note / life 已随三分类一起删除（2026-11-21 单层记录重构） */
 
   --color-markdown-blue: #2f6497;
   --color-markdown-brown:#9c6843;
@@ -81,6 +79,9 @@ html, body {
   --radius-xl:    12px;
   --radius-2xl:   14px;
   --radius-3xl:   16px;
+  /* 底部卡片（sheet）专用：屏幕级的大圆角，比卡片用的 3xl 再大一档。
+     2026-11-21 用户反馈 16 太小 —— 加一档而不是就地写 px，圆角也只留一个来源。 */
+  --radius-4xl:   24px;
 
   /* === 阴影 === */
   --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.04);
@@ -140,12 +141,15 @@ html, body {
   --crown-avatar-icon: #ffffff;
   /* 记忆信号专用色（低饱和暖金，仅记忆浮现时使用，P2 后启用；平时绝不用） */
   --memory-signal: #C9A24B;
+  /* 底栏王冠「已就绪」亮金（2026-11-21）：配好 API 密钥后王冠图标点亮用。
+     与 --memory-signal 分开是因为语义不同：那是记忆浮现的一次性信号，
+     这是常驻的状态指示。比记忆金亮一档，才配得上「亮起来」。 */
+  --color-crown-lit: #E8A317;
   /* 王冠界面背景（深夜书房米白，与入场动画"照亮"后的暖氛围适配） */
   --crown-bg: #F7F6F3;
 
   /* === 王冠玻璃材质（昼）—— 提取为变量：夜板只需换值，全页材质自动跟随 === */
   --crown-glass-bg:  rgba(255, 255, 255, 0.85); /* 顶部悬浮件（返回键 / 记忆胶囊） */
-  --crown-glass-bar: rgba(255, 255, 255, 0.92); /* 底部输入栏 */
 
   /* === 王冠夜晚板（2026-09-12）===
      时间同步：与入场动画「灯醒」共用同一判定（useTimeMode：6:00–18:00 白天，其余夜晚）
@@ -161,3 +165,11 @@ html, body {
   --crown-night-text-muted:     #9A968C;
   --crown-night-accent:         #0A84FF; /* Apple 深色模式蓝（比 #007AFF 亮一档，夜里才够亮） */
 }
+
+/* ===== 全局：滚动条一律不显示 =====
+   本产品是移动端优先（Capacitor / iOS），原生滚动条本来就不出现；
+   但在桌面 Chrome 里每条可滚区域右侧都会挂一条灰条，看着像控件漏出来的 bug。
+   2026-11-21 用户点名：主页和「我的」卡片里都有，去掉。
+   项目只有这一个全局样式入口，所以重置规则放这里（不再另建 reset.css 分叉）。 */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }

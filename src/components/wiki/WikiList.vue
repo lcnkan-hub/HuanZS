@@ -1,80 +1,97 @@
 <!--
-  百科列表页积木
-  展示某分类下的所有条目，支持搜索过滤
-  「只看我创建的」（2026-10-11）：从「我的」页那个数字入口跳过来时带上的状态。
-  为什么是看得见、点得掉的一个 chip：数字说「我创建的 3 条」，点进来就该只看到那 3 条；
-  但筛选静悄悄生效最招人烦（用户会以为条目丢了），所以状态必须显式、且一键可退。
+  记录列表页积木（2026-11-21 单层重构）
+  展示全部记录（时间倒序由数据顺序保证），支持搜索过滤与「只看我创建的」筛选。
+  空列表：没有提示（上面就是占满一行的添加按钮）；
+          但「搜不到」「只看我创建的」必须给一句话，否则用户会以为记录丢了。
 -->
 <template>
   <div class="page-content">
-    <h2><AppIcon :name="icon" :size="24" /> {{ tabName }}百科</h2>
-
-    <button
-      v-if="mineOnly"
-      class="filter-chip"
-      type="button"
-      @click="$emit('clear-mine-only')"
-    >
-      <i class="chip-dot" :class="'dot-' + icon"></i>
-      只看我创建的
-      <span class="chip-x">✕</span>
-    </button>
-
-    <div class="item-list">
-      <!-- 空库开局（I04）：这条分类一条都没有时，不显示「暂无数据」，而是给三张能点的卡片。
-           必须与「搜索没搜到」分开 —— 后者只是过滤结果为空，用户其实有一堆条目。 -->
-      <StarterCards
-        v-if="items.length === 0 && libraryEmpty"
-        @ask="(tab) => $emit('ask-starter', tab)"
-        @open-backup="$emit('open-backup')"
-      />
-      <div v-else-if="items.length === 0" class="empty-tip">
-        {{ mineOnly ? '你在这个分类下还没有条目' : '没搜到相关条目，换个词试试' }}
+    <!-- 按日期分组：记录只有时间一个维度，就用时间给列表做出节奏。
+         今天 / 昨天 / 更早 —— 不给标签就不加（没有内容的分组标题是噪音）。 -->
+    <template v-if="items.length === 0">
+      <div v-if="emptyHint" class="empty-tip">{{ emptyHint }}</div>
+    </template>
+    <template v-else>
+      <div v-for="group in groups" :key="group.label" class="group">
+        <div class="group-title">{{ group.label }}</div>
+        <div class="item-list">
+          <WikiCard
+            v-for="(item, index) in group.items"
+            :key="item.id"
+            :item="item"
+            :style="{ animationDelay: (group.offset + index) * 70 + 'ms' }"
+            @open="$emit('open-item', item)"
+            @delete="(id) => $emit('delete-item', id)"
+          />
+        </div>
       </div>
-      <WikiCard
-        v-for="(item, index) in items"
-        :key="item.id"
-        :item="item"
-        :isOwner="currentUser === item.creator"
-        :style="{ animationDelay: index * 70 + 'ms' }"
-        @open="$emit('open-item', item)"
-        @delete="(id) => $emit('delete-item', id)"
-      />
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup>
-import AppIcon from '../common/AppIcon.vue'
+import { computed } from 'vue'
 import WikiCard from './WikiCard.vue'
-import StarterCards from './StarterCards.vue'
 
-defineProps({
-  icon:         { type: String,  default: '' },
-  tabName:      { type: String,  default: '' },
-  items:        { type: Array,   default: () => [] },
-  currentUser:  { type: String,  default: '' },
-  libraryEmpty: { type: Boolean, default: false }, // 该分类真的一条都没有（不是搜索过滤空）
-  mineOnly:     { type: Boolean, default: false }  // 只看我创建的（由 App 的 mineOnly 状态传入）
+const props = defineProps({
+  items:     { type: Array,  default: () => [] },
+  emptyHint: { type: String, default: '' }     // 列表为空时给一句话；空串 = 什么都不显示
 })
-defineEmits(['open-item', 'delete-item', 'ask-starter', 'open-backup', 'clear-mine-only'])
+defineEmits(['open-item', 'delete-item'])
+
+/** 两位补零 */
+function pad(n) { return String(n).padStart(2, '0') }
+
+/** 本地日期 → 'YYYY-MM-DD'（用本地时区，不用 toISOString：那是 UTC，晚上 8 点后会差一天） */
+function dateKey(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** 记录时间串（2026/11/21 12:00 或 2026-11-21 19:52）→ 'YYYY-MM-DD'；认不出来返回空串 */
+function dateKeyFromText(text) {
+  const m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/.exec(String(text || ''))
+  if (!m) return ''
+  return `${m[1]}-${pad(Number(m[2]))}-${pad(Number(m[3]))}`
+}
+
+/**
+ * 分组：今天 / 昨天 / 更早。
+ * offset 是这一组在整列里的起始序号，用来接着上组算错峰动画延迟 —— 不然后面每组都从 0 开始，动画会一起蹦。
+ * 时间认不出来的记录一律归「更早」，不丢、不报错。
+ */
+const groups = computed(() => {
+  const now = new Date()
+  const todayKey = dateKey(now)
+  const yesterdayKey = dateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))
+  const labels = ['今天', '昨天', '更早']
+  const bucketOf = new Map(labels.map((label) => [label, []]))
+
+  props.items.forEach((item) => {
+    const key = dateKeyFromText(item.time)
+    const label = key && key === todayKey ? '今天' : (key && key === yesterdayKey ? '昨天' : '更早')
+    bucketOf.get(label).push(item)
+  })
+
+  const result = []
+  let offset = 0
+  labels.forEach((label) => {
+    const list = bucketOf.get(label)
+    if (list.length === 0) return
+    result.push({ label, items: list, offset })
+    offset += list.length
+  })
+  return result
+})
 </script>
 
 <style scoped>
-.page-content { padding: 20px; animation: fadeInContent 0.3s ease-out; }
-.page-content h2 {
-  font-size: var(--text-22); font-weight: 600; margin-bottom: 15px;
-  display: flex; align-items: center; gap: 6px;
-}
+.page-content { padding: 0 20px 20px 20px; animation: fadeInContent 0.3s ease-out; }
 
-/* 筛选 chip：与「我的」页入口同一套三色点，一眼看出筛的是哪个分类 */
+/* 筛选 chip：与「我的」浮层里的入口同一套三色点 */
 .filter-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  /* 撑到 44 会把这颗小胶囊吹成一根横条，所以保持 24 的视觉、靠命中区外扩到 44。
-     它整页只有一枚（v-if mineOnly），上方是标题留白、下方是 item-list 的 15px 间隔，
-     外扩出来的面积不压任何别的东西，不会误触。 */
   position: relative;
-  padding: 5px 12px; margin-bottom: 2px;
+  padding: 5px 12px; margin: 12px 0 2px 0;
   background: rgba(0, 122, 255, 0.08); color: var(--color-accent);
   border: 1px solid rgba(0, 122, 255, 0.16); border-radius: 999px;
   font-size: var(--text-12); font-weight: 500; cursor: pointer;
@@ -82,13 +99,17 @@ defineEmits(['open-item', 'delete-item', 'ask-starter', 'open-backup', 'clear-mi
 }
 .filter-chip:active { background: rgba(0, 122, 255, 0.16); }
 .filter-chip::after { content: ''; position: absolute; inset: -10px -4px; }
-.chip-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
-.dot-game { background: var(--color-progress-game); }
-.dot-note { background: var(--color-progress-note); }
-.dot-life { background: var(--color-progress-life); }
+.chip-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; background: var(--color-accent); }
 .chip-x { font-size: var(--text-10); opacity: 0.7; margin-left: 1px; }
 
-.item-list { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
+/* 分组标题：一档小字 + 疏排，作用是「切开」而不是「强调」—— 所以比我 muted 更淡、不占卡片重量 */
+.group-title {
+  font-size: var(--text-12); font-weight: 600;
+  color: var(--color-text-muted); letter-spacing: 0.02em;
+  padding: 0 4px; margin: 14px 0 8px;
+}
+.group + .group .group-title { margin-top: 18px; }
+.item-list { display: flex; flex-direction: column; gap: 10px; }
 .empty-tip { text-align: center; color: var(--color-text-muted); margin-top: 40px; font-size: var(--text-14); }
 @keyframes fadeInContent {
   from { opacity: 0; transform: translateY(5px); }

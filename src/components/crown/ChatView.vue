@@ -125,8 +125,6 @@ import { useMemory } from '../../composables/useMemory'
 import { useTimeMode } from '../../composables/useTimeMode'
 import { useAIConfig } from '../../composables/useApiKey'
 import { buildWikiContext } from '../../composables/useWikiContext'
-import { takePendingStarter } from '../../composables/useStarter'
-import { buildStarterEntry } from '../../utils/starterJudge'
 import { writeWikiItems } from '../../composables/useWikiWriter'
 import AiSettingsModal from '../user/AiSettingsModal.vue'
 
@@ -200,18 +198,8 @@ onMounted(() => {
 async function handleSend() {
   const text = inputText.value.trim()
   if (!text || isThinking.value) return
-  // 没配密钥就不进对话流程：就地打开设置（避免"正在输入"转圈，最后只等到一句报错）
-  // ⚠️ 但危机兜底除外——它不读密钥，见下面的 A01 分支。
-  // ⚠️ 且**开局落库必须在它之前**（I04）：全新设备第一件事就是没配密钥，
-  //    而「答完什么都没发生」正是首屏流失的原因本身。落库是纯本地写入，不需要 AI。
-  //    take 语义保证这里取走之后，下面就算再走一遍也不会重复落库。
-  try {
-    const starterTab = takePendingStarter()
-    if (starterTab) {
-      const entry = buildStarterEntry(text, starterTab)
-      if (entry) writeWikiItems([entry])
-    }
-  } catch { /* 落库失败绝不打断对话 */ }
+  // 2026-11-21 单层重构：空库开局的「开局问句落库」链路已随三张开局卡一起删除。
+  // 王冠替用户记东西仍然只走 useMemory 的回合提取（wiki 动作 → useWikiWriter）。
   if (!aiConfigured.value) {
     // ⚠️ A01：没配密钥也要接住危险表达。危机管线是纯本地的（不读密钥、自带系统兜底），
     //    而原来的闸门设在 ask() 之外，等于把整条安全兜底一起挡掉——
@@ -282,7 +270,14 @@ function formatTime(timeStr) {
 
 <style scoped>
 .chat-container {
-  position: relative; /* 夜板（绝对定位层）的包含块 */
+  /* 2026-11-21：改成 fixed 覆盖整屏。
+     为什么不能用 absolute：底栏的占位层还撑着 75px 高（浮岛移出屏幕了，但它的占位没走），
+     ChatView 被压在 main-content 里，底部就会留一条白 —— 就是用户点名的那块空白。
+     fixed 相对视口，不吃兄弟元素的高度；safe-top 得自己补，因为 app-container 的 padding 到不了 fixed 层。 */
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  padding-top: var(--safe-top);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -304,7 +299,6 @@ function formatTime(timeStr) {
   --color-danger: #FF6961;
   --color-danger-bg: rgba(255, 69, 58, 0.14);
   --crown-glass-bg: var(--crown-night-glass);
-  --crown-glass-bar: var(--crown-night-glass);
 }
 
 /* ===== 返回按钮（左上角，与记忆胶囊同材质：磨砂白 + 轻描边 + 卡片阴影） ===== */
@@ -551,10 +545,10 @@ function formatTime(timeStr) {
   gap: 8px;
   padding: 8px 12px;
   padding-bottom: calc(8px + var(--safe-bottom));
-  border-top: 1px solid var(--color-border-light);
-  background: var(--crown-glass-bar);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  /* 2026-11-21：原来这里是一条通栏灰黑玻璃（background + backdrop-filter + 顶边线），
+     横贯全宽像一块面板糊在聊天底下。去掉后这块直接露出王冠自己的底色，
+     只剩输入胶囊 + 确认键 + 清空键三个物件浮着 —— 就是想要的样子。
+     不做渐变遮罩也不会糊字：输入栏在流里，消息列表到它上沿就截止。 */
 }
 .input-wrapper {
   flex: 1;

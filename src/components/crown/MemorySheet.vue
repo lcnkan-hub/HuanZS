@@ -8,28 +8,25 @@
   <Teleport to="body">
     <!-- 遮罩 -->
     <transition name="mask-fade">
-      <div v-if="open" class="sheet-mask" @click="emit('close')"></div>
+      <div v-if="open" class="sheet-mask" @click="requestClose"></div>
     </transition>
     <!-- 面板（支持下滑关闭，模块2 手势规范） -->
     <transition name="sheet-rise">
-      <div v-if="open" ref="sheetRef" class="memory-sheet" role="dialog" aria-modal="true" aria-label="王冠记住的事">
+      <div v-if="open" class="memory-sheet" :style="dragStyle" role="dialog" aria-modal="true" aria-label="王冠记住的事">
+        <!-- 横杠：整条 32px 高都能按住拖（视觉上只有 5px），尺寸与「我的」卡片一致；
+             不再留 X —— 出口只有下拉和点遮罩两条 -->
         <div
-          class="sheet-handle"
-          aria-hidden="true"
-          @touchstart="onGrabStart"
-          @touchmove="onGrabMove"
-          @touchend="onGrabEnd"
-        ></div>
-        <div
-          class="sheet-header"
-          @touchstart="onGrabStart"
-          @touchmove="onGrabMove"
-          @touchend="onGrabEnd"
+          class="grabber-zone"
+          aria-label="下拉关闭"
+          @pointerdown="onDown"
+          @pointermove="onMove"
+          @pointerup="onUp"
+          @pointercancel="onUp"
         >
+          <span class="sheet-handle" aria-hidden="true"></span>
+        </div>
+        <div class="sheet-header">
           <span class="sheet-title">王冠记住的事</span>
-          <button class="sheet-close" aria-label="关闭" @click="emit('close')">
-            <AppIcon name="close" :size="20" />
-          </button>
         </div>
         <div class="sheet-body">
           <div v-if="!sorted.length" class="sheet-empty">
@@ -54,8 +51,9 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import { useSheetDrag } from '../../composables/useSheetDrag'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -80,38 +78,13 @@ function relativeTime(iso) {
   return `${days}天前提过`
 }
 
-// 下滑关闭手势（模块2：抽屉必须支持下滑关闭，不能只靠 X）
-const sheetRef = ref(null)
-let grabStartY = 0
-let grabDy = 0
-let grabbing = false
-
-function onGrabStart(e) {
-  if (e.touches?.length === 1) {
-    grabStartY = e.touches[0].clientY
-    grabDy = 0
-    grabbing = true
-  }
-}
-function onGrabMove(e) {
-  if (!grabbing) return
-  const dy = e.touches[0].clientY - grabStartY
-  if (dy > 0) {
-    grabDy = dy
-    if (sheetRef.value) {
-      sheetRef.value.style.transform = `translateY(${Math.min(dy, 200)}px)`
-    }
-  }
-}
-function onGrabEnd() {
-  if (!grabbing) return
-  grabbing = false
-  if (sheetRef.value) sheetRef.value.style.transform = ''
-  if (grabDy > 72) {
-    emit('close')
-  }
-  grabDy = 0
-}
+// 下滑关闭手势：与「我的」卡片共用同一个积木（pointer 事件，鼠标也能拉；
+// 之前在 touch 事件上写，电脑上按住横杠纹丝不动）
+const {
+  style: dragStyle,
+  onDown, onMove, onUp,
+  close: requestClose
+} = useSheetDrag({ onClose: () => emit('close') })
 </script>
 
 <style scoped>
@@ -144,7 +117,7 @@ function onGrabEnd() {
   display: flex;
   flex-direction: column;
   background: var(--color-bg-card);
-  border-radius: 20px 20px 0 0;
+  border-radius: var(--radius-4xl) var(--radius-4xl) 0 0;
   box-shadow: var(--shadow-modal);
   /* 统一走 --safe-bottom 令牌：底栏是 calc(18px + var(--safe-bottom))、聊天输入栏是 calc(8px + ...)，
      只有这里直接写 env()。值等价（令牌本身就是 env(...,0px)），但三处写法归一后才好一起改。 */
@@ -153,13 +126,21 @@ function onGrabEnd() {
   transition: transform 0.25s ease-out;
 }
 
+/* 与「我的」卡片一字不差：40×5、两端半圆、同一灰度。
+   touch-action: none 是必须的 —— 否则浏览器把竖直拖动当滚动接管，手势收不到。 */
+.grabber-zone {
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  height: 32px;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.grabber-zone:active { cursor: grabbing; }
 .sheet-handle {
-  width: 36px;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--color-text-muted);
-  opacity: 0.3;
-  margin: 8px auto 0;
+  width: 40px; height: 5px;
+  border-radius: 999px;
+  background: rgba(60, 60, 67, 0.28);
   flex-shrink: 0;
 }
 
@@ -176,21 +157,6 @@ function onGrabEnd() {
   font-weight: 600;
   color: var(--color-text-primary);
 }
-
-.sheet-close {
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: var(--color-bg-input);
-  color: var(--color-text-secondary);
-  border-radius: 50%;
-  cursor: pointer;
-  transition: transform 0.15s ease-out, opacity 0.2s ease;
-}
-.sheet-close:active { transform: scale(0.92); }
 
 .sheet-body {
   flex: 1;

@@ -3,7 +3,7 @@
  * 运行：npm run test:lasttab
  *
  * 为什么单独立一套：DEFAULT_TAB 这个常量**就是 I03 的结论本身**（产品叫王冠，第一眼就该是王冠）。
- * 它哪天被改回 'game'，界面不会报错、不会崩，只是第一眼又偏了 —— 只有这里能拦住。
+ * 它哪天被改回 'record'，界面不会报错、不会崩，只是第一眼又偏了 —— 只有这里能拦住。
  * 另一半是坏值兜底：Tab 名会因为版本改动或手改存储而失效，读到一个不存在的 Tab 会让界面整块空白。
  */
 // ─────────── 先铺环境，再 import 被测模块 ───────────
@@ -37,8 +37,8 @@ const reset = () => store.clear()
 
 console.log('\n【冻结物】I03 的结论：首次进来落在王冠')
 ok('冻结物: 默认落地页是王冠（不是游戏）', () => assert.equal(DEFAULT_TAB, 'crown'))
-ok('冻结物: 合法 Tab 就是导航栏那五个', () => {
-  assert.deepEqual([...TAB_IDS].sort(), ['crown', 'game', 'life', 'mine', 'note'])
+ok('冻结物: 合法 Tab 就是导航栏那两个（记录 / 王冠）', () => {
+  assert.deepEqual([...TAB_IDS].sort(), ['crown', 'record'])
 })
 
 console.log('\n【首次进来 / 存过 / 坏值】')
@@ -46,12 +46,12 @@ ok('没存过 → 王冠', () => {
   reset()
   assert.equal(readLastTab(), 'crown')
 })
-ok('存过 note → note（往返）', () => {
+ok('存过 record → record（往返）', () => {
   reset()
-  writeLastTab('note')
-  assert.equal(readLastTab(), 'note')
+  writeLastTab('record')
+  assert.equal(readLastTab(), 'record')
 })
-ok('五个 Tab 都能往返', () => {
+ok('两个 Tab 都能往返', () => {
   for (const t of TAB_IDS) {
     reset()
     writeLastTab(t)
@@ -77,16 +77,16 @@ ok('存储里的值损坏（不是 JSON）→ 回落王冠，不抛错', () => {
 })
 ok('写非法值不落盘（不把坏值传下去）', () => {
   reset()
-  writeLastTab('note')
+  writeLastTab('record')
   writeLastTab('settings')
   writeLastTab(null)
-  assert.equal(readLastTab(), 'note', '非法写入应该被忽略，原值不动')
+  assert.equal(readLastTab(), 'record', '非法写入应该被忽略，原值不动')
 })
 ok('键名就是 STORAGE_KEYS.LAST_TAB（不另起一个）', () => {
   reset()
-  writeLastTab('life')
+  writeLastTab('record')
   assert.ok(store.has(STORAGE_KEYS.LAST_TAB), Array.from(store.keys()).join(','))
-  assert.equal(JSON.parse(store.get(STORAGE_KEYS.LAST_TAB)), 'life')
+  assert.equal(JSON.parse(store.get(STORAGE_KEYS.LAST_TAB)), 'record')
 })
 
 console.log('\n【账号隔离】换账号不该继承对方的习惯')

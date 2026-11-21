@@ -54,6 +54,13 @@ export const iconTrash = (size = 20) =>
 export const iconEdit = (size = 20) =>
   svg(size, '编辑', '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>')
 
+/**
+ * 更多（2026-11-21）：卡片右上角的「⋯」。
+ * 为什么三个点要单独覆盖 fill：svg() 默认 fill="none"，不覆盖的话三个点会变成三个空心小圈。
+ */
+export const iconMore = (size = 20) =>
+  svg(size, '更多', '<circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/>')
+
 export const iconSearch = (size = 20) =>
   svg(size, '搜索', '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>')
 
@@ -75,6 +82,14 @@ export const iconMine = (size = 20) =>
 
 export const iconDoc = (size = 20) =>
   svg(size, '文档', '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/>')
+
+/**
+ * 书签（2026-11-21）：底栏「记录」Tab 的图标。
+ * 为什么不用铅笔：铅笔在全局语义里是「新建 / 编辑」，而点这个 Tab 只是回到记录列表，
+ * 真正的新建入口是列表上方那条「记录一条」。书签 = 收起来的东西，跟「记录」对得上。
+ */
+export const iconBookmark = (size = 20) =>
+  svg(size, '书签', '<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>')
 
 export const iconBookOpen = (size = 20) =>
   svg(size, '详情', '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>')
@@ -164,6 +179,8 @@ export const ICON_MAP = {
   life: iconLife,
   mine: iconMine,
   doc: iconDoc,
+  bookmark: iconBookmark,
+  more: iconMore,
   book: iconBook,
   'book-open': iconBookOpen,
   clock: iconClock,

@@ -295,6 +295,35 @@ await okAsync('复核: 窗口内用户说真的 → 正常升级干预', async (
   assert.ok(r2, '确认真实后应有干预响应')
 })
 
+console.log('\n═══ A13：复核没做成 ≠ 复核说没风险 ═══')
+await okAsync('A13: 窗口内分类器不可用 → 不放行，落 CONCERN 并留痕 review_unavailable', async () => {
+  reset()
+  // 第一条：中间带 → 挂轻量确认（写 pending，进复核窗口）
+  const r1 = await handleMessage('活着真没意思', [], { classifier: async () => ({ confidence: 0.55, signals: ['hopelessness'] }) })
+  assert.match(r1.reply, /开玩笑|不好|聊聊/, '前置：应先进轻量确认')
+  // 第二条：复核这一轮分类器整个挂掉（没密钥 / 断网 / 故障都表现成抛错 → classifyWithFallback 返回 null）
+  const r2 = await handleMessage('哈哈我说着玩的', [], {
+    classifier: async () => { throw new Error('no api key') },
+    rawClassifier: async () => { throw new Error('no api key') }
+  })
+  assert.ok(r2, '复核没做成时不得当成误报放行普通聊天')
+  assert.equal(r2.route, 'concern', `应落温和档 concern，实际 ${r2.route}`)
+  assert.equal(getState(), 'CONCERN', `状态应落 CONCERN，实际 ${getState()}`)
+  const audit = (await import('../src/services/storageAdapter.js')).readJSON('crown_crisis_audit_log', [])
+  const last = audit[audit.length - 1]
+  assert.notEqual(last.decision_type, 'false_positive_confirmed', '不许记成「误报已确认」')
+  assert.ok((last.trigger || []).includes('review_unavailable'), `留痕须含 review_unavailable，实际 ${JSON.stringify(last.trigger)}`)
+  assert.ok((last.trigger || []).includes('classifier_unavailable'), `留痕须含 classifier_unavailable，实际 ${JSON.stringify(last.trigger)}`)
+})
+await okAsync('A13 反向对照: 分类器可用且判无风险 → 仍记误报确认并放行（不能一刀切）', async () => {
+  reset()
+  await handleMessage('活着真没意思', [], { classifier: async () => ({ confidence: 0.55, signals: ['hopelessness'] }) })
+  const r2 = await handleMessage('哈哈没事了就是吐槽一下', [], { classifier: async () => ({ confidence: 0.05, signals: [] }) })
+  assert.equal(r2, null, '复核做成且无风险 → 放行')
+  const audit = (await import('../src/services/storageAdapter.js')).readJSON('crown_crisis_audit_log', [])
+  assert.ok(audit.some(e => e.decision_type === 'false_positive_confirmed'), '该路径仍须记误报确认')
+})
+
 console.log('\n═══ 甲案口径：CONCERN 防复读机 ═══')
 await okAsync('CONCERN 首响由中风险消息本身给出，随后放行', async () => {
   reset()
