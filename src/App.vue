@@ -5,7 +5,7 @@
   2026-11-21 单层记录重构：底栏只剩「记录 / 王冠」，「我的」改为右上角按钮呼出的浮层
 -->
 <template>
-  <div class="app-container" :data-remind="reminderOn">
+  <div class="app-container">
     <!-- 未登录：本地账号门（注册 / 登录） -->
     <AuthView v-if="!loggedIn" @authed="handleAuthed" />
 
@@ -14,7 +14,7 @@
       <!-- 开屏动画 -->
       <SplashScreen v-if="isSplashActive" @close="isSplashActive = false" />
 
-      <!-- 常驻提示条（I15 存储没存上 / I14 该导备份了） -->
+      <!-- 常驻提示条（只剩 I15：存储没存上） -->
       <NoticeBar v-if="notice" :notice="notice" @action="handleNoticeAction" />
 
       <!-- 顶部栏：左「我的」+ 搜索框。
@@ -118,16 +118,9 @@ import { useRecords }     from './composables/useRecords'
 import { usePageRouter }  from './composables/usePageRouter'
 import { readLastTab, writeLastTab } from './composables/useLastTab'
 import { startProactiveTrigger } from './composables/useProactiveTrigger'
-import { useChat } from './composables/useChat'
 import { useAIConfig } from './composables/useApiKey'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
-import { lastExportAt } from './composables/useBackup'
 import { useStorageHealth, formatMB } from './utils/storageHealth'
-import { shouldRemind, reminderText, snoozeUntilTomorrow } from './utils/backupReminder'
-import { scopeKey } from './utils/storageScope'
-
-// 配置常量
-import { TAB_NAMES, STORAGE_KEYS } from './constants/categories'
 
 // ========== 登录闸门 ==========
 // 未登录 → 只渲染 AuthView；登录/注册成功后整页重载，
@@ -187,37 +180,16 @@ const emptyHint = computed(() => {
   return '还没有记录。随手记一条，王冠也会替你记。'
 })
 
-// ========== 常驻提示条（I15 存储写失败 / I14 该导备份了）==========
+// ========== 常驻提示条（只剩 I15 存储写失败）==========
+// 2026-11-22 用户要求去掉导出提醒（「你还没导出过备份」），他之后会在别处重做 ——
+// 这次只从界面撤掉，utils/backupReminder.js 与它的测试原样留着，别处还要用。
 const { failures: storageFailures, usage: storageUsage, refreshUsage } = useStorageHealth()
-const { messages: chatMessages } = useChat()
-const noticeCollapsed = ref(false)   // 只能暂时收起（本次会话）；永久消失的提醒等于没有
-const reminderOn     = ref(false)
-const reminderDismissed = ref(false)
-const reminderInfo   = ref(null)
-
-/** 本机「有东西可丢」吗：有记录，或真的聊过天（只有欢迎语不算） */
-const hasAnyData = computed(() => {
-  return (records.value || []).length > 0 || (chatMessages.value || []).length > 1
-})
-
-/** 「今天先不提醒」的到期时刻（按账号隔离，走 scopeKey） */
-function readSnooze() {
-  try {
-    return JSON.parse(localStorage.getItem(scopeKey(STORAGE_KEYS.BACKUP_SNOOZE)) || 'null')
-  } catch {
-    return null
-  }
-}
-function writeSnooze(iso) {
-  try {
-    localStorage.setItem(scopeKey(STORAGE_KEYS.BACKUP_SNOOZE), JSON.stringify(iso))
-  } catch { /* 存不下就算了：最多明天再提醒一次，不许因为存不进这一条而崩掉界面 */ }
-}
+const noticeCollapsed = ref(false)   // 只能暂时收起（本次会话）
 
 const notice = computed(() => {
   if (noticeCollapsed.value) return null
 
-  // ① 先报急的：有数据没存上（I15）
+  // 有数据没存上（I15）
   const fail = (storageFailures.value || [])[0]
   if (fail) {
     const u = storageUsage.value || {}
@@ -233,21 +205,6 @@ const notice = computed(() => {
       ]
     }
   }
-
-  // ② 再报该做的事：备份提醒（I14）
-  if (reminderOn.value && !reminderDismissed.value) {
-    const t = reminderText(reminderInfo.value)
-    return {
-      kind: 'info',
-      icon: 'clock',
-      title: t.title,
-      detail: t.detail,
-      actions: [
-        { label: '去导出', value: 'export', primary: true },
-        { label: '今天先不', value: 'snooze' }
-      ]
-    }
-  }
   return null
 })
 
@@ -257,24 +214,6 @@ onMounted(() => {
   // 图片回收的兜底一次（A02 残留②）
   if (loggedIn.value) recordsApi.purgeUnusedImages()
 })
-
-// 备份提醒（I14）：判「有没有东西可丢」那一次。
-// 为什么不在 onMounted 里判：那一刻可能还没登录（本机账号门挡在前面），也可能库里还空着
-// —— 两种情况都会把提醒永久判成 false，之后用户记了一堆东西也不会再提醒。
-// 改成盯着 hasAnyData：一旦出现可丢的数据就判一次，判过就不再重复。
-const reminderJudged = ref(false)
-watch([hasAnyData, loggedIn], ([has, logged]) => {
-  if (!has || !logged || reminderJudged.value) return
-  reminderJudged.value = true
-  const r = shouldRemind({
-    lastExportAt: lastExportAt(),
-    snoozedUntil: readSnooze(),
-    hasData: has
-  })
-  reminderOn.value = r.remind
-  reminderInfo.value = r
-  refreshUsage()
-}, { immediate: true })
 
 // ========== 操作函数 ==========
 
@@ -296,15 +235,10 @@ function handleOpenFromFavorites(item) {
   openDetail(item)
 }
 
-/** 提示条上的动作（I15 / I14）→ 都去「我的」浮层，备份中心在那儿 */
+/** 提示条上的动作（I15）→ 去「我的」浮层，备份中心在那儿 */
 function handleNoticeAction(value) {
   if (value === 'collapse') { noticeCollapsed.value = true; return }
   if (value === 'export') { openMine(); return }
-  if (value === 'snooze') {
-    writeSnooze(snoozeUntilTomorrow())
-    reminderDismissed.value = true
-    return
-  }
   if (value === 'purge') {
     Promise.resolve(recordsApi.purgeUnusedImages()).then(() => refreshUsage())
   }
