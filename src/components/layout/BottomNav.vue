@@ -127,7 +127,11 @@ const activeIndex = computed(() => {
   height: 46px;
   border-radius: 50%;
   background-color: var(--color-text-primary);
-  transform: translateX(calc(var(--pill-i, 0) * 54px));  /* 54 = 46 图标位 + 8 间距 */
+  /* 组件局部变量的默认值：真值由模板 :style 内联覆盖（activeIndex）。
+     在这里定义是为了让「有没有定义」可查 —— 只在 var() 里写 fallback，
+     首次渲染前那一帧会算出一个没人声明的值。 */
+  --pill-i: 0;
+  transform: translateX(calc(var(--pill-i) * 54px));  /* 54 = 46 图标位 + 8 间距 */
   transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
   pointer-events: none;
 }

@@ -154,14 +154,14 @@ watch(
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  background: var(--color-border-light, #eeeef2);
+  background: var(--color-border-light, #f2f2f7);
 }
 .card-cover img {
   width: 100%; height: 100%;
   object-fit: cover; display: block;
   -webkit-user-drag: none;
 }
-.cover-void { width: 100%; height: 100%; background: var(--color-border-light, #eeeef2); }
+.cover-void { width: 100%; height: 100%; background: var(--color-border-light, #f2f2f7); }
 
 /* 多图角标：压在封面右下。压暗底才能在任意照片上都读得出来 */
 .cover-more {

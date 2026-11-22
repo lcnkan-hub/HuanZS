@@ -86,13 +86,13 @@ const layoutCount = computed(() => {
   margin-bottom: 18px;
   border-radius: 14px;
   overflow: hidden;
-  background: var(--color-bg-subtle, #f0f0f3);
+  background: var(--color-bg-subtle, #f8f9fa);
 }
 
 .cell {
   position: relative;
   overflow: hidden;
-  background: var(--color-border-light, #eeeef2);
+  background: var(--color-border-light, #f2f2f7);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -103,7 +103,7 @@ const layoutCount = computed(() => {
   -webkit-user-drag: none;
 }
 .cell:active img { opacity: 0.86; }
-.cell-void { width: 100%; height: 100%; background: var(--color-border-light, #eeeef2); }
+.cell-void { width: 100%; height: 100%; background: var(--color-border-light, #f2f2f7); }
 
 /* 超过 9 张：第 5 格右下角标 +N */
 .cell-more {
