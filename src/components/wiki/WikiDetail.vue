@@ -72,13 +72,16 @@
            日期搬到正文末尾右下角（阅读态才显示） -->
       <div class="title-rule"></div>
 
-      <!-- 正文：点一下进编辑，边打边存；空记录进来直接就是编辑态（光标在闪） -->
+      <!-- 正文：点一下进编辑，边打边存；空记录进来直接就是编辑态（光标在闪）
+           图片附件化后，图由 ItemBodyEditor 里的 PhotoGrid 渲染在正文上方 -->
       <ItemBodyEditor
         ref="bodyRef"
         :record="openedItem"
         :auto-edit="autoEdit"
         :meta-text="signText"
         @save="(text) => $emit('save-body', text)"
+        @add-pic="(id) => $emit('add-pic', id)"
+        @preview-pic="openPhoto"
       />
 
       <!-- 语音/分享的一行小提示（2.6 秒自己消失） -->
@@ -99,6 +102,12 @@
         <AppIcon name="check" :size="20" />
       </button>
     </div>
+
+    <!-- 看图浮层：点图区里任意一张放大，点任意处关掉。
+         黑底铺满 + contain —— 看图时最忌讳把边上裁掉，所以不用 cover。 -->
+    <div v-if="viewer.open" class="photo-viewer" @click="viewer.open = false">
+      <img :src="viewer.url" alt="" />
+    </div>
   </div>
 </template>
 
@@ -107,11 +116,28 @@ import { ref, computed, nextTick } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import ItemBodyEditor from './ItemBodyEditor.vue'
 import { isFavorite, toggleFavorite } from '../../composables/useFavorites'
+import { getImageUrl } from '../../composables/useImageStore'
 
 const props = defineProps({
   openedItem: { type: Object, required: true },
 })
-const emit = defineEmits(['close', 'rename', 'save-body', 'delete'])
+const emit = defineEmits(['close', 'rename', 'save-body', 'delete', 'add-pic'])
+
+/**
+ * 看图浮层。PhotoGrid 只回传序号（blob URL 是它内部解析的），这里按序号回头取 id 再解析一次
+ * —— getImageUrl 带缓存，第二次调用几乎是零成本。
+ */
+const viewer = ref({ open: false, url: '' })
+async function openPhoto(index) {
+  const id = (props.openedItem.pics || [])[index]
+  if (!id) return
+  try {
+    const url = await getImageUrl(id)
+    if (url) viewer.value = { open: true, url }
+  } catch {
+    // 图读不出来就什么都不做：看图失败不该弹个错打断阅读
+  }
+}
 
 const bodyRef      = ref(null)
 const titleEditing = ref(false)
@@ -338,6 +364,22 @@ function handleClose() {
   height: 1px;
   margin: 14px 8px 14px 0;
   background: var(--color-border-input);
+}
+
+/* 看图：黑底铺满 + contain。z-index 高于详情页本身（100），低于看图时的系统手势层 */
+.photo-viewer {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(0, 0, 0, 0.94);
+  display: flex; align-items: center; justify-content: center;
+  animation: viewerIn 0.16s ease;
+}
+.photo-viewer img {
+  max-width: 100%; max-height: 100%;
+  object-fit: contain;
+}
+@keyframes viewerIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 

@@ -11,17 +11,26 @@
      现在父级只记一个 openMenuId，点第二张时第一张自动收。
 -->
 <template>
-  <div class="data-card" @click="$emit('open')">
+  <div class="data-card" :class="{ 'has-cover': hasPics }" @click="$emit('open')">
+    <!-- 封面（2026-11-22 布局甲）：只在有图时出现，铺满卡片上半部 -->
+    <div v-if="hasPics" class="card-cover">
+      <img v-if="coverUrl" :src="coverUrl" alt="" draggable="false" />
+      <div v-else class="cover-void"></div>
+      <span v-if="extraCount > 0" class="cover-more">+{{ extraCount }}</span>
+    </div>
+
     <div class="card-main">
-      <span class="item-name">
+      <!-- 标题为空就什么都不显示：不写「未命名」，也不占位（用户 2026-11-22 要求） -->
+      <span v-if="(item.name || '').trim()" class="item-name">
         <AppIcon v-if="favorited" name="bookmark" :size="12" class="fav-mark" />
-        {{ item.name || '未命名' }}
+        {{ item.name }}
       </span>
       <span v-if="summary" class="item-summary">{{ summary }}</span>
       <span class="card-meta">
         <span v-if="item.time" class="meta-item">
           <AppIcon name="clock" :size="11" /> {{ item.time }}
         </span>
+        <span v-if="extraCount > 0" class="meta-item">{{ picCount }} 张图</span>
       </span>
     </div>
 
@@ -50,8 +59,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import { getImageUrl } from '../../composables/useImageStore'
 
 const props = defineProps({
   item:      { type: Object,  required: true },
@@ -85,6 +95,33 @@ const summary = computed(() => {
     .trim()
   return text.slice(0, 80)
 })
+
+// ========== 封面图（布局甲） ==========
+
+const picCount   = computed(() => (Array.isArray(props.item.pics) ? props.item.pics.length : 0))
+const hasPics    = computed(() => picCount.value > 0)
+const extraCount = computed(() => Math.max(0, picCount.value - 1))
+
+/** 第一张图的 blob URL。空串 = 还没读到 / 读不出来（此时显示占位色块，卡片高度不跳） */
+const coverUrl = ref('')
+
+/**
+ * 按 pics 的**内容**监听而不是数组引用：父级每次更新记录都给新数组，
+ * 引用比较会让每张卡每次都重查一遍 IndexedDB。
+ */
+watch(
+  () => (Array.isArray(props.item.pics) ? props.item.pics.join(',') : ''),
+  async (joined) => {
+    const first = joined ? joined.split(',')[0] : ''
+    if (!first) { coverUrl.value = ''; return }
+    try {
+      coverUrl.value = (await getImageUrl(first)) || ''
+    } catch {
+      coverUrl.value = '' // 图读不出来就留占位色，不弹错打断列表
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>
@@ -94,12 +131,53 @@ const summary = computed(() => {
   padding: 14px 46px 14px 16px;  /* 右侧 46 = 给右上角「⋯」让位 */ display: flex; justify-content: space-between;
   align-items: center; gap: 8px; box-shadow: var(--shadow-card); cursor: pointer;
   animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  overflow: hidden;
 }
 @keyframes cardFadeIn {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* 有封面：卡片改成上下结构，图铺满上半部。左右留白交给 .card-main，
+   卡片本体不再给内边距 —— 否则图会缩进去一圈。 */
+.data-card.has-cover {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0 0 13px;
+}
+
+/* 封面：16:9。object-fit: cover —— 列表里图是"引子"，宁可裁一点也要版式齐 */
+.card-cover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--color-border-light, #eeeef2);
+}
+.card-cover img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  -webkit-user-drag: none;
+}
+.cover-void { width: 100%; height: 100%; background: var(--color-border-light, #eeeef2); }
+
+/* 多图角标：压在封面右下。压暗底才能在任意照片上都读得出来 */
+.cover-more {
+  position: absolute;
+  right: 8px; bottom: 8px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: var(--text-11);
+  font-weight: 600;
+  line-height: 1.5;
+}
 .card-main { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+/* 有封面时文字自己让出「⋯」的位置（卡片本体已经不给了） */
+.has-cover .card-main { padding: 11px 46px 0 16px; }
 /* 标题与 meta 拉开两档（16/600 对 11/muted）：层次靠对比，不靠字号堆叠 */
 .item-name {
   font-size: var(--text-16); font-weight: 600; color: var(--color-text-primary);
@@ -140,6 +218,11 @@ const summary = computed(() => {
   touch-action: manipulation;
 }
 .more-btn::after { content: ''; position: absolute; inset: -5px; }
+/* 压在封面图上的三点：照片底色不可控，白色 + 一层投影才读得出来 */
+.has-cover .more-btn {
+  color: rgba(255, 255, 255, 0.95);
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
 .more-btn:hover, .more-btn:focus, .more-btn:active { outline: none; background: none; }
 /* 键盘导航的焦点改画在圆内部（inset），不向外描一圈 —— 外圈在手机上就是用户说的那个圈 */
 .more-btn:focus-visible { box-shadow: inset 0 0 0 2px var(--color-accent); }

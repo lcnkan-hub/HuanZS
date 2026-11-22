@@ -76,7 +76,12 @@ ok('A1 crisis 三段齐（null 也保留键）', ['audit_log', 'pending', 'state
 ok('A1 格式头正确', payload.format === 'huanzhongshu-backup' && payload.schema_version === 2)
 ok('A1 导出文件里不再有 children 字段（子词条 2026-11-22 下线）', payload.data.records.every(r => !Object.prototype.hasOwnProperty.call(r, 'children')), JSON.stringify(payload.data.records))
 ok('A1 存量记录里的子词条没有混进导出文件', !JSON.stringify(payload.data.records).includes('DLC'))
-ok('A1 正文里的图片引用原样保留', String((payload.data.records.find(r => r.id === 'g1') || {}).wiki).includes('id://img-111'))
+// 2026-11-22 图片附件化：图不再写在正文里，改由 pics 字段带走。
+// 老断言（wiki 里含 id://）已过时 —— 现在正文必须是纯文字，图 id 必须落在 pics。
+const g1 = payload.data.records.find(r => r.id === 'g1') || {}
+ok('A1 正文里不再有图片引用（图片附件化）', !String(g1.wiki || '').includes('id://'), String(g1.wiki))
+ok('A1 图片 id 落在 pics 里', Array.isArray(g1.pics) && g1.pics.includes('img-111'), JSON.stringify(g1.pics))
+ok('A1 每条记录都带 pics 数组（形状统一）', payload.data.records.every(r => Array.isArray(r.pics)))
 
 // ─────────── A10 条数核对 ───────────
 const c = payload.counts

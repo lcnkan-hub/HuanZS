@@ -1,20 +1,30 @@
 <!--
-  记录正文编辑积木（2026-11-21 单层重构 · 2026-11-22 版式重做）
-  职责：一条记录自己的正文——阅读态渲染 Markdown（含 id:// 图片解析），点一下进编辑态。
-  边界：只管正文，不改标题、不删记录（那些由 WikiDetail / App 接）。
+  记录正文编辑积木（2026-11-21 单层重构 · 2026-11-22 版式重做 · 2026-11-22 图片附件化）
+  职责：一条记录自己的正文——上方是图片区（PhotoGrid），下面是文字；点文字进编辑态。
+  边界：只管正文和图片的**显示**，不改标题、不删记录、不直接改 record.pics（那些由 WikiDetail / App 接）。
 
-  2026-11-22 三处改动（对齐笔记类 App 的写法）：
+  2026-11-22 四处改动：
   1. **边打边存**：不再有「保存 / 取消」按钮。输入后 600ms 静默落库，
      离开页面时再补一次。用户要的是"改到哪存到哪"，不是"记得点保存"。
   2. **正文区不再挂按钮**：「插入图片」搬到 WikiDetail 的底部工具栏（那是全局动作，
      按拇指热区该落底部）；textarea 去掉边框和底色，跟阅读态长得一样 —— 编辑时
      文字不该突然被塞进一个框里。
   3. 字号 15 → 17、行高 1.75：正文基本字号。15px 是脚注档，一整屏读下来会累。
+  4. **图片不再进正文**（图片附件化）：图存在 IndexedDB，记录上只留 `pics` 数组，
+     正文永远是纯文字。所以编辑时看不到 `![alt](id://…)` 那种源码，图固定在正文上方。
 
   暴露给父级（底部工具栏要用）：startEdit / insertImage / flush / isEditing
 -->
 <template>
   <div class="body-editor">
+    <!-- 图片区（2026-11-22 图片附件化）：不管阅读态还是编辑态，都固定挂在正文上方。
+         图已不在正文里，所以编辑时看不到 `![](...)` 那种源码 —— 用户要的正是这一点。 -->
+    <PhotoGrid
+      v-if="record.pics && record.pics.length"
+      :pics="record.pics"
+      @preview="(i) => $emit('preview-pic', i)"
+    />
+
     <!-- 阅读态 -->
     <template v-if="!editing">
       <!-- 正文为空时不显示任何占位文字：用户要的是"什么都没写就什么都不显示" -->
@@ -45,6 +55,7 @@ import {
   resolveImagesAsync
 } from '../../utils/markdownParser'
 import { saveImage, getImageUrl } from '../../composables/useImageStore'
+import PhotoGrid from './PhotoGrid.vue'
 
 const props = defineProps({
   record: { type: Object, required: true },
@@ -53,7 +64,7 @@ const props = defineProps({
   /** 落款文案（年月日 + 周几）。空串 = 不显示；只出现在阅读态末尾右下角 */
   metaText: { type: String, default: '' }
 })
-const emit = defineEmits(['save'])
+const emit = defineEmits(['save', 'add-pic', 'preview-pic'])
 
 const editing      = ref(!!props.autoEdit)
 const draft        = ref(props.autoEdit ? (props.record.wiki || '') : '')
@@ -126,7 +137,7 @@ function flush() {
   if (editing.value && draft.value !== (props.record.wiki || '')) emit('save', draft.value)
 }
 
-// ========== 插图（这套做法：存进 IndexedDB，正文只留 id:// 引用） ==========
+// ========== 插图（2026-11-22 图片附件化：图存 IndexedDB，id 交给父级写进 record.pics） ==========
 
 /** 由底部工具栏调用：不在编辑态就先切进去再选图 */
 function insertImage() {
@@ -139,28 +150,14 @@ async function handleImageSelected(event) {
   if (!file || !file.type.startsWith('image/')) { alert('请选择图片文件'); return }
   try {
     const imgId = await saveImage(file)
-    await getImageUrl(imgId) // 预热一次，阅读态切换时更快
-    const alt = file.name.replace(/\.[^.]+$/, '').replace(/[\[\]()]/g, '')
-    insertAtCursor('\n![' + alt + '](id://' + imgId + ')\n')
-    // 插图算一次修改，别等 600ms —— 用户选完图就期待它已经在正文里了
-    flush()
+    await getImageUrl(imgId) // 预热一次，图区立即能显示
+    // 2026-11-22 起不再往正文里插 `![alt](id://xxx)`：
+    // 图片改为附件（record.pics），正文只存文字。父级负责把它写进记录。
+    emit('add-pic', imgId)
   } catch {
     alert('图片保存失败')
   }
   event.target.value = ''
-}
-
-function insertAtCursor(text) {
-  const ta = textareaRef.value
-  if (!ta) { draft.value += text; return }
-  const start = ta.selectionStart
-  const end = ta.selectionEnd
-  draft.value = draft.value.slice(0, start) + text + draft.value.slice(end)
-  nextTick(() => {
-    ta.focus()
-    const pos = start + text.length
-    ta.setSelectionRange(pos, pos)
-  })
 }
 
 defineExpose({ startEdit, insertImage, flush, isEditing: editing })

@@ -67,6 +67,7 @@
               @rename="handleRename"
               @save-body="handleSaveBody"
               @delete="handleDeleteFromDetail"
+              @add-pic="handleAddPic"
             />
           </div>
 
@@ -322,14 +323,15 @@ function handleCreateRecord() {
   openDetail(item)
 }
 
-/** 返回列表：若是刚建的空记录，先清掉再关面板 */
+/** 返回列表：任何记录（不只新建立的）只要标题、正文、图片全空，就在返回时回收 */
 async function closeDetailAndCleanup() {
-  const id = pendingNewId.value
+  // 2026-11-22 用户明确要求「任何记录，只要标题正文都空了，返回就删」——
+  // 原来只清 pendingNewId（刚点「记录」新建的那条），老记录被清空后会留一张「未命名」空卡。
+  // dropIfEmpty 现在把 pics 也算内容：只有图没有字的记录不算空，不会被误删。
+  const id = (openedItem.value && openedItem.value.id) || pendingNewId.value
+  pendingNewId.value = null
   closeDetail()
-  if (id) {
-    pendingNewId.value = null
-    await recordsApi.dropIfEmpty(id)
-  }
+  if (id) await recordsApi.dropIfEmpty(id)
 }
 
 /** 详情页改名 */
@@ -344,6 +346,20 @@ function handleSaveBody(wiki) {
   const updated = recordsApi.updateRecordBody(openedItem.value.id, wiki)
   if (updated) openedItem.value = JSON.parse(JSON.stringify(updated))
   pendingNewId.value = null
+}
+
+/**
+ * 详情页加了一张图（图片附件化）：追加到 pics 末尾。
+ * 图本身已经在 IndexedDB（ItemBodyEditor 存好才 emit），这里只负责把 id 记到记录上。
+ */
+function handleAddPic(imgId) {
+  if (!imgId) return
+  const item = openedItem.value
+  if (!item) return
+  const next = [...(Array.isArray(item.pics) ? item.pics : []), imgId]
+  const updated = recordsApi.updateRecordPics(item.id, next)
+  if (updated) openedItem.value = JSON.parse(JSON.stringify(updated))
+  pendingNewId.value = null // 有内容了，不再算"待清理的空记录"
 }
 
 /** 王冠返回：回到进入王冠之前所在的 Tab（底栏在王冠页隐藏，这是唯一出口） */

@@ -23,7 +23,7 @@
 import { STORAGE_KEYS } from '../constants/categories'
 import { scopeKey, currentScope, GLOBAL_KEYS } from '../utils/storageScope'
 import { CORRUPT_SUFFIX } from './useLocalStorage'
-import { stripChildren } from './useRecords'
+import { stripChildren, normalizePics } from './useRecords'
 import { IMAGE_DB_NAME, IMAGE_STORE_NAME, getImageDB, releaseAllImageUrls } from './useImageStore'
 import { saveSnapshot, readSnapshot } from './useBackupStore'
 
@@ -358,7 +358,9 @@ export async function buildBackupPayload({ includeImages = true } = {}) {
     // 子词条已下线：导出文件里不带 children。
     // 存量数据在 useRecords 加载时已迁移，这里再兜一道 —— 万一某个账号的键没被迁移到
     //（比如切账号前导出的别的账号数据），文件形状也必须统一。
-    setByPath(data, s.path, s.path[0] === 'records' ? stripChildren(v) : v)
+    // 图片附件化同理：别的账号的键可能没跑过启动迁移，导出时也要规整一遍，
+    // 否则备份文件里会出现「一半记录 pics、一半记录图还写在正文里」的混合形态。
+    setByPath(data, s.path, s.path[0] === 'records' ? normalizePics(stripChildren(v)) : v)
   })
   CRISIS_SOURCES.forEach(s => setByPath(data, s.path, readJsonKey(s.key(), s.empty)))
 
@@ -669,7 +671,8 @@ export function applyPayload(payload) {
     let v = getByPath(data, s.path)
     if (v === undefined) return
     // 旧备份里可能带 children：导入时剥掉，不让子词条借备份复活（2026-11-22 下线）
-    if (s.path[0] === 'records') v = stripChildren(v)
+    // 旧备份里的图片还写在正文里：normalizePics 抽进 pics，不让「图在正文里」从备份复活
+    if (s.path[0] === 'records') v = normalizePics(stripChildren(v))
     writeTracked(s.key(), v === null ? null : v, written)
   })
 

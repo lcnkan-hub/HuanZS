@@ -36,6 +36,79 @@ export function stripChildren(list) {
 }
 
 /**
+ * 从正文里剥掉图片引用，返回干净的纯文字（纯函数）。
+ * 2026-11-22 图片改为附件存储（`pics` 字段）后，正文里不该再有 `![alt](id://xxx)`。
+ * 同时收掉删行留下的一串空行 —— 否则正文会出现大段空白。
+ */
+export function stripPicsFromWiki(wiki) {
+  if (!wiki) return ''
+  return String(wiki)
+    .replace(/!\[[^\]]*\]\(id:\/\/[^)]+\)/g, '')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
+ * 把记录数组规整成「图片附件化」形状（纯函数，不改入参）。
+ *
+ * 用在哪：备份的**导入 / 恢复**路径。老备份文件里图片还写在正文里（`![alt](id://xxx)`），
+ * 直接写回去就绕过了启动时的迁移，等于让「图在正文里」这个旧形态从备份里复活。
+ * 新备份已经带 pics，这里只做形状校验。
+ *
+ * 与 migratePicsOutOfWiki 的区别：那个改 records.value 并落盘，这个只返回新数组。
+ */
+export function normalizePics(list) {
+  if (!Array.isArray(list)) return list
+  return list.map(item => {
+    if (!item || typeof item !== 'object') return item
+    const wiki = item.wiki || ''
+    const explicit = Array.isArray(item.pics)
+      ? item.pics.filter(pid => typeof pid === 'string' && pid)
+      : []
+    const fromBody = [...extractImageIds(wiki)]
+    const merged = explicit.slice()
+    fromBody.forEach(id => { if (!merged.includes(id)) merged.push(id) })
+    // 只有真从正文里抽到东西才改正文 —— 否则会把新格式的正文平白 trim 一遍
+    return { ...item, wiki: fromBody.length ? stripPicsFromWiki(wiki) : wiki, pics: merged }
+  })
+}
+
+/**
+ * 一次性迁移：把正文里的图片引用搬进 `pics` 字段（图片附件化）。
+ * 幂等 —— 正文里没有图片引用、且已经有 pics 数组的记录会被原样放回，不会每个启动都写盘。
+ *
+ * ⚠️ 这是**不可逆**的：图片从「第几段之后」变成「一律在正文顶部」，
+ * 原文里那种「图 1 是界面、图 2 是配色」的指代会失去对应关系。
+ * 用户已于 2026-11-22 显式确认接受。
+ *
+ * @returns {number} 实际改动的记录条数（0 = 本来就不用改）
+ */
+function migratePicsOutOfWiki() {
+  const list = records.value
+  if (!Array.isArray(list) || list.length === 0) return 0
+  let touched = 0
+  let movedCount = 0
+  const next = list.map(item => {
+    if (!item || typeof item !== 'object') return item
+    const wiki = item.wiki || ''
+    const ids = [...extractImageIds(wiki)]
+    const hasPicsField = Array.isArray(item.pics)
+    if (ids.length === 0 && hasPicsField) return item // 已经迁过，原样放回
+    const merged = hasPicsField ? item.pics.slice() : []
+    ids.forEach(id => { if (!merged.includes(id)) merged.push(id) })
+    touched++
+    movedCount += ids.length
+    return { ...item, wiki: ids.length ? stripPicsFromWiki(wiki) : wiki, pics: merged }
+  })
+  if (touched === 0) return 0
+  records.value = next
+  // 破坏面留痕：不弹窗打断，但控制台要能查到一共动了几条、搬了几张
+  console.info(`[记录迁移] 图片改为附件存储：${touched} 条记录补上 pics，${movedCount} 张图从正文移到顶部（位置信息不可恢复）`)
+  return touched
+}
+
+/**
  * 一次性迁移：把存量记录上的 children 剥掉并落盘。
  * 幂等 —— 剥完再跑时没有一条带 children，直接返回 0，不会每个启动都写盘。
  * 为什么放在模块加载时而不是 UI 里：这是数据形状的统一，跟用户操作无关，
@@ -56,6 +129,8 @@ function migrateDropChildren() {
 }
 
 migrateDropChildren()
+// 顺序有意：先剥 children（旧字段），再抽图片（新字段）。两步都幂等，重启多次也只动一次盘。
+migratePicsOutOfWiki()
 
 /** 记录数组的合法形状：必须是数组；单项只要是对象就算（老数据可能缺字段） */
 function isRecordArray(v) {
@@ -144,6 +219,7 @@ export function useRecords() {
       id: generateUniqueId(),
       name: (name || '').trim(),
       wiki: '',
+      pics: [], // 图片附件（图片 id 列表）。2026-11-22 起正文只存文字，图不进正文
       creator,
       time: getCurrentTimeString(),
       origin: 'user' // user = 用户手建；crown = 王冠代记（旧数据无此字段，按 user 看待）
@@ -177,8 +253,24 @@ export function useRecords() {
   }
 
   /**
-   * 清理空记录（点「添加」直接进详情页的收尾）：
-   * 返回详情时若标题和正文都还是空的，这条记录就是误触留下的，删掉它。
+   * 更新图片附件列表（返回改后的条目；找不到返回 null）。
+   * 2026-11-22 图片附件化：图不再写在正文里，改由这里整组替换。
+   * 只接受非空字符串 id，挡住 undefined / '' 混进数组（那会让图片回收算错）。
+   */
+  function updateRecordPics(id, pics) {
+    const item = (records.value || []).find(i => i.id === id)
+    if (!item) return null
+    item.pics = (Array.isArray(pics) ? pics : []).filter(pid => typeof pid === 'string' && pid)
+    return item
+  }
+
+  /**
+   * 清理空记录（点「添加」直接进详情页的收尾，以及 2026-11-22 起的通用规则）：
+   * 标题、正文、图片三样全空 = 这条记录没有任何内容，删掉它。
+   *
+   * 2026-11-22 用户明确要求「任何记录，只要标题正文都空了，返回就删」——
+   * 不再只针对刚新建的那条，老记录被清空也一样回收。
+   * 注意 pics 也算内容：一条只有图没有字的记录不是空记录，不能删。
    * @returns {boolean} 是否真的删了
    */
   async function dropIfEmpty(id) {
@@ -186,8 +278,9 @@ export function useRecords() {
     if (!item) return false
     const emptyTitle = !(item.name || '').trim()
     const emptyBody = !(item.wiki || '').trim()
+    const emptyPics = !Array.isArray(item.pics) || item.pics.length === 0
     // 2026-11-22：不再有子词条，「有没有子词条」这个条件自然消失
-    if (emptyTitle && emptyBody) {
+    if (emptyTitle && emptyBody && emptyPics) {
       await deleteRecord(id)
       return true
     }
@@ -211,6 +304,13 @@ export function useRecords() {
       list.forEach(item => {
         if (!item || typeof item !== 'object') return
         extractImageIds(item.wiki || '').forEach(id => used.add(id))
+        /**
+         * ⚠️ 这一句是图片附件化的保命线（2026-11-22）。
+         * 迁移后图片 id 存在 pics 里、正文已经清空，只扫 wiki 会算出「一张图都没被引用」，
+         * 于是下一次删任意一条记录，dropUnused 就把全库图片清空 ——
+         * 图片库是全设备单库、不分账号，删了没法恢复。少扫一处 = 直接毁数据。
+         */
+        ;(Array.isArray(item.pics) ? item.pics : []).forEach(id => used.add(id))
       })
     })
     return used
@@ -264,6 +364,7 @@ export function useRecords() {
     deleteRecord,
     updateRecordName,
     updateRecordBody,
+    updateRecordPics,
     dropIfEmpty,
     collectUsedImageIds,
     purgeUnusedImages,

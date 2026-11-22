@@ -118,11 +118,14 @@ export function writeWikiItems(rawItems) {
         const prev = (item.target.wiki || '').trimEnd()
         item.target.wiki = prev ? `${prev}\n\n${item.content}` : item.content
       } else {
-        // 新建：**不再带 children 字段**（2026-11-22 子词条下线）
+        // 新建：**不再带 children 字段**（2026-11-22 子词条下线）；pics 给空数组保证形状统一
         records.value.push({
           id: generateUniqueId(),
           name: item.title,
           wiki: item.content,
+          // 王冠只写文字、不能加图（2026-11-22 用户明确要求），
+          // 但字段要补齐 —— 少了 pics 会让图片回收和卡片渲染都多判一次 undefined
+          pics: [],
           creator,
           time: getCurrentTimeString(),
           origin: 'crown'
