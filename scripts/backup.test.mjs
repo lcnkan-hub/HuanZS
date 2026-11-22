@@ -74,8 +74,8 @@ ok('A1 主动开口账本原样带走', (payload.data.proactive.log || []).lengt
 ok('A1 records 是单层数组（旧 db 三分类已不存在）', Array.isArray(payload.data.records) && !('db' in payload.data))
 ok('A1 crisis 三段齐（null 也保留键）', ['audit_log', 'pending', 'state'].every(k => k in payload.data.crisis))
 ok('A1 格式头正确', payload.format === 'huanzhongshu-backup' && payload.schema_version === 2)
-ok('A1 记录条目保持单层结构（每条都有 children 数组）', payload.data.records.length === 2 && payload.data.records.every(r => Array.isArray(r.children)), JSON.stringify(payload.data.records))
-ok('A1 子词条跟着导出', JSON.stringify((payload.data.records.find(r => r.id === 'g1') || {}).children || []).includes('DLC'))
+ok('A1 导出文件里不再有 children 字段（子词条 2026-11-22 下线）', payload.data.records.every(r => !Object.prototype.hasOwnProperty.call(r, 'children')), JSON.stringify(payload.data.records))
+ok('A1 存量记录里的子词条没有混进导出文件', !JSON.stringify(payload.data.records).includes('DLC'))
 ok('A1 正文里的图片引用原样保留', String((payload.data.records.find(r => r.id === 'g1') || {}).wiki).includes('id://img-111'))
 
 // ─────────── A10 条数核对 ───────────

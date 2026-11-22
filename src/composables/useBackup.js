@@ -23,6 +23,7 @@
 import { STORAGE_KEYS } from '../constants/categories'
 import { scopeKey, currentScope, GLOBAL_KEYS } from '../utils/storageScope'
 import { CORRUPT_SUFFIX } from './useLocalStorage'
+import { stripChildren } from './useRecords'
 import { IMAGE_DB_NAME, IMAGE_STORE_NAME, getImageDB, releaseAllImageUrls } from './useImageStore'
 import { saveSnapshot, readSnapshot } from './useBackupStore'
 
@@ -352,7 +353,13 @@ export function restoreRescueCopies(rescue) {
 /** 组装完整备份对象。includeImages=false 时 images 为空数组（体积闸门用） */
 export async function buildBackupPayload({ includeImages = true } = {}) {
   const data = { crisis: {} }
-  TEXT_SOURCES.forEach(s => setByPath(data, s.path, readJsonKey(s.key(), s.empty)))
+  TEXT_SOURCES.forEach(s => {
+    const v = readJsonKey(s.key(), s.empty)
+    // 子词条已下线：导出文件里不带 children。
+    // 存量数据在 useRecords 加载时已迁移，这里再兜一道 —— 万一某个账号的键没被迁移到
+    //（比如切账号前导出的别的账号数据），文件形状也必须统一。
+    setByPath(data, s.path, s.path[0] === 'records' ? stripChildren(v) : v)
+  })
   CRISIS_SOURCES.forEach(s => setByPath(data, s.path, readJsonKey(s.key(), s.empty)))
 
   let images = []
@@ -659,8 +666,10 @@ export function applyPayload(payload) {
   // 会被原样写进每一个同前缀的键里，把账本和开关一起写坏。
   // 单段路径下 getByPath 与 path[0] 等价，所以这个改动对老数据是等价的。
   TEXT_SOURCES.forEach(s => {
-    const v = getByPath(data, s.path)
+    let v = getByPath(data, s.path)
     if (v === undefined) return
+    // 旧备份里可能带 children：导入时剥掉，不让子词条借备份复活（2026-11-22 下线）
+    if (s.path[0] === 'records') v = stripChildren(v)
     writeTracked(s.key(), v === null ? null : v, written)
   })
 

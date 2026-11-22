@@ -1,13 +1,17 @@
 /**
- * 记录数据库积木（2026-11-21 单层重构）
+ * 记录数据库积木（2026-11-21 单层重构 · 2026-11-22 子词条下线）
  *
- * 一个账号就是一条记录数组，不再有游戏 / 笔记 / 生活三分类：
- *   [{ id, name, wiki, creator, time, origin, children: [] }]
+ * 一个账号就是一条记录数组，不再有游戏 / 笔记 / 生活三分类，也不再有一层子词条：
+ *   [{ id, name, wiki, creator, time, origin }]
  *
  * 为什么仍然保留「模块级单例」：useLocalStorage 的 ref 不感知外部对 localStorage 的直接写入，
  * 一旦出现第二个调用点（王冠代记就是第二个），两边各持一份快照，后写必然覆盖先写，静默丢数据。
  *
- * 删除记录 / 子记录时连带回收没人引用的图片（A02）。
+ * 删除记录时连带回收没人引用的图片（A02）。
+ *
+ * ⚠️ 2026-11-22 破坏面（用户已显式确认，测试阶段可丢）：
+ *   存量记录上的 `children` 字段会被 migrateDropChildren() **永久剥掉**，子词条的标题与正文不可恢复。
+ *   旧备份文件里若含 children，导入时同样会被剥掉（见 useBackup 的 stripRecordsChildren）。
  */
 import { useLocalStorage } from './useLocalStorage'
 import { extractImageIds, dropUnused } from './useImageStore'
@@ -16,6 +20,42 @@ import { getCurrentTimeString, generateUniqueId } from '../utils/uniqueId'
 import { scopeKey, SCOPE_SEP } from '../utils/storageScope'
 
 const { data: records, error: storageError } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
+
+/**
+ * 剥掉记录上的 `children` 字段（纯函数，不改入参）。
+ * 2026-11-22 子词条功能下线：只留 { id, name, wiki, creator, time, origin }。
+ * 导出/导入两处也复用它，保证「盘上、文件里、导回来」三处形状一致。
+ */
+export function stripChildren(list) {
+  if (!Array.isArray(list)) return list
+  return list.map(item => {
+    if (!item || typeof item !== 'object') return item
+    const { children, ...rest } = item
+    return rest
+  })
+}
+
+/**
+ * 一次性迁移：把存量记录上的 children 剥掉并落盘。
+ * 幂等 —— 剥完再跑时没有一条带 children，直接返回 0，不会每个启动都写盘。
+ * 为什么放在模块加载时而不是 UI 里：这是数据形状的统一，跟用户操作无关，
+ * 拖到某个按钮上反而会出现「没点过按钮 → 旧形状还在 → 各处都得多判一次」。
+ * @returns {number} 实际剥掉几条（0 = 本来就没有）
+ */
+function migrateDropChildren() {
+  const list = records.value
+  if (!Array.isArray(list) || list.length === 0) return 0
+  const dirty = list.filter(i => i && Object.prototype.hasOwnProperty.call(i, 'children'))
+  if (dirty.length === 0) return 0
+  let childCount = 0
+  dirty.forEach(i => { childCount += Array.isArray(i.children) ? i.children.length : 0 })
+  records.value = stripChildren(list)
+  // 破坏面留痕：不弹窗打断用户，但控制台要能查到这次到底删掉了多少
+  console.info(`[记录迁移] 子词条功能已下线：剥掉 ${dirty.length} 条记录上的 children（共 ${childCount} 个子词条，内容不可恢复）`)
+  return dirty.length
+}
+
+migrateDropChildren()
 
 /** 记录数组的合法形状：必须是数组；单项只要是对象就算（老数据可能缺字段） */
 function isRecordArray(v) {
@@ -106,8 +146,8 @@ export function useRecords() {
       wiki: '',
       creator,
       time: getCurrentTimeString(),
-      origin: 'user', // user = 用户手建；crown = 王冠代记（旧数据无此字段，按 user 看待）
-      children: []
+      origin: 'user' // user = 用户手建；crown = 王冠代记（旧数据无此字段，按 user 看待）
+      // 2026-11-22：不再带 children 字段（子词条下线）
     }
     records.value.push(item)
     return item
@@ -146,48 +186,12 @@ export function useRecords() {
     if (!item) return false
     const emptyTitle = !(item.name || '').trim()
     const emptyBody = !(item.wiki || '').trim()
-    const noChildren = (item.children || []).length === 0
-    if (emptyTitle && emptyBody && noChildren) {
+    // 2026-11-22：不再有子词条，「有没有子词条」这个条件自然消失
+    if (emptyTitle && emptyBody) {
       await deleteRecord(id)
       return true
     }
     return false
-  }
-
-  // ========== 子记录 ==========
-
-  /** 在记录下添加子记录 */
-  function addChild(recordId, name, creator) {
-    const parent = (records.value || []).find(i => i.id === recordId)
-    if (!parent) return null
-    if (!Array.isArray(parent.children)) parent.children = []
-    const child = {
-      id: generateUniqueId(),
-      name: (name || '').trim(),
-      wiki: '',
-      creator,
-      time: getCurrentTimeString()
-    }
-    parent.children.push(child)
-    return child
-  }
-
-  /** 删除子记录（连带回收图片） */
-  async function deleteChild(recordId, childId) {
-    const parent = (records.value || []).find(i => i.id === recordId)
-    if (!parent) return
-    parent.children = (parent.children || []).filter(c => c.id !== childId)
-    return purgeUnusedImages()
-  }
-
-  /** 更新子记录正文 */
-  function updateChildWiki(recordId, childId, wiki) {
-    const parent = (records.value || []).find(i => i.id === recordId)
-    if (!parent) return null
-    const child = (parent.children || []).find(c => c.id === childId)
-    if (!child) return null
-    child.wiki = wiki || ''
-    return child
   }
 
   // ========== 图片回收（A02） ==========
@@ -195,17 +199,20 @@ export function useRecords() {
   /**
    * 收集正文里引用到的所有图片 id。
    * 「全」是唯一正确性要求：dropUnused 会删掉不在集合里的图，少走一个字段就删掉还在用的图。
-   * 所以主记录正文和**递归**的子记录正文都要走（导入允许 children 多层）。
+   * 2026-11-22：只走记录本身（子词条下线，不再递归 children）。
+   * 注意：别的账号的旧数据若没跑过迁移，这里也读不到它们的 children → 那些图会被当孤儿清掉。
+   * 这是可接受的：用户已确认子词条功能整体下线，那些图本来也没有入口能看到了。
    */
   function collectUsedImageIds(lists) {
     const used = new Set()
-    const walk = (node) => {
-      if (!node || typeof node !== 'object') return
-      extractImageIds(node.wiki || '').forEach(id => used.add(id))
-      if (Array.isArray(node.children)) node.children.forEach(walk)
-    }
     const source = Array.isArray(lists) && lists.length ? lists : [records.value || []]
-    source.forEach(list => { if (Array.isArray(list)) list.forEach(walk) })
+    source.forEach(list => {
+      if (!Array.isArray(list)) return
+      list.forEach(item => {
+        if (!item || typeof item !== 'object') return
+        extractImageIds(item.wiki || '').forEach(id => used.add(id))
+      })
+    })
     return used
   }
 
@@ -241,13 +248,11 @@ export function useRecords() {
 
   // ========== 用户名同步 ==========
 
-  /** 改昵称后同步所有记录与子记录的 creator */
+  /** 改昵称后同步所有记录的 creator（2026-11-22：不再有子记录，只走顶层） */
   function syncCreatorName(oldName, newName) {
-    const walk = (node) => {
-      if ((node.creator || '') === oldName) node.creator = newName
-      if (Array.isArray(node.children)) node.children.forEach(walk)
-    }
-    ;(records.value || []).forEach(walk)
+    ;(records.value || []).forEach(item => {
+      if (item && (item.creator || '') === oldName) item.creator = newName
+    })
   }
 
   return {
@@ -260,9 +265,6 @@ export function useRecords() {
     updateRecordName,
     updateRecordBody,
     dropIfEmpty,
-    addChild,
-    deleteChild,
-    updateChildWiki,
     collectUsedImageIds,
     purgeUnusedImages,
     syncCreatorName

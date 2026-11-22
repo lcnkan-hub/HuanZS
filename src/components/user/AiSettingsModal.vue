@@ -54,16 +54,23 @@
       </p>
     </template>
 
-    <!-- 测试结果 -->
-    <p v-if="testMessage" class="test-result" :class="testOk ? 'ok' : 'bad'">{{ testMessage }}</p>
+    <!-- 测试结果：**只在失败时占一行**。
+         成功不再另起一行写「连接正常」—— 按钮自己会变成「连接正常」，
+         两处同时说同一句话就是重复（2026-11-22 用户指出）。 -->
+    <p v-if="testMessage && !testOk" class="test-result bad">{{ testMessage }}</p>
 
     <!-- 隐私说明 -->
     <p class="privacy-note">密钥只保存在你这台设备上，不会上传到任何服务器。</p>
 
     <template #actions>
       <button class="cancel-btn" @click="$emit('close')">关闭</button>
-      <button class="test-btn" :disabled="testing || !localKey.trim()" @click="handleTest">
-        {{ testing ? '测试中…' : '测试连接' }}
+      <button
+        class="test-btn"
+        :class="{ ok: testOk && !testing }"
+        :disabled="testing || !localKey.trim()"
+        @click="handleTest"
+      >
+        {{ testing ? '测试中…' : (testOk ? '连接正常' : '测试连接') }}
       </button>
       <button class="save-btn" :disabled="!localKey.trim()" @click="handleSave">保存</button>
     </template>
@@ -199,6 +206,8 @@ function handleClear() {
 
 .cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); }
 .test-btn { background: #eef3fb; color: var(--color-accent); }
+/* 测试通过：按钮自己就是结果（浅绿底 + 深绿字，深绿是给浅底用的那一档） */
+.test-btn.ok { background: var(--color-success-bg); color: var(--color-success-deep); }
 .test-btn:disabled { opacity: 0.5; }
 .save-btn { background: var(--color-accent); color: var(--color-text-on-accent); }
 .save-btn:disabled { opacity: 0.5; }

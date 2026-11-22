@@ -7,7 +7,7 @@
   <div class="add-bar">
     <button type="button" class="add-btn" @click="$emit('add')">
       <span class="add-plus"><AppIcon name="plus" :size="14" /></span>
-      <span class="add-label">记录一条</span>
+      <span class="add-label">记录</span>
     </button>
   </div>
 </template>

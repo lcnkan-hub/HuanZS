@@ -8,7 +8,7 @@
   <Teleport to="body">
     <!-- 遮罩 -->
     <transition name="mask-fade">
-      <div v-if="open" class="sheet-mask" @click="requestClose"></div>
+      <div v-if="open" class="sheet-mask" :style="maskStyle" @click="requestClose"></div>
     </transition>
     <!-- 面板（支持下滑关闭，模块2 手势规范） -->
     <transition name="sheet-rise">
@@ -51,7 +51,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import { useSheetDrag } from '../../composables/useSheetDrag'
 
@@ -81,10 +81,24 @@ function relativeTime(iso) {
 // 下滑关闭手势：与「我的」卡片共用同一个积木（pointer 事件，鼠标也能拉；
 // 之前在 touch 事件上写，电脑上按住横杠纹丝不动）
 const {
+  dragging, closing, progress,
   style: dragStyle,
   onDown, onMove, onUp,
-  close: requestClose
+  close: requestClose,
+  reset: resetDrag
 } = useSheetDrag({ onClose: () => emit('close') })
+
+// 这个组件是**常驻**的（父级用 :open 控制，不用 v-if），所以手势状态会跨开关存活。
+// 每次重新打开必须先复位：否则上一次关闭留下的 closing=true 会让卡片一开始就停在
+// translateY(100%)（屏幕外），而遮罩照常出现 —— 用户看到的就是「屏幕变灰、卡片不出来」。
+watch(() => props.open, (v) => { if (v) resetDrag() })
+
+/** 遮罩随下拉变淡（与「我的」卡片一致）：卡片滑走了底下还压着一层黑，层级就乱了 */
+const maskStyle = computed(() => {
+  if (dragging.value) return { backgroundColor: `rgba(0, 0, 0, ${0.35 * (1 - progress.value)})` }
+  if (closing.value) return { backgroundColor: 'rgba(0, 0, 0, 0)' }
+  return {}
+})
 </script>
 
 <style scoped>
@@ -105,6 +119,8 @@ const {
   inset: 0;
   z-index: 90;
   background: rgba(0, 0, 0, 0.35);
+  /* 下拉时遮罩跟着变淡需要过渡（拖拽中 dragging 态会让它每帧改色） */
+  transition: background-color 0.2s ease;
 }
 
 .memory-sheet {

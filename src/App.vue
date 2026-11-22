@@ -17,9 +17,14 @@
       <!-- 常驻提示条（I15 存储没存上 / I14 该导备份了） -->
       <NoticeBar v-if="notice" :notice="notice" @action="handleNoticeAction" />
 
-      <!-- 顶部栏：左「我的」+ 搜索框（只在记录页、且没打开详情时显示） -->
+      <!-- 顶部栏：左「我的」+ 搜索框。
+           切王冠时**常驻不卸载**，只淡出 —— 以前用 v-if 硬切，切页瞬间它从布局里消失，
+           主内容区立刻多出 var(--header-height) 的高度，内容整体上跳一下：那一下比任何
+           过渡动画都生硬。保留占位 + 不可点，布局就稳了（王冠 fixed 全屏会盖住它）。
+           但**详情页要真删**：详情页是叠层全屏，透明占位会在顶部留 56px 空白（已实测踩到）。 -->
       <AppHeader
-        v-if="currentTab === 'record' && !openedItem"
+        v-if="!openedItem"
+        :class="{ 'is-offstage': currentTab !== 'record' }"
         :modelValue="searchQuery"
         @update:modelValue="(v) => searchQuery = v"
         @mine="openMine"
@@ -61,9 +66,7 @@
               @close="closeDetailAndCleanup"
               @rename="handleRename"
               @save-body="handleSaveBody"
-              @add-child="handleAddChild"
-              @save-child="handleSaveChildWiki"
-              @delete-child="handleDeleteChild"
+              @delete="handleDeleteFromDetail"
             />
           </div>
 
@@ -76,6 +79,7 @@
           :records="records"
           @close="closeMine"
           @save-profile="handleProfileUpdate"
+          @open-item="handleOpenFromFavorites"
         />
       </div>
 
@@ -281,6 +285,16 @@ function closeMine() {
   mineOpen.value = false
 }
 
+/**
+ * 「我的」里点了一条收藏的记录：先关浮层再打开详情。
+ * 顺序不能反 —— 详情是记录页的叠层，浮层还开着会压在它上面。
+ */
+function handleOpenFromFavorites(item) {
+  if (!item) return
+  closeMine()
+  openDetail(item)
+}
+
 /** 提示条上的动作（I15 / I14）→ 都去「我的」浮层，备份中心在那儿 */
 function handleNoticeAction(value) {
   if (value === 'collapse') { noticeCollapsed.value = true; return }
@@ -343,32 +357,15 @@ const handleDelete = (id) => {
   if (id) recordsApi.deleteRecord(id)
 }
 
-// ========== 子记录操作 ==========
-
-/** 在主记录下添加子记录 */
-const handleAddChild = (name) => {
-  const child = recordsApi.addChild(openedItem.value.id, name, profileName.value)
-  if (child) {
-    const parent = (records.value || []).find(i => i.id === openedItem.value.id)
-    if (parent) openedItem.value = JSON.parse(JSON.stringify(parent))
-  }
-}
-
-/** 保存子记录正文 */
-const handleSaveChildWiki = (childId, wiki) => {
-  const updated = recordsApi.updateChildWiki(openedItem.value.id, childId, wiki)
-  if (updated) {
-    const parent = (records.value || []).find(i => i.id === openedItem.value.id)
-    if (parent) openedItem.value = JSON.parse(JSON.stringify(parent))
-    alert('子记录内容已保存')
-  }
-}
-
-/** 删除子记录 */
-const handleDeleteChild = (childId) => {
-  recordsApi.deleteChild(openedItem.value.id, childId)
-  const parent = (records.value || []).find(i => i.id === openedItem.value.id)
-  if (parent) openedItem.value = JSON.parse(JSON.stringify(parent))
+/**
+ * 详情页里的「删除」（2026-11-22 新增链路）。
+ * 跟列表卡片的删除是同一个动作，区别是删完必须把详情页关掉 ——
+ * 否则用户会停在一个已经不存在的数据上，往它里面打字会写进虚空。
+ */
+const handleDeleteFromDetail = (id) => {
+  if (!id) return
+  handleDelete(id)
+  closeDetail()
 }
 
 // ========== 用户操作 ==========
@@ -399,24 +396,37 @@ const handleProfileUpdate = (updatedData) => {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  /* 切王冠时整块左移离场。曲线与时长**必须**和 BottomNav 的 .nav-dock、ChatView 的入场一致
-     （0.36s / cubic-bezier(0.2,0.8,0.2,1)），三处任何一处不同，看起来就不是「一同滑出」。 */
-  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1),
-              opacity   0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* 切王冠 = 记录页「退后一层」，不是「整块离场」。
+     依据 Apple HIG · Motion：主页↔王冠是**最高频**的切换，原文要求
+     「一般避免给高频 UI 交互加动效」「别让人每次交互都多花时间注意动画」；
+     又据 HIG · Materials 的功能层/内容层分层 —— 所以位移量从整整一屏（-100%）
+     缩到 10px，改用极小的后退（scale 0.99）表达"它在后面一层"。
+     2026-11-22 从 0.36s/100% 改成 0.24s/10px，起因是用户反馈"过渡太生硬"。 */
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity   0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform-origin: center center;
 }
 .page-stack.is-pushed {
-  transform: translateX(-100%);
+  transform: translateX(-10px) scale(0.99);
   opacity: 0;
   pointer-events: none;
 }
 
-/* ===== 王冠页：从右侧推入 / 向右退出（回程与去程同一路径 = 原路返回） ===== */
+/* ===== 王冠页：短距推入 + 淡入（不再整屏对穿） =====
+   12px 只作为"从右边来"的方向提示，不做位移叙事。 */
 .crown-pane-enter-from,
-.crown-pane-leave-to { transform: translateX(100%); }
+.crown-pane-leave-to {
+  transform: translateX(12px);
+  opacity: 0;
+}
 .crown-pane-enter-active,
 .crown-pane-leave-active {
-  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity   0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+
+/* 顶部栏退场：只淡不抽高度（抽高度就是 Layout 动画，会抖） */
+.is-offstage { opacity: 0; pointer-events: none; }
 
 /* ===== 面板卡片（叠层切换，禁止 Layout 属性动画） ===== */
 .page-sheet {

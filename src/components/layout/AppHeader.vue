@@ -40,6 +40,10 @@ defineEmits(['update:modelValue', 'mine'])
   background-color: var(--color-bg-card);
   border-bottom: 1px solid var(--color-border-light);
   display: flex; align-items: center; gap: 6px; padding: 0 16px;
+  /* 切页时由父级加 .is-offstage 让它淡出，**不抽高度** ——
+     抽高度等于给 Layout 属性做动画，内容会跟着抖；
+     而且它一消失，下面整块内容就上跳，那一下比过渡本身更生硬。 */
+  transition: opacity 0.18s ease-out;
 }
 /* 「我的」：幽灵按钮 —— 不带底色、字号退一档，只在按下时给浅底反馈。
    盒子高度给足 44（触控铁律，且 check 脚本只认真实 rect，不认 ::after 伪元素）；

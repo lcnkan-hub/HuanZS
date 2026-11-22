@@ -20,6 +20,12 @@
     <!-- 备份中心：导出全量 / 导入 / 回退 -->
     <BackupCenter />
 
+    <!-- 我的收藏：点一条直接打开那条记录（关掉浮层交给父级做） -->
+    <MyFavoritesEntry
+      :records="records"
+      @open-item="(item) => $emit('open-item', item)"
+    />
+
     <!-- 王冠：主动开口开关 + 模型密钥 -->
     <CrownSection @open-ai-settings="showAiSettings = true" />
 
@@ -51,6 +57,7 @@ import UserProfileCard   from './UserProfileCard.vue'
 import BackupCenter      from './BackupCenter.vue'
 import AccountSection    from './AccountSection.vue'
 import CrownSection      from './CrownSection.vue'
+import MyFavoritesEntry  from './MyFavoritesEntry.vue'
 import EditProfileModal  from './EditProfileModal.vue'
 import AiSettingsModal   from './AiSettingsModal.vue'
 
@@ -58,8 +65,8 @@ defineProps({
   userProfile: { type: Object, default: null },
   records:     { type: Array,  default: () => [] }
 })
-// 事件：save-profile
-defineEmits(['save-profile'])
+// 事件：save-profile / open-item（收藏里点一条 → 交给 App 关浮层并打开记录）
+defineEmits(['save-profile', 'open-item'])
 
 const showEditModal = ref(false)
 const showAiSettings = ref(false)

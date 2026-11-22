@@ -78,23 +78,23 @@ function clipBody(wiki) {
   return t.length > BODY_LEN ? t.slice(0, BODY_LEN) + '…' : t
 }
 
-/** 主/子记录展平成一维（子记录带父名，便于王冠理解层级） */
+/**
+ * 主记录展平成一维。
+ * 2026-11-22 子词条功能下线：不再展开 children —— 旧数据里的子词条即使还在盘上，
+ * 也绝不进王冠的上下文（否则王冠会引用用户既看不见、也点不开的内容）。
+ */
 function flatten(list) {
-  return (list || []).flatMap(item => {
-    const parent = { name: item.name || '（未命名）', wiki: item.wiki, ts: parseTime(item.time), time: item.time }
-    const children = (item.children || []).map(child => ({
-      name: child.name || '（未命名）',
-      wiki: child.wiki,
-      ts: parseTime(child.time || item.time),
-      time: child.time || item.time,
-      parentName: item.name || ''
-    }))
-    return [parent, ...children]
-  })
+  return (list || []).map(item => ({
+    name: item.name || '（未命名）',
+    wiki: item.wiki,
+    ts: parseTime(item.time),
+    time: item.time
+  }))
 }
 
 const dateOf = item => (item.time || '').split(' ')[0] || '（无日期）'
-const nameOf = item => (item.parentName ? `${item.parentName} › ${item.name}` : item.name)
+/** 2026-11-22：不再有父子层级，名字直接就是记录名（原先是 `父 › 子` 的拼法） */
+const nameOf = item => item.name
 
 /**
  * 打分：标题权重高、正文权重低（判据统一走 textMatch.scoreAgainst）

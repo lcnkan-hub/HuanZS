@@ -36,6 +36,7 @@ export const SCOPED_BASE_KEYS = [
   STORAGE_KEYS.PROACTIVE_LOG,     // 主动开口账本
   STORAGE_KEYS.PROACTIVE_ENABLED, // 主动开口开关
   STORAGE_KEYS.LAST_TAB,         // 首屏落地页（谁的习惯归谁，换个账号不该继承）
+  STORAGE_KEYS.FAVORITES,        // 收藏的 id 列表（谁收的归谁）
   STORAGE_KEYS.BACKUP_SNOOZE     // 备份提醒暂缓（谁压的归谁）
 ]
 

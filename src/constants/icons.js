@@ -84,6 +84,28 @@ export const iconDoc = (size = 20) =>
   svg(size, '文档', '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/>')
 
 /**
+ * 图片（2026-11-22）：详情页底部工具栏「插入图片」用。
+ * 原先是拿 doc 图标顶的 —— 文档和图片在语义上差得远，工具栏又是天天看的地方。
+ */
+export const iconImage = (size = 20) =>
+  svg(size, '图片', '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M21 15l-5-5-9 9"/>')
+
+/**
+ * 麦克风（2026-11-22）：详情页底部工具栏「语音输入」用。
+ * 功能还没做，但按钮先占位（点了会如实说一句"还没做"），不留空白位。
+ */
+export const iconMic = (size = 20) =>
+  svg(size, '语音', '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>')
+
+/**
+ * 分享（2026-11-22）：详情页顶栏用。
+ * 形状刻意跟 export（导出备份）分开：
+ *   export 是方框里一个向上的箭头（数据搬走），share 是方框**开口**、箭头穿出去（内容递出去）。
+ */
+export const iconShare = (size = 20) =>
+  svg(size, '分享', '<path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M20 14v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5"/><path d="M9 11H5a2 2 0 0 0-2 2"/><path d="M15 11h4a2 2 0 0 1 2 2"/>')
+
+/**
  * 书签（2026-11-21）：底栏「记录」Tab 的图标。
  * 为什么不用铅笔：铅笔在全局语义里是「新建 / 编辑」，而点这个 Tab 只是回到记录列表，
  * 真正的新建入口是列表上方那条「记录一条」。书签 = 收起来的东西，跟「记录」对得上。
@@ -179,6 +201,9 @@ export const ICON_MAP = {
   life: iconLife,
   mine: iconMine,
   doc: iconDoc,
+  image: iconImage,
+  mic: iconMic,
+  share: iconShare,
   bookmark: iconBookmark,
   more: iconMore,
   book: iconBook,

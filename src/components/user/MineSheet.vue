@@ -36,6 +36,7 @@
           :userProfile="userProfile"
           :records="records"
           @save-profile="(data) => $emit('save-profile', data)"
+          @open-item="(item) => $emit('open-item', item)"
         />
       </div>
     </div>
@@ -51,7 +52,7 @@ const props = defineProps({
   userProfile: { type: Object, default: null },
   records:     { type: Array,  default: () => [] }
 })
-const emit = defineEmits(['close', 'save-profile'])
+const emit = defineEmits(['close', 'save-profile', 'open-item'])
 
 // 首帧先渲染成"收在屏幕下沿"的状态，下一帧再打开，transition 才会真正播放
 const open = ref(false)

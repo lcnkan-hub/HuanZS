@@ -6,10 +6,12 @@
   · .nav-dock    真正的浮岛，position: fixed，不吃布局
 
   两种离场，别混：
-    pushed —— 切王冠时用。跟记录页**一同向左滑出**，曲线与时长照抄 page-sheet（0.36s /
-              cubic-bezier(0.2,0.8,0.2,1)），两边节奏一致才叫「一同」，各走各的就会分家。
+    pushed —— 切王冠时用。**原地退场**：往下退 8px + 淡出，不横向搬走。
+              以前是跟记录页一同向左滑出 140vw，2026-11-22 改掉：整屏平移 = 整个画面
+              都在动，按 HIG · Motion 该留一个不动的参照；而且底栏是「功能层」，
+              它不该像内容一样被搬走。要改数值只改 .nav-dock.is-pushed。
     sunk   —— 打开「我的」时用。向下沉出屏幕：记录页仍留在原地，底栏横滑会露出空白边，
-              下沉才是「托着卡片上来」的物理。
+              下沉才是「托着卡片上来」的物理。节奏保持 0.36s 不变。
 
   王冠图标就绪态：配好密钥后点亮成金色（--color-crown-lit），配之前跟另一个一样灰。
 -->
@@ -91,13 +93,29 @@ const activeIndex = computed(() => {
     inset 0 1px 0 rgba(255, 255, 255, 0.65),
     0 0 0 0.5px rgba(0, 0, 0, 0.06),
     0 10px 28px rgba(0, 0, 0, 0.12);
+  /* 与 .page-stack 同一条曲线；opacity 更短，让它先退一步 ——
+     两个同时走完，交叉期间会看见浮岛压在聊天界面上。 */
   transform: translate(calc(-50% + var(--dock-x)), var(--dock-y));
-  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity   0.18s ease-out;
   pointer-events: auto;
 }
-/* 与 .page-stack 的推屏同一曲线、同一时长（改一处必须改另一处，否则两边会分家） */
-.nav-dock.is-pushed { --dock-x: -140vw; }
-.nav-dock.is-sunk   { --dock-y: calc(100% + 40px); }
+/* flushed（切王冠）：**原地退场**，不横向搬走。
+   依据 HIG · Motion：视觉运动要被限制在一个不动的区域里，人更容易处理；
+   如果整个画面都在动，人会不适。底栏横向飞出 = 整个画面都在动。
+   它本来就是从底部浮起来的，所以往下退 8px 比横着飞更符合它的来处。
+   （和 sunk「下沉出屏」方向一致，只是量小得多 —— sunk 是托卡片上来，要彻底让位。） */
+.nav-dock.is-pushed {
+  --dock-y: 8px;
+  opacity: 0;
+  pointer-events: none;
+}
+.nav-dock.is-sunk   {
+  --dock-y: calc(100% + 40px);
+  /* 打开「我的」的节奏保持原样，别被上面的改动带快 */
+  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity   0.18s ease-out;
+}
 
 /* 滑动指示器：一块实心圆，靠 translateX 在格位间移动，比「每项自己变底色」多一次位移信息 ——
    用户能看见"我选了另一个"，而不只是"这个亮了那个灭了"。 */

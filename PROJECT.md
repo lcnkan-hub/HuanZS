@@ -26,8 +26,8 @@ records = [
   {
     id: string, name: string, wiki: string(Markdown),   // 标题 + 正文
     creator: string, time: string("YYYY/MM/DD HH:mm"),
-    origin: 'user' | 'crown',                            // 手建 / 王冠代记
-    children: [ /* 子记录，可选，结构同上（无 children） */ ]
+    origin: 'user' | 'crown'                            // 手建 / 王冠代记
+    // 2026-11-22：children（子词条）已下线，记录是纯单层，不再有父子
   }
 ]
 
@@ -39,10 +39,10 @@ memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]
 > 备份 schema 升到 2，旧备份文件会被明确拒绝导入。
 
 ## 核心功能
-1. 百科条目 CRUD + 主词条-子词条二级结构
+1. 记录 CRUD（单层，无父子层级）
 2. 搜索过滤（按分类 + 关键词）
 3. Markdown 渲染（标题/加粗/代码/颜色标签/图片引用 `id://img-xxx`）
-4. 子词条编辑器（阅读/编辑双模式 + IndexedDB 图片插入 + 缩略图预览）
+4. 正文编辑器（阅读/编辑双模式 + IndexedDB 图片插入 + 缩略图预览）
 5. 个人中心（足迹统计 + 「我创建的」一行数字入口 + 本机账号 + 备份中心 + 王冠设置）
 6. 王冠 AI 聊天（DeepSeek API + 人格系统 + 隐私边界）
 7. 王冠记忆（白名单四类 + 情绪状态机 + C 档留门式开口）
@@ -68,11 +68,10 @@ memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]
 | crown | MemorySheet.vue | 记忆查看面板 |
 | layout | BottomNav.vue | 底部导航（5 Tab） |
 | layout | AppHeader.vue | 顶部搜索栏 |
-| wiki | WikiDetail.vue | 详情页（子词条列表 + 添加/删除） |
+| wiki | WikiDetail.vue | 详情页（返回 / 点标题改名 / 写正文） |
 | wiki | WikiList.vue | 列表 + 搜索 + 「只看我创建的」筛选 chip |
 | wiki | WikiCard.vue | 单张卡片 |
 | wiki | StarterCards.vue | 空库开局三张卡片（I04） |
-| wiki | SubEntryEditor.vue | 子词条编辑器（阅读/编辑/图片插入） |
 | user | MinePage.vue | 个人中心编排（按用途重排：名片→足迹→我创建的→账号→备份→王冠→资料） |
 | user | UserProfileCard / FootprintSummary / MyItemsEntry / EditProfileModal | 名片 / 足迹总量与占比 / 「我创建的」一行数字入口 / 改资料弹窗 |
 | user | AccountSection.vue + AuthView.vue | 本机账号（当前账号 / 退出换号）+ 账号门（注册/登录） |
@@ -146,5 +145,26 @@ memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]
 3. 点「添加」直接进空白详情页，标题与正文都在详情里写；返回时标题正文都空则自动删掉这条空记录。
 4. 王冠代记仍保留「新建 / 追加 / 挂子记录」三种判断，但**不再判断分类**。
 5. 备份 \BACKUP_SCHEMA_VERSION = 2\；旧三分类备份会被拒绝并说明原因。
-6. 危机系统未改动（\
-pm run test:crisis\ 仍 60/60 通过）。
+6. 危机系统未改动（`npm run test:crisis` 仍 60/60 通过）。
+
+## 2026-11-22 子词条下线（v3.1）
+
+> 上面两节是 11-21 与更早的快照，**子词条相关内容已作废**。以本节为准。
+
+**删除的文件**
+- `components/wiki/SubEntryEditor.vue`（298 行）
+
+**删除的能力**
+- 详情页的「添加子词条」按钮、子词条列表、「N 个子词条」统计、「主词条」徽章、添加弹窗
+- `useRecords` 的 `addChild` / `deleteChild` / `updateChildWiki`
+- 王冠代记的 `mode: "child"`（提示词、`normalize`、写入分支、清单与查找里的 children 下钻全部移除）
+- 王冠上下文里的 `flatten()` 不再展开 children
+
+**数据形状**
+- 记录变成纯单层：`{id,name,wiki,creator,time,origin}`
+- 存量 `children` 在 `useRecords` 加载时由 `migrateDropChildren()` 一次性剥掉（幂等）
+- 导出与导入两侧都过 `stripChildren()`：导出文件不再带 children，旧备份导入时同样剥掉
+- ⚠️ 破坏面：旧子词条的标题与正文**永久不可恢复**（用户已确认，测试阶段可丢）
+
+**不变**
+- 危机系统、王冠聊天与记忆、备份/导入主流程、账号隔离、收藏（`huan_zhong_shu_favorites`）

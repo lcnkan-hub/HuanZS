@@ -19,9 +19,13 @@
             v-for="(item, index) in group.items"
             :key="item.id"
             :item="item"
+            :favorited="isFavorite(item.id)"
+            :menu-open="openMenuId === item.id"
             :style="{ animationDelay: (group.offset + index) * 70 + 'ms' }"
             @open="$emit('open-item', item)"
             @delete="(id) => $emit('delete-item', id)"
+            @toggle-menu="toggleMenu(item.id)"
+            @toggle-favorite="(id) => toggleFavorite(id)"
           />
         </div>
       </div>
@@ -30,14 +34,27 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import WikiCard from './WikiCard.vue'
+import { isFavorite, toggleFavorite } from '../../composables/useFavorites'
 
 const props = defineProps({
   items:     { type: Array,  default: () => [] },
   emptyHint: { type: String, default: '' }     // 列表为空时给一句话；空串 = 什么都不显示
 })
 defineEmits(['open-item', 'delete-item'])
+
+/**
+ * 当前展开菜单的卡片 id —— **只允许一个**。
+ * 2026-11-22 从「每张卡自己持 ref」上提到这里：那时候点开几张就几张同时展开，
+ * 屏幕上一排删除按钮，而且点第二张时第一张不会收。单一状态源天然互斥。
+ */
+const openMenuId = ref(null)
+
+/** 点「⋯」：同一张开着的就收起，换一张就换过去的（原来那张自动收） */
+function toggleMenu(id) {
+  openMenuId.value = openMenuId.value === id ? null : id
+}
 
 /** 两位补零 */
 function pad(n) { return String(n).padStart(2, '0') }

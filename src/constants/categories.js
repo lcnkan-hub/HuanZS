@@ -52,6 +52,12 @@ export const STORAGE_KEYS = {
   PROACTIVE_LOG: 'crown_proactive_log',    // 主动开口账本：每次真说出口记一条 { ts, excerpt }，月配额从记录现算
   PROACTIVE_ENABLED: 'crown_proactive_enabled', // 用户开关（键不存在 = 开；宪法没规定开关，是本产品补的）
 
+  // —— 收藏（2026-11-22）——
+  // 只存记录的 id 列表，**不往记录上加字段**：RULES 第 4 条锁死了记录结构
+  // （2026-11-22 起为 {id,name,wiki,creator,time,origin}），第 9 条要求旧数据不受影响。
+  // 独立键天然两头满足：旧记录一个字节没动，删掉收藏键就等于没收藏过。
+  FAVORITES: 'huan_zhong_shu_favorites',
+
   // —— 首屏定位（I03）——
   LAST_TAB: 'huan_zhong_shu_last_tab', // 上次停留的 Tab（键不存在 = 首次进来 → 王冠）
 
