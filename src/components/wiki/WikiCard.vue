@@ -11,7 +11,12 @@
      现在父级只记一个 openMenuId，点第二张时第一张自动收。
 -->
 <template>
-  <div class="data-card" :class="{ 'has-cover': hasPics }" @click="$emit('open')">
+  <div
+    class="data-card"
+    :class="{ 'has-cover': hasPics, 'is-entering': entering }"
+    @click="$emit('open')"
+    @animationend="onAnimationEnd"
+  >
     <!-- 封面（2026-11-22 布局甲）：只在有图时出现，铺满卡片上半部 -->
     <div v-if="hasPics" class="card-cover">
       <img v-if="coverUrl" :src="coverUrl" alt="" draggable="false" />
@@ -67,9 +72,26 @@ const props = defineProps({
   item:      { type: Object,  required: true },
   favorited: { type: Boolean, default: false },
   /** 菜单是否展开 —— 由列表统一持有，保证同时只有一张开着 */
-  menuOpen:  { type: Boolean, default: false }
+  menuOpen:  { type: Boolean, default: false },
+  /** 本次是否要播入场动画 —— 由列表按 id 判定"第一次出现"才给，播完即收回 */
+  entering:  { type: Boolean, default: false }
 })
-const emit = defineEmits(['open', 'delete', 'toggle-menu', 'toggle-favorite'])
+const emit = defineEmits(['open', 'delete', 'toggle-menu', 'toggle-favorite', 'entered'])
+
+/**
+ * 入场动画播完 → 通知列表把 `.is-entering` 摘掉。
+ * ⚠ 只能按前缀认，不能写全等：Vue 的 scoped 样式会给 @keyframes **改名**
+ *   （实测 `cardFadeIn-373722f9`），写 `=== 'cardFadeIn'` 会让这里永远不触发，
+ *   结果 `.is-entering` 一直挂在卡上 —— 看起来"动画播完了"，但卡片的透明度
+ *   就永远被那条 animation 管着，逐卡淡出又被盖住（同一个坑，只是换了入口）。
+ * 同时也只认"动画在卡片自己身上"（target === currentTarget），
+ * 卡内其它元素将来若加动画，别把它当入场结束。
+ */
+function onAnimationEnd(e) {
+  if (e.target !== e.currentTarget) return
+  if (!String(e.animationName || '').startsWith('cardFadeIn')) return
+  emit('entered', props.item.id)
+}
 
 /** 收藏 / 取消收藏：点完自动收起菜单（不然菜单会替用户挡着卡片） */
 function onToggleFavorite() {
@@ -130,8 +152,16 @@ watch(
   background: var(--color-bg-card); border-radius: var(--radius-2xl);
   padding: 14px 46px 14px 16px;  /* 右侧 46 = 给右上角「⋯」让位 */ display: flex; justify-content: space-between;
   align-items: center; gap: 8px; box-shadow: var(--shadow-card); cursor: pointer;
-  animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
   overflow: hidden;
+}
+/* 入场动画：**只在这张卡第一次出现时**由父级给的 .is-entering 打开一次，播完即被摘掉
+   （WikiCard emit('entered') → WikiList 收标记）。
+   为什么不写成 .data-card 的常驻 animation：常驻的话任何重挂载都会重播，
+   而重播期间 CSS 动画的优先级高于"逐卡淡出"写的内联 opacity —— 已经淡到透明的卡
+   会先亮一次、等动画结束再淡回去（2026-11-23 用户反馈，切王冠返回时必现）。
+   一句话：动画是"入场这一次的事件"，不是卡片的固有样子。 */
+.data-card.is-entering {
+  animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 @keyframes cardFadeIn {
   from { opacity: 0; transform: translateY(10px); }
