@@ -197,11 +197,8 @@ function handleClear() {
   line-height: 1.6; padding-top: 10px; border-top: 1px solid var(--color-border-light);
 }
 
-.modal-input {
-  width: 100%; border: 1px solid var(--color-border);
-  background: var(--color-bg-modal); border-radius: var(--radius-md);
-  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
-}
+/* 输入框形状走 common/ModalBox.vue 收口（2026-11-22 重放 PR#19 的收口意图）；
+   focus 是本组件独有的，暂不收。 */
 .modal-input:focus { outline: none; border-color: var(--color-accent); background: var(--color-bg-card); }
 
 .cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); }

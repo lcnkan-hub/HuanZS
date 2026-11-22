@@ -48,6 +48,14 @@ defineEmits(['close'])
   font-size: var(--text-14); font-weight: 500; cursor: pointer;
   min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
 }
+/* 弹窗里的输入框同理：AiSettingsModal / EditProfileModal 两处曾各自手抄同一段 6 行，
+   改一处必漏一处。形状放这里，各组件只留自己的差异（focus 高亮、margin）。
+   focus 态故意不收 —— 两处的高亮观感不同，收进来是美化场的事，得有拍板再动。 */
+.modal-box :deep(.modal-input) {
+  width: 100%; border: 1px solid var(--color-border);
+  background: var(--color-bg-modal); border-radius: var(--radius-md);
+  padding: 10px 12px; box-sizing: border-box; font-size: var(--text-14);
+}
 @keyframes popModal {
   from { opacity: 0; transform: scale(0.9); }
   to   { opacity: 1; transform: scale(1); }
