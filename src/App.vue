@@ -34,7 +34,7 @@
       <div class="main-content">
         <!-- 王冠 AI 伙伴（全屏聊天界面）：从右侧推入；记录页与底栏同时左移让位 -->
         <Transition name="crown-pane">
-          <ChatView v-if="currentTab === 'crown'" @back="handleCrownBack" />
+          <ChatView v-if="currentTab === 'crown'" />
         </Transition>
 
         <!-- 记录叠层：**常驻**。切王冠时靠位移离场，不能 v-if 卸载 —— 卸载了就播不了离场动画 -->
@@ -42,18 +42,24 @@
 
           <!-- 主面板：记录列表 -->
           <div class="page-sheet primary-sheet" :class="pageClass('primary')">
-            <div :key="primaryKey" class="sheet-body">
-              <template v-if="!openedItem">
-                <!-- 添加：搜索框下占满一行 -->
-                <AddRecordBar @add="handleCreateRecord" />
+            <!-- ⚠ 这里**不许加 `:key`、也不许加 `v-if`**（2026-11-23 拆掉 key 后立的规矩）：
+                 两者都会让整块列表重建 —— 卡片重新挂载、入场动画集体重播
+                 （按 (序号 × 70ms) 排队，记录越多越夸张），而重播期间 CSS 动画的优先级
+                 高过逐卡淡出写的内联 opacity，于是"已经淡到透明的卡会先亮一次再淡回去"。
+                 历史上这个坑踩了两次：详情页的 v-if 一次、切王冠时的 :key 一次
+                 （后者原本是给"4 个平级内容 Tab 切页重播"用的，现在底栏只剩记录/王冠，
+                 王冠还是全屏叠层页、记录页根本没换内容，那套 key 早就是误伤）。
+                 要藏就藏动画，别拆 DOM。 -->
+            <div class="sheet-body">
+              <!-- 添加：搜索框下占满一行 -->
+              <AddRecordBar @add="handleCreateRecord" />
 
-                <WikiList
-                  :items="filteredItems"
-                  :emptyHint="emptyHint"
-                  @open-item="(item) => openDetail(item)"
-                  @delete-item="(id) => handleDelete(id)"
-                />
-              </template>
+              <WikiList
+                :items="filteredItems"
+                :emptyHint="emptyHint"
+                @open-item="(item) => openDetail(item)"
+                @delete-item="(id) => handleDelete(id)"
+              />
             </div>
           </div>
 
@@ -84,13 +90,16 @@
         />
       </div>
 
-      <!-- 底部导航栏：常驻。切王冠随记录页一同左滑出、开「我的」时下沉；
+      <!-- 底部导航栏：**常驻**（2026-11-23 起王冠页也不退场）。
+           切王冠时整屏只有内容在动，浮岛原地待着 —— 按 HIG · Motion「视觉运动要被限制在
+           一个不动的区域里，整个画面都在动会让人不适」，它是这一屏唯一的不动参照；
+           而且常驻之后"记录"那颗就是回记录页的路，王冠页左上角那个返回键因此删掉。
+           两种离场只剩一种：开「我的」/ 键盘弹起时下沉（sunk）。
            只有进详情页才真正卸载（详情页是叠层，底栏本来就该被盖住） -->
       <BottomNav
         v-if="!openedItem"
         v-model="currentTab"
-        :pushed="currentTab === 'crown'"
-        :sunk="mineOpen"
+        :sunk="mineOpen || (kbOpen && currentTab === 'crown')"
         :crownReady="crownReady"
       />
     </template>
@@ -120,6 +129,7 @@ import { readLastTab, writeLastTab } from './composables/useLastTab'
 import { startProactiveTrigger } from './composables/useProactiveTrigger'
 import { useAIConfig } from './composables/useApiKey'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
+import { useKeyboard } from './composables/useKeyboard'
 import { useStorageHealth, formatMB } from './utils/storageHealth'
 
 // ========== 登录闸门 ==========
@@ -141,13 +151,12 @@ const { syncCreatorName } = recordsApi
 // 首屏 Tab（I03）：首次进来 → 王冠；之后 → 你上次待的地方
 const startTab       = readLastTab()
 const currentTab     = ref(startTab)
-// 王冠为全屏界面（隐藏底栏），进入前先记住来源 Tab，左上角返回按钮据此决定回哪
-const lastNonCrownTab = ref('record')
-watch(currentTab, (val, oldVal) => {
-  if (val === 'crown' && oldVal && oldVal !== 'crown') lastNonCrownTab.value = oldVal
+watch(currentTab, (val) => {
   writeLastTab(val)
   mineOpen.value = false // 切 Tab 时收起「我的」，避免它盖在另一个页面上
 })
+// 键盘开合（软键盘弹起时，王冠页的导航浮岛要下沉让位给输入栏）
+const { kbOpen } = useKeyboard()
 // 搜索词（单层记录后只有一个搜索框）
 const searchQuery = ref('')
 // 「我的」浮层
@@ -163,7 +172,7 @@ const isSplashActive = ref(startTab !== 'crown')
 const pendingNewId = ref(null)
 
 // 页面路由（详情打开/关闭 + 动画状态机）
-const { openedItem, primaryKey, pageClass, openDetail, closeDetail } = usePageRouter(currentTab)
+const { openedItem, pageClass, openDetail, closeDetail } = usePageRouter(currentTab)
 
 // ========== 计算属性 ==========
 // 昵称统一走这里取值：档案还没建好时给空串，避免模板里直接 .name 崩掉
@@ -296,11 +305,6 @@ function handleAddPic(imgId) {
   pendingNewId.value = null // 有内容了，不再算"待清理的空记录"
 }
 
-/** 王冠返回：回到进入王冠之前所在的 Tab（底栏在王冠页隐藏，这是唯一出口） */
-const handleCrownBack = () => {
-  currentTab.value = lastNonCrownTab.value
-}
-
 const handleDelete = (id) => {
   // 2026-11-21：去掉原生 confirm —— 它在 WebView（Capacitor）和部分浏览器里会被直接拦掉，
   // 用户点删除毫无反应。确认动作改成「⋯ → 删除」两步点击，已经够防误触了。
@@ -399,6 +403,20 @@ const handleProfileUpdate = (updatedData) => {
 .primary-sheet {
   transform: translateY(-18px);
   opacity: 0;
+
+  /* 顶部边缘淡出（--head-fade，14px）：
+     顶栏改成"不垫底、不画线"的浮件之后，列表的裁切边裸露在页面底色上了
+     （以前被白色栏底盖住，看不见）。这一小段渐变让内容在顶栏下沿化开。
+     它必须小：顶栏还在文档流里、内容不从它底下过，给太大就会把第一张卡的首行也吃掉。
+
+     底部**没有蒙版**（2026-11-22 二次修正，用户原话："不应该添加淡出的蒙版，
+     看起来是整个底部在淡出而不是卡片淡出"）。原因是手段不合：
+     mask 给**整片区域**削一层透明度，一张卡会被切成上半截实、下半截透明；
+     而且浮岛玻璃底下也被削空，材质没有内容可透（透色才是材质，削空就只是色板）。
+     底部改成**逐卡淡出**：每张卡自己带透明度，滚到浮岛那一段整张变淡，
+     屏幕上不存在"一条带"，淡化的主体是卡片本身。见 composables/useCardFade.js。 */
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, #000 var(--head-fade));
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, #000 var(--head-fade));
 }
 .primary-sheet.sheet-active {
   transform: translateY(0);
@@ -425,7 +443,13 @@ const handleProfileUpdate = (updatedData) => {
 
 /* ===== 主面板内容切换动画（tab 切换时重建，触发 enter 动画） ===== */
 .sheet-body {
-  min-height: 100%;
+  /* 顶上让出 --head-fade：蒙版的前 14px 是"内容离开屏幕时化开"的过渡带，
+     静止时第一块内容（「记录一条」）必须落在它下面，否则它自己的顶边会被抹淡
+     —— 那是排版错误不是效果。滚动时内容照样穿过这条带，这正是要的。
+     min-height 用 calc(100% - 留白)：本项目没开全局 border-box，
+     不扣回来的话短列表会凭空多出 14px 可滚动高度。 */
+  padding-top: var(--head-fade);
+  min-height: calc(100% - var(--head-fade));
   animation: bodyEnter 0.36s cubic-bezier(0.2, 0.8, 0.2, 1.0);
 }
 

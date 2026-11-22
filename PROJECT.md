@@ -168,3 +168,43 @@ memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]
 
 **不变**
 - 危机系统、王冠聊天与记忆、备份/导入主流程、账号隔离、收藏（`huan_zhong_shu_favorites`）
+
+## 2026-11-23 王冠页：底栏常驻 + 输入栏浮岛（v3.2）
+
+**为什么**：切王冠时内容是推入的、底栏也一起退场 —— 整屏都在动（HIG · Motion 说该留一个不动的参照）。
+底栏常驻之后，"记录"那颗就是回去的路，左上角返回键随之删除。
+
+**改动**
+- `BottomNav.vue`：删除 `pushed` 状态（王冠页不退场），只留 `sunk`（「我的」/ 键盘）；
+  `.bottom-nav` 加 `z-index: 40`（必须写在这层包装上，它 `position: fixed` 自成堆叠上下文；
+  只给 `.nav-dock` 写无效，实测会被 `.chat-container`（z-index 2）整片盖住）。
+- `ChatView.vue`：输入栏从"全宽横条 + 三个裸浮物件"改成**一颗玻璃浮岛**（`--crown-glass-bg` + blur +
+  999 圆角 + 内高光/描边/投影），垃圾桶收进浮岛；`margin-bottom: calc(var(--nav-zone) + 8px)` 让它落在浮岛上方；
+  删除左上角 `.back-btn` 与其样式、删除 `back` emit。
+- 新增 `composables/useKeyboard.js`（模块级单例）：用 `visualViewport` 高度差（>120px）判键盘，别用 focus 猜。
+  键盘弹起 → 浮岛下沉（App 传 `sunk`）+ 输入栏让位收回 8px。
+- `AGENTS.md` 新增「功能层（底栏浮岛）的规矩」四条。
+
+**验证**（390×844）：王冠页浮岛 `opacity 1`、`dockTop 772`；输入栏 716~764，与浮岛间距 **8px**；
+玻璃底 `rgba(255,255,255,.10)`（夜间令牌）、圆角 999px；`.back-btn` 已不存在；
+真实点击浮岛「记录」→ 回记录页；「我的」浮层仍下沉；详情页底栏仍卸载。`build`/`check:ui`/`check:tokens`/`lint` 全绿。
+
+**键盘（同日二次修正，改成"跟着键盘走"）**
+- `useKeyboard.js` 从布尔升级成三个量：`kbInset`（键盘盖住多少）/ `kbShift`（输入栏上浮量）/ `kbOpen`。
+  **两套判据取或**：① 可见区高度差 >120（iOS，布局视口不缩）；② 布局视口比本会话最高值矮 >120（Android adjustResize）。
+  只写 ① 就是"在 Android 上碰巧对、换 iOS 就废"。
+- 输入栏 `.kb-open` 时：`margin-bottom` 收回 8px + `transform: translateY(var(--kb-shift))` 整体上浮；
+  消息列表 `padding-bottom` 补 `var(--kb-inset)`（否则最后一条被输入栏压住）；`kbInset` 变化时滚一次底。
+- 键盘收起（含系统自动收起）→ `kbInset` 归 0、`kbOpen` 转 false，输入栏自动回到浮岛上方，无额外代码。
+- 令牌 `--kb-inset` / `--kb-shift` 在 `variables.css` 里给 0 默认值（JS 行内覆盖）；
+  不定义会被 `check:tokens` 判成"引用了不存在的令牌"。
+- 实测（注入 300px 模拟键盘）：输入栏 bottom **536** = 键盘上沿 544 − 8；`margin 8px`、`transform -300`、
+  列表 `padding-bottom 308`、浮岛 `translateY 98`（出屏）；撤掉后全部回到 716~764 / 80px / none / 8px。
+- ⚠ 真机未验：桌面 Chromium 合成不出软键盘，`visualViewport` 不会变 ——
+  打字时"光标行是否始终可见""切换输入法不抖"必须手机上确认。
+
+**已知没做的**
+- 钥匙未配置时那条「先配置 AI 密钥」提示条仍是全宽横条，压在输入浮岛上方；
+  键盘弹起后它会留在屏幕最底部（被键盘盖住）。
+- **Android 上滑动列表不会自动收键盘**（这是系统/WebView 的默认行为，不是 bug）：用户滑聊天记录时键盘会一直在。
+  要"滑动即收"，得在 `.message-list` 上加一条滚动 → `inputRef.blur()`（一次一行，需要用户点头再加）。

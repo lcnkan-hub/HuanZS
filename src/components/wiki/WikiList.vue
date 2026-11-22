@@ -5,7 +5,7 @@
           但「搜不到」「只看我创建的」必须给一句话，否则用户会以为记录丢了。
 -->
 <template>
-  <div class="page-content">
+  <div ref="listRoot" class="page-content">
     <!-- 按日期分组：记录只有时间一个维度，就用时间给列表做出节奏。
          今天 / 昨天 / 更早 —— 不给标签就不加（没有内容的分组标题是噪音）。 -->
     <template v-if="items.length === 0">
@@ -19,13 +19,15 @@
             v-for="(item, index) in group.items"
             :key="item.id"
             :item="item"
+            :entering="entering.has(item.id)"
             :favorited="isFavorite(item.id)"
             :menu-open="openMenuId === item.id"
-            :style="{ animationDelay: (group.offset + index) * 70 + 'ms' }"
+            :style="entering.has(item.id) ? { animationDelay: (group.offset + index) * 70 + 'ms' } : null"
             @open="$emit('open-item', item)"
             @delete="(id) => $emit('delete-item', id)"
             @toggle-menu="toggleMenu(item.id)"
             @toggle-favorite="(id) => toggleFavorite(id)"
+            @entered="markEntered"
           />
         </div>
       </div>
@@ -34,15 +36,64 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import WikiCard from './WikiCard.vue'
 import { isFavorite, toggleFavorite } from '../../composables/useFavorites'
+import { useCardFade } from '../../composables/useCardFade'
 
 const props = defineProps({
   items:     { type: Array,  default: () => [] },
   emptyHint: { type: String, default: '' }     // 列表为空时给一句话；空串 = 什么都不显示
 })
 defineEmits(['open-item', 'delete-item'])
+
+/**
+ * 入场动画「只播一次」（2026-11-23）
+ *
+ * 病根：cardFadeIn 原来是挂在 `.data-card` 上的常驻 animation —— 只要卡片被重新挂载，
+ * 它就从头播一遍；而动画播放期间 CSS 动画优先级**高于**逐卡淡出写的内联 opacity，
+ * 于是"已经淡到透明的卡会先亮一次、等动画结束再淡回去"（切王冠返回时必现）。
+ *
+ * 解法：动画改成一类开关（`.is-entering`，见 WikiCard），这里按 **id** 记住谁入过场：
+ *   · 只有第一次出现的 id 才拿到 .is-entering 与那 70ms 的错峰延迟；
+ *   · 动画播完（WikiCard 的 animationend）立刻摘掉标记 —— 之后透明度只归逐卡淡出管，
+ *     两者再也不会打架。
+ *
+ * 为什么这套记忆放在**模块级**而不是组件内：组件一旦被重建（历史上详情页 v-if、切页 key
+ * 都干过这事），组件内状态会归零 → 又集体重播。放模块级 = 与 DOM 生命周期解耦，
+ * 这才是"制度性兜底"，不靠"记得别重建"的纪律。
+ */
+const enteredOnce = new Set()
+
+/** 本次需要播入场的 id 集合（新出现的卡）；播完即被摘掉 */
+const entering = ref(new Set())
+
+/** items 变了：新 id 进待播集合，老 id 不打扰 */
+function syncEntering() {
+  const next = new Set()
+  props.items.forEach((it) => {
+    if (enteredOnce.has(it.id)) return
+    enteredOnce.add(it.id)
+    next.add(it.id)
+  })
+  entering.value = next
+}
+watch(() => props.items, syncEntering, { immediate: true })
+
+/** 某张卡的入场动画播完了 → 摘掉待播标记（此后它只受逐卡淡出控制） */
+function markEntered(id) {
+  if (!entering.value.has(id)) return
+  const next = new Set(entering.value)
+  next.delete(id)
+  entering.value = next
+}
+
+/**
+ * 底部逐卡淡出（2026-11-22）：卡片滚到浮岛那一段时**整张**变淡，
+ * 不再是"一条蒙版把整个底部削掉"。几何与判据全在 composable 里。
+ */
+const listRoot = ref(null)
+useCardFade(listRoot, () => props.items)
 
 /**
  * 当前展开菜单的卡片 id —— **只允许一个**。
@@ -102,7 +153,7 @@ const groups = computed(() => {
 </script>
 
 <style scoped>
-.page-content { padding: 0 20px 20px 20px; animation: fadeInContent 0.3s ease-out; }
+.page-content { padding: 0 20px calc(var(--nav-zone) + 8px) 20px; animation: fadeInContent 0.3s ease-out; }
 
 /* 筛选 chip：与「我的」浮层里的入口同一套三色点 */
 .filter-chip {

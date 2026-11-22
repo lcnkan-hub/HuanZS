@@ -5,17 +5,19 @@
   支持键盘发送、自动滚动、清空对话
 -->
 <template>
-  <div class="chat-container" :class="{ night: timeMode === 'night' }">
+  <div
+    class="chat-container"
+    :class="{ night: timeMode === 'night', 'kb-open': kbOpen }"
+    :style="{ '--kb-inset': kbInset + 'px', '--kb-shift': kbShift + 'px' }"
+  >
     <!-- 夜晚背景板（时间与入场动画「灯醒」同源；白天不显示） -->
     <CrownBackdrop :mode="timeMode" />
 
     <!-- 入场动画「灯醒」（冷启动第一次进王冠播一次） -->
     <CrownEntrance v-if="showEntrance" :quick="introQuick" :mode="introMode" @done="handleEntranceDone" />
 
-    <!-- 返回按钮（左上角）：王冠是全屏界面且隐藏底栏，需要一个显式出口 -->
-    <button class="back-btn" aria-label="返回" @click="$emit('back')">
-      <AppIcon name="back" :size="20" />
-    </button>
+    <!-- 2026-11-23：左上角「返回」已删。底栏在王冠页常驻之后，"记录"那颗就是回去的路，
+         再放一个返回键等于两套返回语义并存 —— 用户会想"这两个不一样吗"。 -->
 
     <!-- 记忆入口胶囊（顶部悬浮，克制：静态数字） -->
     <button
@@ -68,42 +70,54 @@
       </div>
     </div>
 
-    <!-- 未配置密钥提示条（BYOK）：王冠没有钥匙时给唯一入口，别让用户对着不会回话的输入框发呆 -->
-    <div v-if="!aiConfigured" class="setup-bar">
-      <span class="setup-text">王冠还没拿到钥匙 —— 先配置 AI 密钥</span>
-      <button class="setup-btn" @click="showAiSettings = true">去配置</button>
-    </div>
-
-    <!-- 错误提示 -->
+    <!-- 错误提示（临时）：保持全宽横条 —— 它是"刚才那次请求失败了"，用浮件会削弱警示 -->
     <div v-if="error" class="error-hint">{{ error }}</div>
 
-    <!-- 底部输入栏 -->
-    <div class="input-bar">
-      <div class="input-wrapper">
-        <input
-          ref="inputRef"
-          type="text"
-          v-model="inputText"
-          placeholder="和 王冠 说点什么..."
-          class="chat-input"
-          @keydown.enter.prevent="handleSend"
-        />
+    <!-- 底部浮件组（2026-11-23）：未配置提示 + 输入栏放进同一个容器。
+         "跟随键盘"靠**结构**而不是两份 transform —— 组的 margin/transform 只写一处，
+         两个成员之间的间距由 gap 管；以后再加第三个底部浮件也自动跟随。 -->
+    <div class="bottom-dock">
+      <!-- 未配置密钥提示（BYOK）：王冠没有钥匙时的唯一入口。整颗可点 → 打开 AI 设置。
+          比导航浮岛还窄（自适内容宽），刻意做得比输入栏"薄"一档材质：输入是主动作，它是次要。 -->
+      <button
+        v-if="!aiConfigured"
+        class="setup-pill"
+        type="button"
+        aria-label="配置 AI 密钥"
+        @click="showAiSettings = true"
+      >
+        <AppIcon name="key" :size="12" />
+        <span>配置密钥</span>
+      </button>
+
+      <!-- 底部输入栏（玻璃浮岛） -->
+      <div class="input-bar">
+        <div class="input-wrapper">
+          <input
+            ref="inputRef"
+            type="text"
+            v-model="inputText"
+            placeholder="和 王冠 说点什么..."
+            class="chat-input"
+            @keydown.enter.prevent="handleSend"
+          />
+          <button
+            class="send-btn"
+            :class="{ active: inputText.trim() && !isThinking }"
+            :disabled="!inputText.trim() || isThinking"
+            @click="handleSend"
+          >
+            <AppIcon name="forward" :size="18" />
+          </button>
+        </div>
         <button
-          class="send-btn"
-          :class="{ active: inputText.trim() && !isThinking }"
-          :disabled="!inputText.trim() || isThinking"
-          @click="handleSend"
+          class="clear-btn"
+          title="清空对话"
+          @click="handleClear"
         >
-          <AppIcon name="forward" :size="18" />
+          <AppIcon name="trash" :size="16" />
         </button>
       </div>
-      <button
-        class="clear-btn"
-        title="清空对话"
-        @click="handleClear"
-      >
-        <AppIcon name="trash" :size="16" />
-      </button>
     </div>
     <!-- 记忆面板（底部滑出） -->
     <MemorySheet :open="showMemory" :memories="memoryList" @close="showMemory = false" />
@@ -127,9 +141,10 @@ import { useAIConfig } from '../../composables/useApiKey'
 import { buildWikiContext } from '../../composables/useWikiContext'
 import { writeWikiItems } from '../../composables/useWikiWriter'
 import AiSettingsModal from '../user/AiSettingsModal.vue'
+import { useKeyboard } from '../../composables/useKeyboard'
 
-// 事件：back —— 左上角返回按钮触发，具体回到哪个 Tab 由 App.vue 决定
-defineEmits(['back'])
+// 键盘几何：kbOpen（底栏下沉 / 让位收回）、kbInset（列表底部留白）、kbShift（输入栏上浮量）
+const { kbInset, kbShift, kbOpen } = useKeyboard()
 
 // 入场动画：内存态标志——冷启动后第一次进王冠播一次，热切换不播，杀 app 内存清空才重置
 let entrancePlayed = false
@@ -180,6 +195,9 @@ watch(messages, scrollToBottom, { deep: true })
 watch(isThinking, () => {
   if (isThinking.value) scrollToBottom()
 })
+// 键盘一升一降都会改变"可见的消息区有多高"，跟着滚一次底，
+// 免得键盘顶上来以后最后一条消息刚好被输入栏/键盘盖住（2026-11-23）。
+watch(kbInset, () => { scrollToBottom() })
 // 刷新页面 / 切换回王冠 Tab 时，定位到最新对话（修复：刷新后停在顶部）
 onMounted(() => {
   scrollToBottom()
@@ -301,44 +319,9 @@ function formatTime(timeStr) {
   --crown-glass-bg: var(--crown-night-glass);
 }
 
-/* ===== 返回按钮（左上角，与记忆胶囊同材质：磨砂白 + 轻描边 + 卡片阴影） ===== */
-.back-btn {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  z-index: 5;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--color-border-light);
-  border-radius: 50%;
-  background: var(--crown-glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  box-shadow: var(--shadow-card);
-  transition: transform 0.15s ease-out, opacity 0.2s ease;
-}
-.back-btn:active {
-  transform: scale(0.95);
-}
-/* 触控目标扩展 ≥44px。
-   注意 inset 是相对**父级的 padding box** 算的，不含 border —— 这颗钮有 1px 描边，
-   所以 -5px 实际只越过可视外沿 4px，34 的圆扩出来是 42，差的正是那一条边框。
-   要凑够 44（34+5+5）这里得写 -6px。真浏览器探点验过：34+5+5=44。 */
-.back-btn::after {
-  content: '';
-  position: absolute;
-  inset: -6px;
-}
-/* 左向箭头光学纠偏：几何居中会显得偏左，右移 1px 视觉才正 */
-.back-btn :deep(.app-icon) {
-  transform: translateX(1px);
-}
+/* ===== 返回按钮已删（2026-11-23）=====
+   王冠页的底栏改成常驻后，"记录"那颗就是回去的路；这里再挂一个返回键
+   等于两套返回语义并存。整块样式随之删除，别再把它加回来。 */
 
 /* ===== 记忆入口胶囊（顶部悬浮，iOS 风格） ===== */
 .memory-entry {
@@ -393,7 +376,9 @@ function formatTime(timeStr) {
   flex-direction: column;
   gap: 12px;
   -webkit-overflow-scrolling: touch;
-  padding: 56px 12px 8px;
+  /* 底部留白跟着键盘走（2026-11-23）：输入浮岛在键盘弹起时会整体上浮 kbInset，
+     它盖住的那一段要在列表里补回来，否则最后一条消息会被压在输入栏下面。 */
+  padding: 56px 12px calc(8px + var(--kb-inset, 0px));
 }
 
 /* ===== 消息行 ===== */
@@ -536,27 +521,67 @@ function formatTime(timeStr) {
 }
 .empty-cta:active { transform: scale(0.96); }
 
-/* ===== 输入栏 ===== */
+/* ===== 底部浮件组（2026-11-23）=====
+   成员：未配置密钥的小胶囊（可选）+ 输入浮岛。
+   "跟随键盘"靠结构而不是两份 transform：
+     · 让位（margin-bottom 的 80px）、键盘上浮（transform）、成员间距（gap）**只在这一层写一次**；
+     · 成员自己不再写 margin/transform —— 否则两处碰巧凑对才对齐，谁改一处就错位。
+   间隙 6px：两颗都是小件，"输入"和"提示"层级不同，8 会显散、6 才读作一组。 */
+.bottom-dock {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 12px calc(var(--nav-zone) + 8px) 12px;
+  /* 键盘开合时"让位/上浮"要有因果，不能瞬移；与导航浮岛下沉同一条曲线 */
+  transition: margin-bottom 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+              transform    0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ===== 输入栏：一颗玻璃浮岛（2026-11-23 改）
+   以前是"输入胶囊 + 确认键 + 清空键"三个物件裸浮在聊天底色上、整体贴着屏幕底。
+   现在底部多了一条常驻的导航浮岛，所以输入栏必须**自己成为一件浮件**：
+   同一族材质（--crown-glass-bg + blur）、999 圆角、内高光 + 描边 + 投影，
+   与浮岛共轴、隔 8px —— 底部于是只剩同族浮件（输入 = 主动作，导航 = 次要），
+   而不是"一条全宽横条 + 一颗药丸"两种语言。
+   位置/位移不在这里：交给外面的 .bottom-dock（见上）。 */
 .input-bar {
   display: flex;
   position: relative;
-  z-index: 1;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  padding-bottom: calc(8px + var(--safe-bottom));
-  /* 2026-11-21：原来这里是一条通栏灰黑玻璃（background + backdrop-filter + 顶边线），
-     横贯全宽像一块面板糊在聊天底下。去掉后这块直接露出王冠自己的底色，
-     只剩输入胶囊 + 确认键 + 清空键三个物件浮着 —— 就是想要的样子。
-     不做渐变遮罩也不会糊字：输入栏在流里，消息列表到它上沿就截止。 */
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--crown-glass-bg);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0 0 0.5px rgba(255, 255, 255, 0.08),
+    0 10px 28px rgba(0, 0, 0, 0.28);
+}
+/* 键盘弹起（2026-11-23 二次修正 · 同日改成写在浮件组上）：
+   ① margin 收回到 8px —— 底部留给导航浮岛的那 80px 已经不需要了（浮岛此时已下沉）；
+   ② transform 上浮 -kbInset —— **这是关键**：iOS/WKWebView 的布局视口不会因为键盘变小，
+      只收 margin 的话浮件会停在"原来的屏幕底"，正好被键盘盖住，用户看不到自己打的字。
+      按键盘盖住的高度整体上浮，才真的落在键盘上沿之上。
+      Android（adjustResize）那边 kbInset 是 0、布局视口自己缩了，所以这一步什么都不做，也对。
+   键盘收起（含系统自动收起）时 kbInset 归 0、kbOpen 转 false →
+   margin 回到 calc(--nav-zone + 8px)、transform 回到 0，整组自动回到浮岛上方，不需要额外代码。
+   ⚠ 规则写在 .bottom-dock 上（不是 .input-bar）：提示胶囊和输入栏要**一起走**，
+     两处各写一份 transform 迟早错位。 */
+.chat-container.kb-open .bottom-dock {
+  margin-bottom: 8px;
+  transform: translateY(var(--kb-shift, 0px));
 }
 .input-wrapper {
   flex: 1;
   display: flex;
   align-items: center;
-  background: var(--color-bg-input);
-  border-radius: 20px;
-  padding: 4px 4px 4px 16px;
+  background: transparent;      /* 浮岛已经是底了，里面不再叠一层浅块 */
+  border-radius: 999px;
+  padding: 2px 2px 2px 14px;
   transition: box-shadow 0.2s;
 }
 .input-wrapper:focus-within {
@@ -611,6 +636,12 @@ function formatTime(timeStr) {
 .send-btn.active:active {
   transform: scale(0.9);
 }
+/* 输入栏自己成了玻璃浮岛之后，发送键原来那层 --color-bg-input（夜里是 .08 白）叠在
+   .10 白的浮岛上几乎看不见 → 夜里单独提一档，让"可点的圆"读得出来。
+   白天不用改：浮岛是 .85 白，原来的 #f0f0f2 仍能区分。 */
+.chat-container.night .send-btn {
+  background: rgba(255, 255, 255, 0.14);
+}
 
 .clear-btn {
   width: 36px; height: 36px;
@@ -657,35 +688,43 @@ function formatTime(timeStr) {
   40% { opacity: 1; transform: translateY(-2px); }
 }
 
-/* ===== 未配置密钥提示条（BYOK）===== */
-.setup-bar {
-  position: relative;
-  z-index: 1;
-  display: flex;
+/* ===== 未配置密钥提示（BYOK）· 小胶囊（2026-11-23 改）
+   原来是"全宽横条 + 独立去配置按钮"，压在输入浮岛上方 —— 底部三层、两种材质，间距读起来不均。
+   现在收成一颗自适内容宽的小胶囊，整颗可点：
+     · 宽度由内容决定（key 图标 + 4 个字 + 内边距），比导航浮岛（112）还窄；
+     · 材质比输入浮岛"薄"一档（--color-bg-input 的 alpha 更低 / 白天是浅灰块，无投影），
+       这样一眼能读出"输入是主动作、它只是提示"；
+     · 居中于浮件组（align-self: center），与输入浮岛、导航浮岛共一条中线。
+   位置/位移不在这里 —— 交给 .bottom-dock，键盘弹起时它跟着整组一起上浮。 */
+.setup-pill {
+  align-self: center;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 12px 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-card);
-  box-shadow: var(--shadow-card);
-}
-.setup-text { font-size: var(--text-12); color: var(--color-text-secondary); line-height: 1.5; }
-.setup-btn {
-  flex-shrink: 0; border: none; border-radius: var(--radius-md);
-  padding: 6px 12px; font-size: var(--text-12); font-weight: 500;
-  background: var(--color-accent); color: var(--color-text-on-accent); cursor: pointer;
+  gap: 5px;
+  height: 32px;
+  padding: 0 13px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-bg-input);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: var(--color-text-secondary);
+  font-size: var(--text-12);
+  font-weight: 500;
+  font-family: var(--font-system);
+  line-height: 1;
+  cursor: pointer;
+  position: relative;            /* ::after 命中区外扩的定位基准 */
+  -webkit-tap-highlight-color: transparent;
   transition: transform 0.15s ease-out;
-  position: relative; /* ::after 命中区外扩的定位基准 */
 }
-.setup-btn:active { transform: scale(0.96); }
-/* 触控目标 44px：文字按钮本身只有约 27 高，命中区上下各补 9 —— 提示条内边距正好 10，不外溢 */
-.setup-btn::after {
+.setup-pill:active { transform: scale(0.96); }
+/* 触控目标 44px：视觉 32 高，上下各补 6 —— 与输入浮岛之间只有 6px gap，
+   外扩会轻微压到浮岛边缘，但热区优先（人点的是胶囊中心，边缘误触概率极低） */
+.setup-pill::after {
   content: '';
   position: absolute;
-  inset: -9px -6px;
+  inset: -6px;
 }
 
 /* ===== 错误提示 ===== */

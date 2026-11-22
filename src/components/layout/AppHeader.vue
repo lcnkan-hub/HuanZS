@@ -35,10 +35,15 @@ defineEmits(['update:modelValue', 'mine'])
 </script>
 
 <style scoped>
+/* 顶部栏：**不垫底、不画线**（2026-11-22 C2 去块化）。
+   以前这里是 `background-color: var(--color-bg-card)` + `1px` 分割线 —— 实心底 + 细线，
+   正是 HIG 点名的两种"隔"：Layout 规则 5 要求「不要在控件下垫一块实心或半透明纯色背景，
+   改用 scroll edge effect 把控件从内容里抬起来」；Materials 的原话是「分割线是切断，材质是透过」。
+   现在整条栏透明：屏幕顶端只剩一颗浮着的玻璃搜索框，"栏"这个块不存在了，
+   于是它跟底部的玻璃浮岛是同一套语言（浮件 + 无线无块），中间留给内容。
+   内容在顶端那 14px 的化开由 App.vue 的 .primary-sheet 蒙版负责，不在这里画。 */
 .header {
   height: var(--header-height);
-  background-color: var(--color-bg-card);
-  border-bottom: 1px solid var(--color-border-light);
   display: flex; align-items: center; gap: 6px; padding: 0 16px;
   /* 切页时由父级加 .is-offstage 让它淡出，**不抽高度** ——
      抽高度等于给 Layout 属性做动画，内容会跟着抖；
@@ -69,9 +74,18 @@ defineEmits(['update:modelValue', 'mine'])
   position: absolute; left: 10px;
   color: var(--color-text-muted); pointer-events: none;
 }
+/* 搜索框：一颗浮在页面上的玻璃胶囊（2026-11-22 C2）。
+   以前是垫在实心白栏里的一块浅灰输入块 —— 栏没了，它就得不靠"栏"独立站住：
+   所以换成与底部浮岛同一套材质令牌（--glass-fill / --glass-blur / --glass-highlight / --glass-edge）。
+   阴影比浮岛短得多：浮岛是"浮起 10px+28px"，一颗 34px 高的输入框用那个动量会像贴了张纸。
+   圆角保持 --radius-lg：输入框是"可输入的字段"，不是导航那样的胶囊，两件事别混。 */
 .search-bar input {
   width: 100%; height: 34px;
-  border: none; background-color: var(--color-bg-input);
+  border: none;
+  background-color: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-highlight), var(--glass-edge), 0 4px 14px rgba(0, 0, 0, 0.05);
   border-radius: var(--radius-lg); padding: 0 12px 0 30px;
   font-size: var(--text-14); color: var(--color-text-primary);
   -webkit-appearance: none; appearance: none;
