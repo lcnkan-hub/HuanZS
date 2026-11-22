@@ -30,7 +30,14 @@
     </button>
 
     <!-- 消息列表 -->
-    <div class="message-list" ref="listRef">
+    <!-- 消息列表。@touchstart/@touchmove 是"滑动即收键盘"的入口（2026-11-23 用户要）：
+         iOS 拖动列表系统会自动收键盘、Android 不会 —— 这里把 iOS 的手感补到 Android 上。 -->
+    <div
+      class="message-list"
+      ref="listRef"
+      @touchstart.passive="onListTouchStart"
+      @touchmove.passive="onListTouchMove"
+    >
       <div
         v-for="msg in messages"
         :key="msg.id"
@@ -187,6 +194,26 @@ async function scrollToBottom() {
   if (listRef.value) {
     listRef.value.scrollTop = listRef.value.scrollHeight
   }
+}
+
+/* —— 滑动即收键盘（2026-11-23 用户拍板要） ——
+   为什么要自己写：iOS/Safari 拖动消息列表时系统本来就会收键盘，Android WebView 不会，
+   结果同一个动作在两种手机上手感不同。
+   为什么用 touch 手势、不用 scroll 事件：发消息后我们自己会调 scrollToBottom()，
+   那同样会触发 scroll —— 用 scroll 会在"刚发完一条消息"时把键盘收掉，恰是用户最不想它收的时刻。
+   触摸手势天然只来自"人在滑"。直接调 blur：没焦点时是空操作，所以不用先判断键盘开没开。 */
+const DISMISS_DY = 12      // 手指位移超过这么多像素才算"在滑"（点按时的抖动通常在 5px 内）
+let touchStartY = 0
+
+function onListTouchStart(e) {
+  touchStartY = e.touches?.[0]?.clientY ?? 0
+}
+
+function onListTouchMove(e) {
+  const y = e.touches?.[0]?.clientY ?? 0
+  if (Math.abs(y - touchStartY) < DISMISS_DY) return
+  touchStartY = y          // 一次手势只收一次：持续 move 不反复 blur
+  inputRef.value?.blur()
 }
 
 // 新消息到达时自动滚动
