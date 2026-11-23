@@ -74,6 +74,7 @@
               @save-body="handleSaveBody"
               @delete="handleDeleteFromDetail"
               @add-pic="handleAddPic"
+              @remove-pic="handleRemovePic"
             />
           </div>
 
@@ -124,6 +125,7 @@ import AuthView     from './components/user/AuthView.vue'
 // 逻辑积木
 import { useUserProfile } from './composables/useUserProfile'
 import { useRecords }     from './composables/useRecords'
+import { deleteImage }    from './composables/useImageStore'
 import { usePageRouter }  from './composables/usePageRouter'
 import { readLastTab, writeLastTab } from './composables/useLastTab'
 import { startProactiveTrigger } from './composables/useProactiveTrigger'
@@ -457,6 +459,34 @@ function handleAddPic(imgId) {
   const updated = recordsApi.updateRecordPics(item.id, next)
   if (updated) openedItem.value = JSON.parse(JSON.stringify(updated))
   pendingNewId.value = null // 有内容了，不再算"待清理的空记录"
+}
+
+/**
+ * 删掉一张图（2026-11-23）。
+ *
+ * 顺序是有讲究的：**先从 pics 里摘掉、落库，再删 IndexedDB 里那份**。
+ * 反过来的话，图已经被删了但记录还指着它 —— 列表封面会先变成一块灰，
+ * 要等下一次任何更新才会补回来。
+ *
+ * `updateRecordPics` 返回更新后的记录，直接拿它换掉 openedItem：
+ * 详情页渲染的是**打开时那个快照**，不换，图上就还是"删不掉"。
+ */
+async function handleRemovePic(index) {
+  const item = openedItem.value
+  if (!item) return
+  const pics = Array.isArray(item.pics) ? [...item.pics] : []
+  const imgId = pics[index]
+  if (!imgId) return
+
+  pics.splice(index, 1)
+  const updated = recordsApi.updateRecordPics(item.id, pics)
+  if (updated) openedItem.value = JSON.parse(JSON.stringify(updated))
+
+  try {
+    await deleteImage(imgId)
+  } catch {
+    // 库里那份可能已经不在了 —— 记录侧的引用已经摘掉，这里失败不算错误
+  }
 }
 
 const handleDelete = (id) => {

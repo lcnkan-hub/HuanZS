@@ -17,30 +17,163 @@
     6~9 张 → 3 列方格；超过 9 张只在第 5 格角上标 +N
 -->
 <template>
-  <div v-if="shown.length" class="photo-grid" :class="'n' + layoutCount">
+  <div v-if="shown.length" ref="rootEl" class="photo-grid" :class="'n' + layoutCount">
     <div
       v-for="(p, i) in shown"
       :key="p.id"
       class="cell"
-      @click="$emit('preview', i)"
+      :class="{ 'is-marked': marked === i }"
+      @click="onCellClick(i)"
+      @pointerdown="onDown($event, i)"
+      @pointermove="onMove"
+      @pointerup="onUp"
+      @pointercancel="onUp"
+      @pointerleave="onUp"
+      @contextmenu.prevent
     >
       <img v-if="p.url" :src="p.url" alt="" draggable="false" />
       <!-- 还没解析出来时的占位：比空白好，至少说明「这里有一张图」 -->
       <div v-else class="cell-void"></div>
       <span v-if="moreCount && i === 4" class="cell-more">+{{ moreCount }}</span>
     </div>
+
+    <!-- 删除按钮跟着被标记的那张图走（绝对定位在网格上，不参与布局） -->
+    <button
+      v-if="marked >= 0 && shown[marked]"
+      class="del-btn"
+      :class="{ 'is-confirm': confirming }"
+      type="button"
+      :style="delBtnStyle"
+      @click.stop="onDeleteClick(marked)"
+    >
+      {{ confirming ? '确认删除' : '删除' }}
+    </button>
+
+    <!-- ⚠ 遮罩必须放在**最后**：它在网格里是 `.photo-grid` 的子元素，
+         放前面会让第一个 `.cell` 变成 `nth-child(2)`，
+         于是 `.n3 .cell:nth-child(1)`（左大跨两行）失配 —— 三张图当场塌成一排。
+         绝对定位的元素不占格，但**仍然算一个子元素**。 -->
+    <div v-if="marked >= 0" class="mark-mask" @click.stop="clearMark"></div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { getImageUrl } from '../../composables/useImageStore'
 
 const props = defineProps({
   /** 图片 id 数组（记录上的 pics 字段） */
   pics: { type: Array, default: () => [] }
 })
-defineEmits(['preview'])
+const emit = defineEmits(['preview', 'delete'])
+
+/**
+ * 长按删图（2026-11-23）
+ *
+ * 交互链：长按一张 → 那张盖「提醒色」（红描边 + 淡红罩）→ 图上浮出「删除」
+ * → 点一次变「确认删除」（3 秒不复位就退回「删除」）→ 再点才真删。
+ *
+ * 为什么要两次：删图不可撤销（IndexedDB 里那份直接删），而长按本身已经是"重手势"，
+ * 一次点击不该成为不可逆操作的最后一环。这里不弹模态确认 —— WebView 把原生 confirm
+ * 拦掉过一次（表现成"点了没反应"），所以用按钮自己变成第二道确认。
+ *
+ * 判据与卡片长按同一套：400ms + 位移超过 10px 取消；长按或滑动都不触发预览。
+ */
+const LONG_PRESS_MS = 400
+const MOVE_TOLERANCE = 10
+const CONFIRM_RESET_MS = 3000
+
+const marked = ref(-1)         // 被标记的图索引，-1 = 没有
+const confirming = ref(false)  // 「删除」是否已经变成「确认删除」
+const rootEl = ref(null)       // 网格根：算删除按钮位置要用它的坐标系
+
+/**
+ * 删除按钮落在被标记那张图的中央。
+ * 按钮不做成 cell 的子元素 —— 那样会改变 `.photo-grid` 的子元素序号，
+ * `.n3 .cell:nth-child(1)` 这类排布规则会当场失配（实测三张图塌成一排）。
+ */
+const delBtnStyle = computed(() => {
+  const i = marked.value
+  const root = rootEl.value
+  if (i < 0 || !root) return {}
+  const cell = root.querySelectorAll('.cell')[i]
+  if (!cell) return {}
+  const cr = root.getBoundingClientRect()
+  const r = cell.getBoundingClientRect()
+  return {
+    left: r.left - cr.left + r.width / 2 + 'px',
+    top: r.top - cr.top + r.height / 2 + 'px'
+  }
+})
+
+let pressTimer = null
+let confirmTimer = null
+let startX = 0
+let startY = 0
+let fired = false
+let moved = false
+
+function clearPress() {
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null }
+}
+
+function onDown(e, i) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return
+  startX = e.clientX
+  startY = e.clientY
+  fired = false
+  moved = false
+  clearPress()
+  pressTimer = setTimeout(() => {
+    pressTimer = null
+    fired = true
+    marked.value = i
+    confirming.value = false
+    if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null }
+  }, LONG_PRESS_MS)
+}
+
+function onMove(e) {
+  if (!pressTimer && moved) return
+  if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE ||
+      Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
+    clearPress()
+    moved = true
+  }
+}
+
+function onUp() {
+  clearPress()
+}
+
+/** 点图：长按/滑动过就不放大；已经标记着就当作「取消」 */
+function onCellClick(i) {
+  if (fired || moved) { fired = false; moved = false; return }
+  if (marked.value >= 0) { clearMark(); return }
+  emit('preview', i)
+}
+
+function onDeleteClick(i) {
+  if (!confirming.value) {
+    confirming.value = true
+    if (confirmTimer) clearTimeout(confirmTimer)
+    confirmTimer = setTimeout(() => { confirming.value = false; confirmTimer = null }, CONFIRM_RESET_MS)
+    return
+  }
+  clearMark()
+  emit('delete', i)
+}
+
+function clearMark() {
+  marked.value = -1
+  confirming.value = false
+  if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null }
+}
+
+onBeforeUnmount(() => {
+  clearPress()
+  if (confirmTimer) clearTimeout(confirmTimer)
+})
 
 const MAX_CELLS = 9
 
@@ -87,6 +220,12 @@ const layoutCount = computed(() => {
   border-radius: 14px;
   overflow: hidden;
   background: var(--color-bg-subtle, #f8f9fa);
+  position: relative;   /* 标记遮罩的定位基准 */
+}
+
+/* 标记状态下的透明遮罩：点它取消标记；层级低于被标记的 cell */
+.mark-mask {
+  position: absolute; inset: 0; z-index: 1;
 }
 
 .cell {
@@ -95,6 +234,8 @@ const layoutCount = computed(() => {
   background: var(--color-border-light, #f2f2f7);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none; user-select: none;
 }
 .cell img {
   width: 100%; height: 100%;
@@ -104,6 +245,44 @@ const layoutCount = computed(() => {
 }
 .cell:active img { opacity: 0.86; }
 .cell-void { width: 100%; height: 100%; background: var(--color-border-light, #f2f2f7); }
+
+/* 长按标记：淡红罩 + 红描边 —— 回答"我要删的是这一张"这个问题。
+   不用缩放/抖动：那是"选中的图在动"，而这里要传达的是"这张被盯上了"。 */
+.cell.is-marked { z-index: 2; }
+.cell.is-marked::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: rgba(255, 59, 48, 0.18);
+  box-shadow: inset 0 0 0 2px rgba(255, 59, 48, 0.92);
+}
+
+/* 删除按钮：浮在被标记那张图的中央（离手指最近，也不用去找）。
+   第一次是「删除」，点完变「确认删除」并加深一档红；3 秒无操作退回「删除」。 */
+.del-btn {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 64px; height: 34px; padding: 0 14px;
+  border: none; border-radius: 17px;
+  background: rgba(255, 59, 48, 0.96);
+  color: #fff;
+  font-size: var(--text-13);
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  -webkit-appearance: none; appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  animation: delPop 0.18s cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
+}
+.del-btn.is-confirm { background: #C4160B; }
+.del-btn:active { transform: translate(-50%, -50%) scale(0.94); }
+@keyframes delPop {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.86); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
 
 /* 超过 9 张：第 5 格右下角标 +N */
 .cell-more {

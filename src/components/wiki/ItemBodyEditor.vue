@@ -23,6 +23,7 @@
       v-if="record.pics && record.pics.length"
       :pics="record.pics"
       @preview="(i) => $emit('preview-pic', i)"
+      @delete="(i) => $emit('delete-pic', i)"
     />
 
     <!-- 阅读态 -->
@@ -64,7 +65,7 @@ const props = defineProps({
   /** 落款文案（年月日 + 周几）。空串 = 不显示；只出现在阅读态末尾右下角 */
   metaText: { type: String, default: '' }
 })
-const emit = defineEmits(['save', 'add-pic', 'preview-pic', 'editing-change'])
+const emit = defineEmits(['save', 'add-pic', 'preview-pic', 'delete-pic', 'editing-change'])
 
 const editing      = ref(!!props.autoEdit)
 const draft        = ref(props.autoEdit ? (props.record.wiki || '') : '')

@@ -66,6 +66,7 @@
         :meta-text="signText"
         @save="(text) => $emit('save-body', text)"
         @add-pic="(id) => $emit('add-pic', id)"
+        @delete-pic="(i) => $emit('remove-pic', i)"
         @preview-pic="openPhoto"
         @editing-change="isEditing = $event"
       />
@@ -113,7 +114,7 @@ import { useKeyboard } from '../../composables/useKeyboard'
 const props = defineProps({
   openedItem: { type: Object, required: true },
 })
-const emit = defineEmits(['close', 'rename', 'save-body', 'delete', 'add-pic'])
+const emit = defineEmits(['close', 'rename', 'save-body', 'delete', 'add-pic', 'remove-pic'])
 
 /**
  * 看图浮层。PhotoGrid 只回传序号（blob URL 是它内部解析的），这里按序号回头取 id 再解析一次
