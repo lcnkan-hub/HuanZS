@@ -119,21 +119,27 @@ onBeforeUnmount(() => {
   transition: opacity 0.18s ease-out;
 }
 
-/* 两颗图标按钮：视觉 38、热区 44。展开时让位（宽 0 + 淡出 + 微缩）。 */
+/* 两颗图标按钮：圆形玻璃底（44×44，视觉即热区）。参考图二那种按键 ——
+   有底、有厚度，不是裸图标；透明感来自 --glass-fill 的 0.72 alpha + 模糊。 */
 .hbtn {
   flex: 0 0 auto;
   width: 44px; height: 44px;
   display: flex; align-items: center; justify-content: center;
-  background-color: transparent;
-  color: var(--color-text-secondary);
-  border: none; border-radius: var(--radius-md);
+  background-color: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-highlight), var(--glass-edge), 0 2px 8px rgba(0, 0, 0, 0.06);
+  color: var(--color-text-primary);
+  border: none; border-radius: 50%;
   cursor: pointer; padding: 0;
-  transition: background-color 0.16s ease, transform 0.16s ease,
+  transition: transform 0.16s ease, background-color 0.16s ease,
               width 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
               opacity 0.18s ease-out;
   -webkit-tap-highlight-color: transparent;
 }
-.hbtn:active { background-color: var(--color-bg-input); transform: scale(0.96); }
+/* 搜索键靠右：搜索位收起时宽 0 不占位，得靠这条把它顶到最右边 */
+.hbtn:last-child { margin-left: auto; }
+.hbtn:active { transform: scale(0.94); }
 .header.is-searching .hbtn {
   width: 0; opacity: 0; pointer-events: none; transform: scale(0.9);
 }

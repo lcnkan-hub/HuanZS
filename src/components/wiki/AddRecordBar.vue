@@ -19,26 +19,25 @@ defineEmits(['add'])
 </script>
 
 <style scoped>
-.add-bar { padding: 14px 20px 0 20px; }
-/* 从「通栏实心蓝块」改成「列表的第一行」：白卡 + 蓝色圆点加号 + 蓝字。
-   原来它和搜索框两块等高蓝色矩形叠在首屏顶部，跟内容抢焦点，整页只有一种音量。
-   现在蓝色收成一个 26px 的圆点，视觉重心交给下面真实的内容。 */
+.add-bar { padding: 6px 20px 0 20px; }
+/* 2026-11-23 去掉白卡：用户看到列表顶上那块白，第一反应是"这里多了块东西"。
+   白卡 + 阴影 + 蓝色圆点是三种强调叠一起，压过了下面真正的记录。
+   现在只剩一行淡蓝的字和一个小加号 —— 入口在，但不抢戏。 */
 .add-btn {
-  width: 100%; min-height: 48px;
-  display: flex; align-items: center; gap: 10px;
-  padding: 0 14px;
-  background-color: var(--color-bg-card);
+  width: 100%; min-height: 40px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 4px;
+  background-color: transparent;
   color: var(--color-accent);
-  border: none; border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-card);
+  border: none; border-radius: var(--radius-md);
   font-size: var(--text-15); font-weight: 500;
   text-align: left; cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  transition: opacity 0.16s ease;
 }
-.add-btn:active { transform: scale(0.985); box-shadow: var(--shadow-card-md); }
+.add-btn:active { opacity: 0.55; }
 .add-plus {
   flex: 0 0 auto;
-  width: 26px; height: 26px;
+  width: 22px; height: 22px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 50%;
   background-color: var(--color-accent);
