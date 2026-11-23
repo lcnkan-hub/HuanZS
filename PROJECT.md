@@ -216,3 +216,27 @@ memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]
   用 scroll 会在"刚发完一条消息"时把键盘收掉 —— 恰是最不想它收的时刻。
   真浏览器验证：40px 位移失焦 ✓ / 6px 抖动保持焦点 ✓ / 无焦点滑动不报错 ✓。
 
+## 2026-11-23 「我的」页重排（v3.3）
+
+**为什么**：原页约 1370px 高、可用区约 620px —— 两屏多，首屏正好切在「导出全量备份」按钮上；
+同一件事在页内出现两次（用户出现两回、同一张头像画两遍、「都在同一个文件里」与备份卡提示重复）；
+红色的「锁定本机」比真正的主按钮更抓眼，而它不删任何数据（语义用错）。
+
+**结构**：名片（整卡可点 → 修改资料）→ 王冠 / 我的收藏 / 数据与备份 三行 → 锁定本机一行（页尾、次要色、无箭头）。
+其余内容进二级页，标题与返回箭头由 `MineSheet` 头部承载（`page` 状态在 MineSheet，它才知道标题写什么）。
+
+**卡片高度**：`height:88%` → `auto` + `max-height:88%`。内容只有 466px 时，固定 88% 会在下方空出四百多像素
+（实测渲染，看着像没加载完）；改后卡高 449px，仍留 12% 记录页当「这是浮层」的参照。
+内容超长由 max-height 夹住、卡片内部滚动（`.mine-card-body` 加 `min-height:0`，否则 flex 子项不缩、滚不动）。
+
+**文案删改**：枢纽 ID、75 字的「本机说明」、备份卡的平台说明（手机 App / 电脑浏览器）、
+「现在手机丢了，东西就真没了」、王冠 100 字说明（压成 3 次 / 6:00–21:30 / 20 小时三个数）。
+
+**文件**：新增 `user/MineRow.vue`（一行的唯一实现）、`user/LockRow.vue`；
+删除 `user/AccountSection.vue`（锁 → LockRow，账号与创建日期 → 名片副行）；
+改 `MineSheet` / `MinePage` / `UserProfileCard` / `CrownSection` / `BackupCenter` / `MyFavoritesEntry`。
+
+**验证**（442×786 真浏览器）：`build` / `check:ui` / `check:tokens` / `lint` 全绿，`test:backup` 89/89；
+卡高 449、`scrollWidth = 442`（无横向溢出）；二级页标题/返回正常，王冠页 285px；
+420 高视口下卡被夹到 370 = 88%，body 可滚动。截图见 `docs/screenshots/06~10`。
+
