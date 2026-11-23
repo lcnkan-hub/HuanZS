@@ -21,23 +21,32 @@
             :item="item"
             :entering="entering.has(item.id)"
             :favorited="isFavorite(item.id)"
-            :menu-open="openMenuId === item.id"
             :style="entering.has(item.id) ? { animationDelay: (group.offset + index) * 70 + 'ms' } : null"
-            @open="$emit('open-item', item)"
-            @delete="(id) => $emit('delete-item', id)"
-            @toggle-menu="toggleMenu(item.id)"
-            @toggle-favorite="(id) => toggleFavorite(id)"
+            @open="(el) => $emit('open-item', item, el)"
+            @long-press="openCardMenu"
             @entered="markEntered"
           />
         </div>
       </div>
     </template>
+
+    <!-- 长按菜单：挂在 body 上（见 CardMenu 文件头，fixed 在列表里会被降级）。 -->
+    <CardMenu
+      v-if="cardMenu"
+      :x="cardMenu.x"
+      :y="cardMenu.y"
+      :favorited="isFavorite(cardMenu.id)"
+      @close="cardMenu = null"
+      @toggle-favorite="toggleFavorite(cardMenu.id)"
+      @delete="$emit('delete-item', cardMenu.id)"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
 import WikiCard from './WikiCard.vue'
+import CardMenu from './CardMenu.vue'
 import { isFavorite, toggleFavorite } from '../../composables/useFavorites'
 import { useCardFade } from '../../composables/useCardFade'
 
@@ -96,15 +105,16 @@ const listRoot = ref(null)
 useCardFade(listRoot, () => props.items)
 
 /**
- * 当前展开菜单的卡片 id —— **只允许一个**。
- * 2026-11-22 从「每张卡自己持 ref」上提到这里：那时候点开几张就几张同时展开，
- * 屏幕上一排删除按钮，而且点第二张时第一张不会收。单一状态源天然互斥。
+ * 长按菜单的状态（2026-11-23）：`{ id, x, y }`，null 表示没有菜单。
+ * 以前这里放的是「当前展开菜单的卡片 id」——「⋯」按钮删掉之后，
+ * 菜单变成「一张卡 + 一个由长按点决定的位置」，所以位置也得一起记。
+ * 单一状态源：同一时刻只可能有一个菜单。
  */
-const openMenuId = ref(null)
+const cardMenu = ref(null)
 
-/** 点「⋯」：同一张开着的就收起，换一张就换过去的（原来那张自动收） */
-function toggleMenu(id) {
-  openMenuId.value = openMenuId.value === id ? null : id
+/** 卡片长按：记下是哪一条 + 点在哪儿（菜单以这个点为锚定位） */
+function openCardMenu({ id, x, y }) {
+  cardMenu.value = { id, x, y }
 }
 
 /** 两位补零 */
@@ -153,7 +163,9 @@ const groups = computed(() => {
 </script>
 
 <style scoped>
-.page-content { padding: 0 20px calc(var(--nav-zone) + 8px) 20px; animation: fadeInContent 0.3s ease-out; }
+/* 左右 12 + 卡片内 10 = 距屏幕 22 —— 与详情正文同一左基线（展开时文字宽度不变）。
+   底部给浮岛让位：最后一条不被它压住。 */
+.page-content { padding: 0 12px calc(var(--nav-zone) + 8px) 12px; animation: fadeInContent 0.3s ease-out; }
 
 /* 筛选 chip：与「我的」浮层里的入口同一套三色点 */
 .filter-chip {

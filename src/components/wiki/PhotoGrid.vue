@@ -118,9 +118,10 @@ const layoutCount = computed(() => {
   line-height: 1.5;
 }
 
-/* 1 张：整宽 4:3 —— 单张图值得大一点，这是整条记录唯一的视觉锚点 */
+/* 1 张：整宽 **16:9** —— 必须与列表卡片的封面同一比例、同一宽度（都是正文宽 346），
+   点开时图片才能只做垂直平移、尺寸一点不变。用 4:3 会让展开瞬间图「长大」31%（2026-11-23 修的）。 */
 .n1 { grid-template-columns: 1fr; }
-.n1 .cell { aspect-ratio: 4 / 3; }
+.n1 .cell { aspect-ratio: 16 / 9; }
 
 /* 2 张：左右各半，各自正方形 */
 .n2 { grid-template-columns: 1fr 1fr; }

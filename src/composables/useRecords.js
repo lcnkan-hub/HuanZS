@@ -128,9 +128,69 @@ function migrateDropChildren() {
   return dirty.length
 }
 
+/**
+ * 把「标题」并进正文首行并加粗（2026-11-23 取消标题系统，纯函数）。
+ *
+ * 为什么不是直接渲染 name：改完之后标题要**可编辑**，而编辑态的载体是正文 textarea。
+ * 只有把标题写进 wiki，用户才能改它；留在 name 字段里就永远改不了了。
+ *
+ * 幂等：正文已经以 `**标题**` 开头时原样返回，重复调用不会叠出两个标题。
+ */
+export function foldTitleIntoBody(wiki, name) {
+  const title = String(name || '').trim()
+  if (!title) return String(wiki || '')
+  const body = String(wiki || '')
+  const head = `**${title}**`
+  if (body.startsWith(head)) return body
+  return body ? `${head}\n\n${body}` : head
+}
+
+/**
+ * 一次性迁移：把 `name` 折进 `wiki` 首行加粗，并把 name 清空（字段保留，不删）。
+ * 幂等 —— 所有 name 都空时直接返回 0，不会每次启动都写盘。
+ *
+ * ⚠️ 破坏面（已按 RULES 第 9 条留退路）：
+ *   1. 折叠前的整份记录数组会先存一份快照到 `<recordsKey>__pre_fold_title`（只存一次，不覆盖）；
+ *   2. `name` 字段保留但清空 —— 旧备份导入回来时渲染层仍认 name（见 utils/cardText），
+ *      所以在别的设备上打开不会突然少一行标题。
+ *   3. 迁移后标题与正文之间从「两个不同字段」变成「同一段文字的首行」，位置信息不可逆。
+ *
+ * @returns {number} 实际折叠了几条（0 = 本来就不用折）
+ */
+function migrateTitleIntoBody() {
+  const list = records.value
+  if (!Array.isArray(list) || list.length === 0) return 0
+  const dirty = list.filter(i => i && typeof i === 'object' && String(i.name || '').trim())
+  if (dirty.length === 0) return 0
+
+  // 退路：整份数据先快照一次。失败也不拦迁移（localStorage 满的时候宁可迁完再说），但要留痕。
+  const snapKey = scopeKey(STORAGE_KEYS.RECORDS) + '__pre_fold_title'
+  try {
+    if (localStorage.getItem(snapKey) === null) {
+      localStorage.setItem(snapKey, JSON.stringify(list))
+      console.info(`[记录迁移] 折标题前的快照已存到 ${snapKey}（${list.length} 条）`)
+    }
+  } catch (e) {
+    console.warn('[记录迁移] 快照没存上（可能存储满了），仍继续折叠：' + (e && e.message))
+  }
+
+  let touched = 0
+  records.value = list.map(item => {
+    if (!item || typeof item !== 'object') return item
+    const title = String(item.name || '').trim()
+    if (!title) return item
+    touched++
+    return { ...item, wiki: foldTitleIntoBody(item.wiki, title), name: '' }
+  })
+  console.info(`[记录迁移] 取消标题字段：${touched} 条记录的标题折进正文首行（**加粗**），name 已清空（字段保留）`)
+  return touched
+}
+
 migrateDropChildren()
-// 顺序有意：先剥 children（旧字段），再抽图片（新字段）。两步都幂等，重启多次也只动一次盘。
+// 顺序有意：先剥 children（旧字段），再抽图片（新字段），最后折标题（标题进正文）。
+// 三步都幂等，重启多次也只动一次盘。
 migratePicsOutOfWiki()
+migrateTitleIntoBody()
 
 /** 记录数组的合法形状：必须是数组；单项只要是对象就算（老数据可能缺字段） */
 function isRecordArray(v) {

@@ -54,26 +54,11 @@
     <!-- 点空白关菜单：透明遮罩，盖住内容但不挡住菜单自己 -->
     <div v-if="menuOpen" class="menu-mask" @click="menuOpen = false"></div>
 
-    <div class="detail-body" :class="{ 'has-hint': voiceHint }">
-      <!-- 标题：26px，点一下就地改。**空标题就真空着**（不显示"未命名"），
-           只保留一块高度供点击 —— 用户要的是"什么都没写就什么都不显示" -->
-      <input
-        v-if="titleEditing"
-        ref="titleInputRef"
-        v-model="draftName"
-        class="detail-title-input"
-        placeholder=""
-        @keyup.enter="commitTitle"
-        @blur="commitTitle"
-      />
-      <h1 v-else class="detail-title" @click="startTitleEdit">{{ openedItem.name }}</h1>
-
-      <!-- 一道杠：原来日期行站的位置，现在只用来分开标题和正文。
-           日期搬到正文末尾右下角（阅读态才显示） -->
-      <div class="title-rule"></div>
-
-      <!-- 正文：点一下进编辑，边打边存；空记录进来直接就是编辑态（光标在闪）
-           图片附件化后，图由 ItemBodyEditor 里的 PhotoGrid 渲染在正文上方 -->
+    <div class="detail-body">
+      <!-- 正文：点一下进编辑，边打边存；空记录进来直接就是编辑态（光标在闪）。
+           2026-11-23 起**没有独立标题**了 ——「标题」就是正文首行的加粗字（`**…**`），
+           由 markdownParser 渲染成 <strong>，位置在图片下方（图由 PhotoGrid 渲染在正文上方）。
+           这样卡片上的那一行粗字和这里的粗字是同一段文字，展开时只平移不重排。 -->
       <ItemBodyEditor
         ref="bodyRef"
         :record="openedItem"
@@ -84,18 +69,20 @@
         @preview-pic="openPhoto"
       />
 
-      <!-- 语音/分享的一行小提示（2.6 秒自己消失） -->
-      <p v-if="voiceHint" class="voice-hint">语音输入还没做，先用键盘吧</p>
+      <!-- 分享的一行小提示（2.6 秒自己消失） -->
       <p v-if="shareHint" class="voice-hint">{{ shareHint }}</p>
     </div>
 
-    <!-- 底部工具栏：功能层，浮在内容之上（Materials 规则 1） -->
+    <!-- 底部工具栏：功能层，浮在内容之上（Materials 规则 1）。
+         2026-11-23：语音键删掉（用户要求「删除语音功能」），换成加粗键。
+         加粗的按下态是**一层径向渐变的软斑**而不是色块：色块四边是硬边，
+         按下去像贴了一张纸；渐变四边渐隐，看起来才是「手指压在这一块上」。 -->
     <div class="detail-toolbar">
       <button class="tool" type="button" aria-label="插入图片" @click="onImage">
         <AppIcon name="image" :size="20" />
       </button>
-      <button class="tool" type="button" aria-label="语音输入" @click="onVoice">
-        <AppIcon name="mic" :size="20" />
+      <button class="tool tool-bold" type="button" aria-label="加粗" @click="onBold">
+        <span class="bold-glyph" aria-hidden="true">B</span>
       </button>
       <span class="tool-spacer"></span>
       <button class="done-btn" type="button" aria-label="完成" @click="handleClose">
@@ -112,7 +99,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import ItemBodyEditor from './ItemBodyEditor.vue'
 import { isFavorite, toggleFavorite } from '../../composables/useFavorites'
@@ -139,13 +126,9 @@ async function openPhoto(index) {
   }
 }
 
-const bodyRef      = ref(null)
-const titleEditing = ref(false)
-const draftName    = ref('')
-const titleInputRef = ref(null)
-const voiceHint    = ref(false)
-const menuOpen     = ref(false)
-const shareHint    = ref('')
+const bodyRef   = ref(null)
+const menuOpen  = ref(false)
+const shareHint = ref('')
 
 /** 收藏状态：useFavorites 是模块级单例，详情页点完，返回列表卡片立刻跟着变 */
 const favorited = computed(() => isFavorite(props.openedItem.id))
@@ -169,35 +152,14 @@ const signText = computed(() => {
   return `${m[1]}年${Number(m[2])}月${Number(m[3])}日 ${week}`
 })
 
-function startTitleEdit() {
-  draftName.value = props.openedItem.name || ''
-  titleEditing.value = true
-  nextTick(() => titleInputRef.value && titleInputRef.value.focus())
-}
-
-function commitTitle() {
-  if (!titleEditing.value) return
-  titleEditing.value = false
-  const name = (draftName.value || '').trim()
-  const prev = (props.openedItem.name || '').trim()
-  /**
-   * 允许提交空串：把标题删干净就该真的删掉。
-   * 2026-11-22 修的 bug —— 原来这里是 `if (name && name !== prev)`，
-   * 空值被这一条挡掉不提交，于是退出编辑态时 h1 又把**数据里的旧标题**渲染回来，
-   * 用户看到的就是"按删除键把标题删没了，一松手它又出现"。
-   */
-  if (name !== prev) emit('rename', name)
+/** 加粗：交给正文编辑器（它插一对 `**…**`，光标落在中间） */
+function onBold() {
+  bodyRef.value?.insertBold()
 }
 
 /** 插入图片：交给正文编辑器（它会先切进编辑态再弹选图） */
 function onImage() {
   bodyRef.value?.insertImage()
-}
-
-/** 语音：还没有这个能力，给一句真话，不做个点了没反应的按钮 */
-function onVoice() {
-  voiceHint.value = true
-  setTimeout(() => { voiceHint.value = false }, 2600)
 }
 
 /** 收藏 / 取消收藏：点完收菜单 */
@@ -262,7 +224,8 @@ function handleClose() {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   background-color: var(--color-bg-card); z-index: 100;
   display: flex; flex-direction: column;
-  animation: slideInPage 0.28s var(--ease-slide);
+  /* 2026-11-23：不再自带滑入动画 —— 进场由 useCardZoom 负责（卡片长成整屏）。
+     这里再补一层 translateX(100%) 会变成「白块在飞 + 页面在滑」两个动作叠一起。 */
 }
 
 /* 顶栏：无分割线、无底条 —— 靠留白跟内容分开（Materials：不给控件垫纯色） */
@@ -323,47 +286,12 @@ function handleClose() {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 8px 22px 0;
+  /* 左右 22 = 列表的 12 + 卡片内的 10 —— 卡片文字和这里正文同一条左基线。
+     这个相等是「展开时文字不重排」的唯一依据（见 WikiCard 文件头第 3 条）。 */
+  padding: 10px 22px 0;
   display: flex; flex-direction: column;
   /* 底部给浮起的工具栏留出位置，最后一行不被它压住 */
   padding-bottom: calc(96px + var(--safe-bottom));
-}
-
-/* 标题：整页唯一的大字。26px / 1.24 / -0.022em —— 字越大字距要越紧，否则看着松。
-   空标题时高度仍在（1.24em），这样那块空白还能点进去改名。 */
-.detail-title {
-  margin: 0;
-  min-height: 1.24em;
-  font-size: var(--text-26);
-  line-height: 1.24;
-  font-weight: 650;
-  letter-spacing: -0.022em;
-  color: var(--color-text-primary);
-  cursor: text;
-  word-break: break-word;
-}
-.detail-title-input {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  min-height: 1.24em;
-  background: none;
-  border: none;
-  outline: none;
-  font-family: inherit;
-  font-size: var(--text-26);
-  line-height: 1.24;
-  font-weight: 650;
-  letter-spacing: -0.022em;
-  color: var(--color-text-primary);
-}
-
-/* 一道杠：原来日期行站的位置，现在只分隔标题与正文。
-   比 1px 实线稍短一点（右边留 8px 不出头），看起来是"划了一道"，不是表格边框。 */
-.title-rule {
-  height: 1px;
-  margin: 14px 8px 14px 0;
-  background: var(--color-border-input);
 }
 
 /* 看图：黑底铺满 + contain。z-index 高于详情页本身（100），低于看图时的系统手势层 */
@@ -416,6 +344,43 @@ function handleClose() {
   -webkit-tap-highlight-color: transparent;
 }
 .tool:active { opacity: 0.55; }
+
+/* 加粗键（2026-11-23）：按下时**不出现任何框**，而是一层四边渐隐的灰。
+   为什么不用纯色块：色块四边是硬边（圆角也还是硬边），按下去像贴了一张纸；
+   径向渐变从 8.5% 灰一路化到 0，边缘没有"边界"，读起来才是「手指压在这一块上」。
+   outline / 系统高亮 / tap-highlight 全部关掉 —— 手机上那圈灰是浏览器画的，不是设计。 */
+.tool-bold {
+  position: relative;
+  -webkit-appearance: none; appearance: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.tool-bold::before {
+  content: '';
+  position: absolute; inset: 2px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%,
+    rgba(0, 0, 0, 0.085) 0%,
+    rgba(0, 0, 0, 0.05) 45%,
+    rgba(0, 0, 0, 0) 72%);
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+  pointer-events: none;
+}
+.tool-bold:active::before { opacity: 1; }
+/* 按下时不再叠一层整体变淡（那是 .tool:active 的通用态，加粗键有自己的反馈） */
+.tool-bold:active { opacity: 1; }
+/* 键盘导航的焦点画在圆内部，不向外描 —— 外圈在手机上就是用户说的那个框 */
+.tool-bold:focus { outline: none; }
+.tool-bold:focus-visible { box-shadow: inset 0 0 0 2px var(--color-accent); }
+.bold-glyph {
+  position: relative;
+  font-size: var(--text-18);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+
 .tool-spacer { flex: 1; }
 
 /* 完成：整页唯一的实心色块 —— 高频动作里最该被一下点到的那个 */
@@ -430,6 +395,4 @@ function handleClose() {
   -webkit-tap-highlight-color: transparent;
 }
 .done-btn:active { transform: scale(0.94); }
-
-@keyframes slideInPage { from { transform: translateX(100%); } to { transform: translateX(0); } }
 </style>

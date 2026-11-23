@@ -57,7 +57,7 @@
               <WikiList
                 :items="filteredItems"
                 :emptyHint="emptyHint"
-                @open-item="(item) => openDetail(item)"
+                @open-item="handleOpenItem"
                 @delete-item="(id) => handleDelete(id)"
               />
             </div>
@@ -107,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 
 // 组件积木
 import SplashScreen from './components/common/SplashScreen.vue'
@@ -130,6 +130,8 @@ import { startProactiveTrigger } from './composables/useProactiveTrigger'
 import { useAIConfig } from './composables/useApiKey'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
 import { useKeyboard } from './composables/useKeyboard'
+import { useCardZoom } from './composables/useCardZoom'
+import { readCardRects, readDetailRects, cardTextHtml } from './utils/cardZoomRects'
 import { useStorageHealth, formatMB } from './utils/storageHealth'
 
 // ========== 登录闸门 ==========
@@ -173,6 +175,41 @@ const pendingNewId = ref(null)
 
 // 页面路由（详情打开/关闭 + 动画状态机）
 const { openedItem, pageClass, openDetail, closeDetail } = usePageRouter(currentTab)
+
+// 卡片 → 详情 的共享元素转场（2026-11-23）
+const zoom = useCardZoom()
+
+/**
+ * 点卡片打开详情。
+ *
+ * 顺序不能反：**先记下卡片的矩形**（打开后列表会淡出、布局也会变），再 openDetail，
+ * 等两帧让详情挂载、让 header 卸载带来的高度变化稳定下来，最后才量目标矩形。
+ * 拿早了的矩形会让白块飞到半路「二次长大」（实测踩过：early 量到 y=316 的目标）。
+ */
+async function handleOpenItem(item, cardEl) {
+  const src = readCardRects(cardEl)
+  const textHtml = cardTextHtml(cardEl)
+  const photoUrl = cardEl?.querySelector('.card-cover img')?.src || ''
+
+  openDetail(item)
+  await nextTick()
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+  const dst = readDetailRects(document.querySelector('.detail-sheet'))
+  // 量不到（卡片没图 / 目标还没渲染完）→ 不做动画，详情页自己在那儿，不跳也不丢内容
+  if (!src || !dst) return
+
+  await zoom.open({
+    src,
+    dst,
+    photoUrl,
+    textHtml,
+    textTo: dst.textTo,
+    inner: dst.inner,
+    header: dst.header,
+    bar: dst.bar
+  })
+}
 
 // ========== 计算属性 ==========
 // 昵称统一走这里取值：档案还没建好时给空串，避免模板里直接 .name 崩掉
@@ -266,15 +303,61 @@ function handleCreateRecord() {
   openDetail(item)
 }
 
-/** 返回列表：任何记录（不只新建立的）只要标题、正文、图片全空，就在返回时回收 */
+/** 返回列表：先把详情缩回那张卡，再关；空记录在关完之后回收 */
 async function closeDetailAndCleanup() {
   // 2026-11-22 用户明确要求「任何记录，只要标题正文都空了，返回就删」——
   // 原来只清 pendingNewId（刚点「记录」新建的那条），老记录被清空后会留一张「未命名」空卡。
   // dropIfEmpty 现在把 pics 也算内容：只有图没有字的记录不算空，不会被误删。
   const id = (openedItem.value && openedItem.value.id) || pendingNewId.value
   pendingNewId.value = null
+  await closeWithZoom()
   closeDetail()
   if (id) await recordsApi.dropIfEmpty(id)
+}
+
+/**
+ * 收起动画（2026-11-23）。
+ *
+ * 两个细节：
+ * 1. **卡片和详情都要重新量**：列表可能滚过、详情可能滚过，用打开时的旧矩形会缩到错的落点。
+ * 2. **列表要先显形**：详情打开期间列表是 `sheet-leave`（opacity 0），不先恢复的话，
+ *    东西会「飞回一片空白」。这里临时压掉它的 transition 直接显形，收完再交还给它自己。
+ */
+async function closeWithZoom() {
+  const sheetEl = document.querySelector('.detail-sheet')
+  const id = openedItem.value && openedItem.value.id
+  if (!sheetEl || !id) return false
+
+  const cardEl = [...document.querySelectorAll('.data-card')].find((el) => el.dataset.id === id)
+  const src = readCardRects(cardEl)
+  const dst = readDetailRects(sheetEl)
+  if (!src || !dst) return false     // 卡片已滚出视口 / 已删除 → 没有落点，直接关
+
+  const primary = document.querySelector('.primary-sheet')
+  if (primary) {
+    primary.style.transition = 'none'
+    primary.style.opacity = '1'
+    primary.style.transform = 'none'
+  }
+  try {
+    await zoom.close({
+      src,
+      dst,
+      photoUrl: cardEl?.querySelector('.card-cover img')?.src || '',
+      textHtml: cardTextHtml(cardEl),
+      textTo: dst.textTo,
+      inner: dst.inner,
+      header: dst.header,
+      bar: dst.bar
+    })
+  } finally {
+    if (primary) {
+      primary.style.removeProperty('transition')
+      primary.style.removeProperty('opacity')
+      primary.style.removeProperty('transform')
+    }
+  }
+  return true
 }
 
 /** 详情页改名 */
@@ -427,19 +510,21 @@ const handleProfileUpdate = (updatedData) => {
   opacity: 0;
 }
 
-/* ---- 详情面板：默认右移隐藏，进入时左滑入，离开时右滑出 ---- */
+/* ---- 详情面板：**不再自己滑入**（2026-11-23）
+   进场动效交给 useCardZoom（卡片自己长成整屏），这里只负责「在不在」。
+   留着 translateX 会跟转场打架：两段位移叠起来像从右上角斜着飞进来。
+   量不到矩形时（卡片已滚出视口 / 目标还没渲染）退化成直接出现 —— 没有动画，但不跳。 */
 .detail-sheet {
-  transform: translateX(100%);
+  transform: none;
   opacity: 1;
   z-index: 1;
+  /* ⚠ 关键：它不再靠 translateX 藏在屏幕外，而是**一直铺在列表上方**。
+     没有这个 pointer-events:none，没打开详情时它会吃掉列表的所有点击
+     （实测：elementFromPoint 命中的是 detail-sheet，卡片点不动、长按也弹不出来）。
+     打开时由 sheet-active 交还点击。 */
+  pointer-events: none;
 }
-.detail-sheet.sheet-active {
-  transform: translateX(0);
-}
-.detail-sheet.sheet-leave {
-  transform: translateX(30px);
-  opacity: 0;
-}
+.detail-sheet.sheet-active { pointer-events: auto; }
 
 /* ===== 主面板内容切换动画（tab 切换时重建，触发 enter 动画） ===== */
 .sheet-body {

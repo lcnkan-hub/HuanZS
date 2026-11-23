@@ -137,6 +137,39 @@ function flush() {
   if (editing.value && draft.value !== (props.record.wiki || '')) emit('save', draft.value)
 }
 
+/**
+ * 加粗（2026-11-23 取消标题系统后的「标题行」工具）。
+ *
+ * 正文是 textarea + markdown，所以加粗 = 插一对 `**…**`：
+ *   · 有选中文字 → 前后各补一个 `**`，光标落在包裹文字之后；
+ *   · 没选中 → 插 `****` 并把光标放进中间，接着打的字就是粗的（这就是用户要的
+ *     「点一下就能输入跟正文一样大、但比较粗的字」）。
+ *
+ * 为什么不做所见即所得：那是换编辑器的活（contenteditable + 富文本模型），
+ * 会连带动摇「正文只存纯文本」这个既有约定；先沿用全文一致的 markdown 口径。
+ */
+function insertBold() {
+  const wrap = () => {
+    const ta = textareaRef.value
+    if (!ta) return
+    const v = ta.value
+    const start = ta.selectionStart ?? v.length
+    const end = ta.selectionEnd ?? v.length
+    const sel = v.slice(start, end)
+    const marks = '**'
+    draft.value = v.slice(0, start) + marks + sel + marks + v.slice(end)
+    const caret = start + marks.length + sel.length + (sel ? marks.length : 0)
+    nextTick(() => ta.setSelectionRange(caret, caret))
+  }
+  if (!editing.value) {
+    startEdit()
+    // startEdit 自己有一层 nextTick（聚焦 + 光标到末尾），排到它之后再动选区
+    setTimeout(wrap, 0)
+    return
+  }
+  wrap()
+}
+
 // ========== 插图（2026-11-22 图片附件化：图存 IndexedDB，id 交给父级写进 record.pics） ==========
 
 /** 由底部工具栏调用：不在编辑态就先切进去再选图 */
@@ -160,7 +193,7 @@ async function handleImageSelected(event) {
   event.target.value = ''
 }
 
-defineExpose({ startEdit, insertImage, flush, isEditing: editing })
+defineExpose({ startEdit, insertImage, insertBold, flush, isEditing: editing })
 </script>
 
 <style scoped>
