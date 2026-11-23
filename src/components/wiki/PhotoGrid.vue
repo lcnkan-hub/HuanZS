@@ -17,7 +17,7 @@
     6~9 张 → 3 列方格；超过 9 张只在第 5 格角上标 +N
 -->
 <template>
-  <div v-if="shown.length" ref="rootEl" class="photo-grid" :class="'n' + layoutCount">
+  <div v-if="shown.length" ref="rootEl" class="photo-grid" :class="['n' + layoutCount, { 'is-marking': marked >= 0 }]">
     <div
       v-for="(p, i) in shown"
       :key="p.id"
@@ -37,16 +37,15 @@
       <span v-if="moreCount && i === 4" class="cell-more">+{{ moreCount }}</span>
     </div>
 
-    <!-- 删除按钮跟着被标记的那张图走（绝对定位在网格上，不参与布局） -->
+    <!-- 删除按钮：落在**长按那一点**（夹在那张图范围内），样式与「我的」长按菜单里的删除一致 -->
     <button
       v-if="marked >= 0 && shown[marked]"
       class="del-btn"
-      :class="{ 'is-confirm': confirming }"
       type="button"
       :style="delBtnStyle"
       @click.stop="onDeleteClick(marked)"
     >
-      {{ confirming ? '确认删除' : '删除' }}
+      删除
     </button>
 
     <!-- ⚠ 遮罩必须放在**最后**：它在网格里是 `.photo-grid` 的子元素，
@@ -58,7 +57,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { getImageUrl } from '../../composables/useImageStore'
 
 const props = defineProps({
@@ -68,29 +67,29 @@ const props = defineProps({
 const emit = defineEmits(['preview', 'delete'])
 
 /**
- * 长按删图（2026-11-23）
+ * 长按删图（2026-11-23，第二版：直接删 + 灰化浮起）
  *
- * 交互链：长按一张 → 那张盖「提醒色」（红描边 + 淡红罩）→ 图上浮出「删除」
- * → 点一次变「确认删除」（3 秒不复位就退回「删除」）→ 再点才真删。
+ * 交互链：长按某张 → 那张变灰并浮起（阴影）→ 删除按钮落在**长按那一点**上
+ * → 点一下直接删（用户 11-23 明确：不要二次确认，接受不可撤销）。
  *
- * 为什么要两次：删图不可撤销（IndexedDB 里那份直接删），而长按本身已经是"重手势"，
- * 一次点击不该成为不可逆操作的最后一环。这里不弹模态确认 —— WebView 把原生 confirm
- * 拦掉过一次（表现成"点了没反应"），所以用按钮自己变成第二道确认。
+ * 三件被否掉的设计，留在这里免得以后又被人加回来：
+ *   · 红色标记（旧版）—— 红色在这套界面里是「危险」，而选中不是危险；改成去色 + 浮起。
+ *   · 「确认删除」二次态 —— 用户要一键删。
+ *   · 原生 confirm —— WebView 会拦掉（本项目踩过两次）。
  *
- * 判据与卡片长按同一套：400ms + 位移超过 10px 取消；长按或滑动都不触发预览。
+ * 判据与卡片长按同一套：400ms + 位移超过 10px 取消；长按/滑动都不触发预览。
  */
 const LONG_PRESS_MS = 400
 const MOVE_TOLERANCE = 10
-const CONFIRM_RESET_MS = 3000
 
-const marked = ref(-1)         // 被标记的图索引，-1 = 没有
-const confirming = ref(false)  // 「删除」是否已经变成「确认删除」
-const rootEl = ref(null)       // 网格根：算删除按钮位置要用它的坐标系
+const marked = ref(-1)                 // 被标记的图索引，-1 = 没有
+const markPoint = ref({ x: 0, y: 0 })  // 长按落点（视口坐标）—— 删除按钮以它为锚
+const rootEl = ref(null)
 
 /**
- * 删除按钮落在被标记那张图的中央。
- * 按钮不做成 cell 的子元素 —— 那样会改变 `.photo-grid` 的子元素序号，
- * `.n3 .cell:nth-child(1)` 这类排布规则会当场失配（实测三张图塌成一排）。
+ * 删除按钮：**以长按那一点为准**，再夹进那张图的范围内。
+ * 左右各留 28（按钮半宽 28 + 8）、上下各留 25 —— 贴边长按时按钮会被推回图内，
+ * 但永远不会跑到照片外面（用户 11-23 的原话：「不能超出照片本身范围」）。
  */
 const delBtnStyle = computed(() => {
   const i = marked.value
@@ -98,16 +97,15 @@ const delBtnStyle = computed(() => {
   if (i < 0 || !root) return {}
   const cell = root.querySelectorAll('.cell')[i]
   if (!cell) return {}
-  const cr = root.getBoundingClientRect()
-  const r = cell.getBoundingClientRect()
-  return {
-    left: r.left - cr.left + r.width / 2 + 'px',
-    top: r.top - cr.top + r.height / 2 + 'px'
-  }
+  const cr = cell.getBoundingClientRect()
+  const gr = root.getBoundingClientRect()
+  const HALF_W = 28, HALF_H = 17, PAD = 8
+  const cx = Math.max(cr.left + HALF_W + PAD, Math.min(markPoint.value.x, cr.right - HALF_W - PAD))
+  const cy = Math.max(cr.top + HALF_H + PAD, Math.min(markPoint.value.y, cr.bottom - HALF_H - PAD))
+  return { left: cx - gr.left + 'px', top: cy - gr.top + 'px' }
 })
 
 let pressTimer = null
-let confirmTimer = null
 let startX = 0
 let startY = 0
 let fired = false
@@ -127,9 +125,8 @@ function onDown(e, i) {
   pressTimer = setTimeout(() => {
     pressTimer = null
     fired = true
+    markPoint.value = { x: startX, y: startY }
     marked.value = i
-    confirming.value = false
-    if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null }
   }, LONG_PRESS_MS)
 }
 
@@ -153,27 +150,28 @@ function onCellClick(i) {
   emit('preview', i)
 }
 
+/**
+ * 点「删除」：先让那张自己缩走（160ms），再交给父级改数据。
+ * 顺序反了就会「啪」少一张，没有"被拿走"的过程。
+ */
 function onDeleteClick(i) {
-  if (!confirming.value) {
-    confirming.value = true
-    if (confirmTimer) clearTimeout(confirmTimer)
-    confirmTimer = setTimeout(() => { confirming.value = false; confirmTimer = null }, CONFIRM_RESET_MS)
-    return
-  }
-  clearMark()
-  emit('delete', i)
+  const cell = rootEl.value && rootEl.value.querySelectorAll('.cell')[i]
+  if (!cell) { clearMark(); emit('delete', i); return }
+  // 只缩、不位移：位移会让它在消失前压到邻居身上
+  cell.style.transition = 'opacity .16s ease, transform .16s ease'
+  cell.style.transform = 'scale(0.86)'
+  cell.style.opacity = '0'
+  setTimeout(() => {
+    clearMark()
+    emit('delete', i)
+  }, 160)
 }
 
 function clearMark() {
   marked.value = -1
-  confirming.value = false
-  if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null }
 }
 
-onBeforeUnmount(() => {
-  clearPress()
-  if (confirmTimer) clearTimeout(confirmTimer)
-})
+onBeforeUnmount(clearPress)
 
 const MAX_CELLS = 9
 
@@ -209,6 +207,32 @@ const layoutCount = computed(() => {
   const n = Math.min(urls.value.length, MAX_CELLS)
   if (n <= 5) return Math.max(1, n)
   return 9
+})
+
+/**
+ * 删掉一张之后的「落定」（用户要的呼吸感）。
+ *
+ * 不用 FLIP：4 张变 3 张时尺寸跨度太大（170→230、170→113），用 transform 模拟中间态
+ * 会让几张图互相穿过（试过，截图里能直接看到重叠）。
+ * 这里做的是两步：那张先自己缩走（见 onDeleteClick）→ 新排布就位后，
+ * 剩下的图从 0.965 / 0.72 轻轻落到 1 / 1。全程不重叠，但看得出"发生过什么"。
+ */
+watch(() => urls.value.length, async (n, o) => {
+  if (!o || n >= o) return          // 只有变少（删除）才播
+  await nextTick()
+  const root = rootEl.value
+  if (!root) return
+  root.querySelectorAll('.cell').forEach((c) => {
+    c.style.transition = 'none'
+    c.style.transform = 'scale(0.965)'
+    c.style.opacity = '0.72'
+    requestAnimationFrame(() => {
+      c.style.transition = 'transform .22s cubic-bezier(0.2,0.8,0.2,1), opacity .22s ease-out'
+      c.style.transform = ''
+      c.style.opacity = ''
+      setTimeout(() => { c.style.transition = '' }, 280)
+    })
+  })
 })
 </script>
 
@@ -246,43 +270,54 @@ const layoutCount = computed(() => {
 .cell:active img { opacity: 0.86; }
 .cell-void { width: 100%; height: 100%; background: var(--color-border-light, #f2f2f7); }
 
-/* 长按标记：淡红罩 + 红描边 —— 回答"我要删的是这一张"这个问题。
-   不用缩放/抖动：那是"选中的图在动"，而这里要传达的是"这张被盯上了"。 */
-.cell.is-marked { z-index: 2; }
+/* 标记态：图区**拆成独立小卡**（留出 10px 给阴影落、缝隙 3→6、露出 12 圆角）。
+   这一步同时是"进入编辑态"的信号 —— 平时它是一整块拼图。 */
+.photo-grid.is-marking { overflow: visible; padding: 10px; margin: -10px; gap: 6px; }
+.photo-grid.is-marking .cell { border-radius: 12px; }
+
+/* 被选中：**去色 + 只靠阴影表达浮起**，图片本体一动不动。
+   为什么不上移、不放大：上移 6px 就会压住上面那张的下沿，放大 2% 也会越界半像素 ——
+   用户 2026-11-23 的原话是「稍微浮空一点，但不要覆盖住其他图片的部分」。
+   几何上不动、阴影向外扩散，读起来仍然是「它浮在这一层之上」。 */
+.cell.is-marked {
+  z-index: 3;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26), 0 2px 6px rgba(0, 0, 0, 0.14);
+  transition: box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.cell.is-marked img { filter: grayscale(0.9) brightness(1.04) contrast(0.94); }
+/* 只留一圈白色内高光（像卡片边缘被光扫到），不做红框、不加红罩 */
 .cell.is-marked::after {
   content: '';
   position: absolute; inset: 0;
   pointer-events: none;
-  background: rgba(255, 59, 48, 0.18);
-  box-shadow: inset 0 0 0 2px rgba(255, 59, 48, 0.92);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.05));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
 
-/* 删除按钮：浮在被标记那张图的中央（离手指最近，也不用去找）。
-   第一次是「删除」，点完变「确认删除」并加深一档红；3 秒无操作退回「删除」。 */
+/* 删除按钮：与「我的」长按菜单里那颗**完全同一套材质**
+   （浅底 + 红字 + --radius-md 圆角 + 同一条投影）—— 同一个语义，在哪儿都长一样。
+   位置由 JS 按"长按那一点"算，并夹在那张图范围内。 */
 .del-btn {
   position: absolute;
+  z-index: 4;
   transform: translate(-50%, -50%);
-  z-index: 3;
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 64px; height: 34px; padding: 0 14px;
-  border: none; border-radius: 17px;
-  background: rgba(255, 59, 48, 0.96);
-  color: #fff;
+  height: 34px; padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
   font-size: var(--text-13);
   font-weight: 600;
   line-height: 1;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
   -webkit-appearance: none; appearance: none;
   -webkit-tap-highlight-color: transparent;
   outline: none;
-  animation: delPop 0.18s cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
 }
-.del-btn.is-confirm { background: #C4160B; }
 .del-btn:active { transform: translate(-50%, -50%) scale(0.94); }
-@keyframes delPop {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.86); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
 
 /* 超过 9 张：第 5 格右下角标 +N */
 .cell-more {
