@@ -292,15 +292,37 @@ function handleNoticeAction(value) {
 
 
 /**
- * 点「添加」：立刻建一条空记录并进详情页写标题与正文。
- * 为什么先落库：详情页的所有读写都依赖 openedItem.id 真实存在（子记录、正文保存都是按 id 定位）；
- * 造一个"假条目"要把每个调用点都判空，改动面反而大。
- * 收尾：返回时若标题正文都空，dropIfEmpty 会把它删掉（见 closeDetailAndCleanup）。
+ * 点「记录」新建：**从那条横条本身长出来**，返回时也收回横条（2026-11-23）。
+ *
+ * 两件事要一起说清：
+ * 1. **为什么先落库**：详情页的所有读写都依赖 openedItem.id 真实存在（正文保存、图片都是按 id 定位）；
+ *    造一个"假条目"要把每个调用点都判空，改动面反而大。返回时若标题正文图片全空，
+ *    dropIfEmpty 会把它删掉（见 closeDetailAndCleanup）。
+ * 2. **为什么起点是横条**：新建的记录没有「用户点的那张卡」——列表里刚插进去的那张还是空的，
+ *    而且返回时马上会被回收。用横条当起点，进出才对称：从哪儿发起，就回哪儿去。
  */
-function handleCreateRecord() {
+async function handleCreateRecord() {
+  const barEl = document.querySelector('.add-bar')
+  const src = readCardRects(barEl)
+
   const item = recordsApi.addRecord('', profileName.value)
   pendingNewId.value = item.id
   openDetail(item)
+
+  await nextTick()
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+  const dst = readDetailRects(document.querySelector('.detail-sheet'))
+  if (!src || !dst) return        // 量不到就让它直接出现，不硬跑一个没起点的动画
+
+  await zoom.open({
+    src,
+    dst,
+    photoUrl: '',
+    textHtml: '',
+    inner: dst.inner,
+    header: dst.header,
+    bar: dst.bar
+  })
 }
 
 /** 返回列表：先把详情缩回那张卡，再关；空记录在关完之后回收 */
@@ -308,10 +330,21 @@ async function closeDetailAndCleanup() {
   // 2026-11-22 用户明确要求「任何记录，只要标题正文都空了，返回就删」——
   // 原来只清 pendingNewId（刚点「记录」新建的那条），老记录被清空后会留一张「未命名」空卡。
   // dropIfEmpty 现在把 pics 也算内容：只有图没有字的记录不算空，不会被误删。
-  const id = (openedItem.value && openedItem.value.id) || pendingNewId.value
+  const openedId = openedItem.value && openedItem.value.id
+  // 刚点「记录」建的那条：它是从横条长出来的，收也要收回横条（那张卡马上会被删掉）
+  const returnToBar = !!pendingNewId.value && pendingNewId.value === openedId
+  const id = openedId || pendingNewId.value
   pendingNewId.value = null
-  await closeWithZoom()
+  await closeWithZoom(returnToBar)
   closeDetail()
+  // 内联的 transform/opacity 必须等 closeDetail 之后再摘：
+  // 摘早了 primary 会先掉回 sheet-leave（opacity 0）闪一下，才被 sheet-active 接住。
+  const primary = document.querySelector('.primary-sheet')
+  if (primary) {
+    primary.style.removeProperty('transition')
+    primary.style.removeProperty('opacity')
+    primary.style.removeProperty('transform')
+  }
   if (id) await recordsApi.dropIfEmpty(id)
 }
 
@@ -323,40 +356,56 @@ async function closeDetailAndCleanup() {
  * 2. **列表要先显形**：详情打开期间列表是 `sheet-leave`（opacity 0），不先恢复的话，
  *    东西会「飞回一片空白」。这里临时压掉它的 transition 直接显形，收完再交还给它自己。
  */
-async function closeWithZoom() {
+async function closeWithZoom(returnToBar = false) {
   const sheetEl = document.querySelector('.detail-sheet')
   const id = openedItem.value && openedItem.value.id
   if (!sheetEl || !id) return false
 
-  const cardEl = [...document.querySelectorAll('.data-card')].find((el) => el.dataset.id === id)
-  const src = readCardRects(cardEl)
-  const dst = readDetailRects(sheetEl)
-  if (!src || !dst) return false     // 卡片已滚出视口 / 已删除 → 没有落点，直接关
-
+  /**
+   * 先让列表显形 + 归位，再量落点。
+   * 详情打开期间列表是 `sheet-leave`（opacity 0 + translateY(-18px)），
+   * 照那个状态量出来的位置比真实落点高 18px —— 收完它才归位，壳就缩歪了。
+   */
   const primary = document.querySelector('.primary-sheet')
   if (primary) {
     primary.style.transition = 'none'
     primary.style.opacity = '1'
     primary.style.transform = 'none'
   }
-  try {
-    await zoom.close({
-      src,
-      dst,
-      photoUrl: cardEl?.querySelector('.card-cover img')?.src || '',
-      textHtml: cardTextHtml(cardEl),
-      textTo: dst.textTo,
-      inner: dst.inner,
-      header: dst.header,
-      bar: dst.bar
-    })
-  } finally {
-    if (primary) {
-      primary.style.removeProperty('transition')
-      primary.style.removeProperty('opacity')
-      primary.style.removeProperty('transform')
-    }
+  await new Promise((r) => requestAnimationFrame(r))
+
+  const cardEl = [...document.querySelectorAll('.data-card')].find((el) => el.dataset.id === id)
+  /**
+   * 落点：新建的空记录收回「记录」横条，老记录收回它自己的卡。
+   * 收回那张空卡的话，卡缩到一半就被 dropIfEmpty 删掉 —— 用户看到的是
+   * 「东西缩进一个随即消失的位置」，像是没落点（2026-11-23 反馈）。
+   */
+  const originEl = returnToBar ? document.querySelector('.add-bar') : cardEl
+  const src = readCardRects(originEl)
+  const dst = readDetailRects(sheetEl)
+  if (!src || !dst) return false     // 卡片已滚出视口 / 已删除 → 没有落点，直接关
+
+  /**
+   * 顶栏补偿：详情打开时顶栏被卸载、主内容区占满整屏；收完之后顶栏挂回来、
+   * 整个主内容下移 `--header-height`。落点不补这 55px，壳会缩到屏幕上方
+   * （实测：横条真实 top=69，量到 -4，差的 73 = 退后的 18 + 顶栏的 55）。
+   * 底栏是 fixed 浮岛、不占流，不用补。
+   */
+  const chromeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 0
+  for (const key of ['sheet', 'photo', 'text']) {
+    if (src[key]) src[key].t += chromeTop
   }
+
+  await zoom.close({
+    src,
+    dst,
+    photoUrl: cardEl?.querySelector('.card-cover img')?.src || '',
+    textHtml: cardTextHtml(cardEl),
+    textTo: dst.textTo,
+    inner: dst.inner,
+    header: dst.header,
+    bar: dst.bar
+  })
   return true
 }
 
