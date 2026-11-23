@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, nextTick } from 'vue'
 import WikiCard from './WikiCard.vue'
 import CardMenu from './CardMenu.vue'
 import { isFavorite, toggleFavorite } from '../../composables/useFavorites'
@@ -105,6 +105,45 @@ const listRoot = ref(null)
 useCardFade(listRoot, () => props.items)
 
 /**
+ * 列表重排的平滑过渡（FLIP，2026-11-23）
+ *
+ * 什么时候跑：id 序列变了（写了一条 / 删了一条 / 搜索变了），且留下来的卡位置动了。
+ * 为什么不能靠 CSS transition：位置是 flex 流排出来的，换顺序不会触发过渡 —— 卡片会「瞬移」。
+ * FLIP 的做法：改之前量一次、改之后量一次，把差值倒着写回去再过渡到 0。
+ *
+ * ⚠ 两个坑：
+ *  1. **新卡不参与**（`.is-entering` 还在）—— 它有自己的入场动画，两个动画抢 transform 会打架；
+ *  2. 过渡结束要清掉内联 `transition`，否则下次逐卡淡出/拖动会被它拖慢。
+ *
+ * 用 0.34s / cubic-bezier(.2,.8,.2,1)：让「别的卡让位」读起来是被新卡**挤下去**的，
+ * 而不是自己凭空平移了一段（用户原话：不要死板的平移）。
+ */
+watch(() => props.items.map((i) => i.id).join('|'), async () => {
+  const before = new Map()
+  document.querySelectorAll('.page-content .data-card').forEach((el) => {
+    before.set(el.dataset.id, el.getBoundingClientRect().top)
+  })
+  if (before.size === 0) return
+
+  await nextTick()   // DOM 已按新顺序排好
+
+  document.querySelectorAll('.page-content .data-card').forEach((el) => {
+    if (el.classList.contains('is-entering')) return
+    const b = before.get(el.dataset.id)
+    if (b === undefined) return
+    const dy = b - el.getBoundingClientRect().top
+    if (Math.abs(dy) < 1) return
+    el.style.transition = 'none'
+    el.style.transform = `translateY(${dy}px)`
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform 0.34s cubic-bezier(0.2, 0.8, 0.2, 1)'
+      el.style.transform = ''
+      setTimeout(() => { el.style.transition = '' }, 420)
+    })
+  })
+})
+
+/**
  * 长按菜单的状态（2026-11-23）：`{ id, x, y }`，null 表示没有菜单。
  * 以前这里放的是「当前展开菜单的卡片 id」——「⋯」按钮删掉之后，
  * 菜单变成「一张卡 + 一个由长按点决定的位置」，所以位置也得一起记。
@@ -137,6 +176,24 @@ function dateKeyFromText(text) {
  * offset 是这一组在整列里的起始序号，用来接着上组算错峰动画延迟 —— 不然后面每组都从 0 开始，动画会一起蹦。
  * 时间认不出来的记录一律归「更早」，不丢、不报错。
  */
+/**
+ * 按时间**倒序**（最新在最上）。
+ *
+ * 2026-11-23 用户要求：卡片要「最新到最晚从上到下」。原来数据顺序就是添加顺序
+ * （新的在最后 → 显示在最下面），写完一条得往下翻才看得到。
+ * 排序只发生在**显示层**：数据里的顺序一个字不动 —— 备份、导入、导出都不受影响。
+ *
+ * time 解析不出时间的（老数据 / 空值）排到最后，不参与比较，也不丢。
+ */
+const sortedItems = computed(() => {
+  const stamp = (t) => {
+    const m = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})[ T](\d{1,2}):(\d{2})/.exec(String(t || ''))
+    if (!m) return -Infinity
+    return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime()
+  }
+  return [...props.items].sort((a, b) => stamp(b.time) - stamp(a.time))
+})
+
 const groups = computed(() => {
   const now = new Date()
   const todayKey = dateKey(now)
@@ -144,7 +201,7 @@ const groups = computed(() => {
   const labels = ['今天', '昨天', '更早']
   const bucketOf = new Map(labels.map((label) => [label, []]))
 
-  props.items.forEach((item) => {
+  sortedItems.value.forEach((item) => {
     const key = dateKeyFromText(item.time)
     const label = key && key === todayKey ? '今天' : (key && key === yesterdayKey ? '昨天' : '更早')
     bucketOf.get(label).push(item)

@@ -260,6 +260,8 @@ watch(
   font-size: var(--text-17);
   line-height: 1.55;
   color: var(--color-text-primary);
+  /* 保留正文里的换行：详情三行、卡片也只有一行的话，看着像内容被吞了（2026-11-23 反馈） */
+  white-space: pre-line;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

@@ -13,14 +13,32 @@
  */
 
 /**
- * 去掉 markdown 记号，压成一行纯文本（给卡片预览用）。
- * 卡片是「扫一眼」的界面，不是阅读器：`##`、`**`、`-` 这些记号原样出现会读成乱码。
+ * 去掉 markdown 记号，**保留换行**（给卡片预览用）。
+ *
+ * 2026-11-23 修：原来把 `\s+` 全压成空格，用户分了行的正文在卡片上变成一长条 ——
+ * 详情里三行、卡片里一行，看着像"内容被吞了"。现在只压空格与多余空行，
+ * 单换行留着，由卡片的 `white-space: pre-line` 还原成真实的行。
  */
 export function stripMarkdown(text) {
   return String(text || '')
     .replace(/[#>*`~_[\]()!-]/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{2,}/g, '\n')
     .trim()
+}
+
+/**
+ * 取正文的**第一段**（给卡片用）。
+ *
+ * 2026-11-23 修：原来把整段压成一行（`\s+ → ' '`），用户分了段的正文在卡片上变成一长条 ——
+ * 「我想起来了 / 想起来什么了 / nonono~」三行被拍成一行。卡片应该只取第一段：
+ * 到第一个空行为止，太长再截断。
+ */
+export function firstParagraph(wiki) {
+  const text = String(wiki || '')
+  const firstBlock = text.split(/\n\s*\n/)[0] || ''
+  return stripMarkdown(firstBlock)
 }
 
 /**
@@ -32,13 +50,13 @@ export function splitCardText(item) {
   const name = String((item && item.name) || '').trim()
   const wiki = String((item && item.wiki) || '')
 
-  if (name) return { lead: name, body: stripMarkdown(wiki) }
+  if (name) return { lead: name, body: firstParagraph(wiki) }
 
   // 正文首行就是 `**标题**`（迁移后的常态）。只认第一行、且只认成对 `**`，
   // 中间带 `*` 的行不算 —— 那多半是用户自己写的强调，不该被提成标题。
   const m = /^\s*\*\*([^*\n][^\n]*?)\*\*\s*(?:\n|$)/.exec(wiki)
   if (m) {
-    return { lead: m[1].trim(), body: stripMarkdown(wiki.slice(m[0].length)) }
+    return { lead: m[1].trim(), body: firstParagraph(wiki.slice(m[0].length)) }
   }
-  return { lead: '', body: stripMarkdown(wiki) }
+  return { lead: '', body: firstParagraph(wiki) }
 }

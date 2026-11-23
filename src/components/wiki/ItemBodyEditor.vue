@@ -64,7 +64,7 @@ const props = defineProps({
   /** 落款文案（年月日 + 周几）。空串 = 不显示；只出现在阅读态末尾右下角 */
   metaText: { type: String, default: '' }
 })
-const emit = defineEmits(['save', 'add-pic', 'preview-pic'])
+const emit = defineEmits(['save', 'add-pic', 'preview-pic', 'editing-change'])
 
 const editing      = ref(!!props.autoEdit)
 const draft        = ref(props.autoEdit ? (props.record.wiki || '') : '')
@@ -110,6 +110,12 @@ onMounted(() => {
   }
 })
 onBeforeUnmount(() => flush())
+
+/**
+ * 进出编辑态要告诉父级（2026-11-23）：详情页的底部工具栏**只在编辑态出现**，
+ * 阅读态整条不渲染 —— 看的时候不需要「完成」和「加粗」。
+ */
+watch(editing, (v) => emit('editing-change', v))
 
 function startEdit() {
   if (editing.value) return

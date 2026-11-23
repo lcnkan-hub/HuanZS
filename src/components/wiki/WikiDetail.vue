@@ -54,7 +54,7 @@
     <!-- 点空白关菜单：透明遮罩，盖住内容但不挡住菜单自己 -->
     <div v-if="menuOpen" class="menu-mask" @click="menuOpen = false"></div>
 
-    <div class="detail-body">
+    <div class="detail-body" :style="{ '--kb-pad': kbPad }">
       <!-- 正文：点一下进编辑，边打边存；空记录进来直接就是编辑态（光标在闪）。
            2026-11-23 起**没有独立标题**了 ——「标题」就是正文首行的加粗字（`**…**`），
            由 markdownParser 渲染成 <strong>，位置在图片下方（图由 PhotoGrid 渲染在正文上方）。
@@ -67,26 +67,30 @@
         @save="(text) => $emit('save-body', text)"
         @add-pic="(id) => $emit('add-pic', id)"
         @preview-pic="openPhoto"
+        @editing-change="isEditing = $event"
       />
 
       <!-- 分享的一行小提示（2.6 秒自己消失） -->
       <p v-if="shareHint" class="voice-hint">{{ shareHint }}</p>
     </div>
 
-    <!-- 底部工具栏：功能层，浮在内容之上（Materials 规则 1）。
-         2026-11-23：语音键删掉（用户要求「删除语音功能」），换成加粗键。
-         加粗的按下态是**一层径向渐变的软斑**而不是色块：色块四边是硬边，
-         按下去像贴了一张纸；渐变四边渐隐，看起来才是「手指压在这一块上」。 -->
-    <div class="detail-toolbar">
-      <button class="tool" type="button" aria-label="插入图片" @click="onImage">
-        <AppIcon name="image" :size="20" />
+    <!-- 底部工具栏：**只在编辑态出现**（2026-11-23 用户要求）。
+         阅读的时候这条是空的 —— 看东西不需要「完成」和「加粗」，它只会挡内容。
+         键盘弹起时整条上浮（仿王冠页输入栏：iOS 布局视口不变，只收让位会被键盘盖住）。 -->
+    <div
+      v-if="isEditing"
+      class="detail-toolbar"
+      :style="{ transform: kbShift ? 'translateY(' + kbShift + 'px)' : '' }"
+    >
+      <button class="tool-circle" type="button" aria-label="插入图片" @click="onImage">
+        <AppIcon name="image" :size="19" />
       </button>
-      <button class="tool tool-bold" type="button" aria-label="加粗" @click="onBold">
+      <button class="tool-circle" type="button" aria-label="加粗" @click="onBold">
         <span class="bold-glyph" aria-hidden="true">B</span>
       </button>
       <span class="tool-spacer"></span>
       <button class="done-btn" type="button" aria-label="完成" @click="handleClose">
-        <AppIcon name="check" :size="20" />
+        <AppIcon name="check" :size="19" />
       </button>
     </div>
 
@@ -104,6 +108,7 @@ import AppIcon from '../common/AppIcon.vue'
 import ItemBodyEditor from './ItemBodyEditor.vue'
 import { isFavorite, toggleFavorite } from '../../composables/useFavorites'
 import { getImageUrl } from '../../composables/useImageStore'
+import { useKeyboard } from '../../composables/useKeyboard'
 
 const props = defineProps({
   openedItem: { type: Object, required: true },
@@ -129,6 +134,15 @@ async function openPhoto(index) {
 const bodyRef   = ref(null)
 const menuOpen  = ref(false)
 const shareHint = ref('')
+
+/** 是否在编辑正文 —— 底部工具栏的显隐完全跟着它走（阅读态整条不渲染） */
+const isEditing = ref(false)
+
+// 键盘：编辑时整条工具栏跟着上浮，判据与「王冠」页输入栏同一套（useKeyboard 是模块级单例）
+const { kbOpen, kbShift } = useKeyboard()
+
+/** 正文底部留白：键盘弹起时补上键盘高度，最后一行不会藏在工具栏/键盘下面 */
+const kbPad = computed(() => (kbOpen.value ? Math.abs(kbShift.value) + 'px' : '0px'))
 
 /** 收藏状态：useFavorites 是模块级单例，详情页点完，返回列表卡片立刻跟着变 */
 const favorited = computed(() => isFavorite(props.openedItem.id))
@@ -286,12 +300,16 @@ function handleClose() {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* 只由 JS 写在行内（键盘高度）。必须先在这里给默认值 —— 没键盘时它就是 0，
+     不给默认值体检会判「引用了未定义的令牌」，而且默认值本身就是正确语义。 */
+  --kb-pad: 0px;
   /* 左右 22 = 列表的 12 + 卡片内的 10 —— 卡片文字和这里正文同一条左基线。
      这个相等是「展开时文字不重排」的唯一依据（见 WikiCard 文件头第 3 条）。 */
   padding: 10px 22px 0;
   display: flex; flex-direction: column;
   /* 底部给浮起的工具栏留出位置，最后一行不被它压住 */
-  padding-bottom: calc(96px + var(--safe-bottom));
+  /* 键盘弹起时补上键盘高度，最后一行不会藏在工具栏/键盘下面 */
+  padding-bottom: calc(96px + var(--safe-bottom) + var(--kb-pad, 0px));
 }
 
 /* 看图：黑底铺满 + contain。z-index 高于详情页本身（100），低于看图时的系统手势层 */
@@ -321,10 +339,11 @@ function handleClose() {
    不写实心背景色 —— 那是"给控件垫一块"，HIG 明确不这么做。 */
 .detail-toolbar {
   position: absolute;
-  left: 12px; right: 12px;
-  bottom: calc(12px + var(--safe-bottom));
-  height: 56px;
-  border-radius: 28px;
+  /* 2026-11-23：更窄（12 → 20）、矮一点（56 → 52）、圆角跟着收 —— 原来那条压在详情页上偏重 */
+  left: 20px; right: 20px;
+  bottom: calc(14px + var(--safe-bottom));
+  height: 52px;
+  border-radius: 26px;
   background: rgba(255, 255, 255, 0.78);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -332,60 +351,50 @@ function handleClose() {
     inset 0 1px 0 rgba(255, 255, 255, 0.7),
     0 0 0 0.5px rgba(0, 0, 0, 0.05),
     0 8px 24px rgba(0, 0, 0, 0.10);
-  display: flex; align-items: center; gap: 2px;
+  display: flex; align-items: center; gap: 8px;
   padding: 0 6px;
+  /* 键盘弹起时整条上浮。没这条就只收让位，iOS 上会被键盘整块盖住（王冠页踩过） */
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.tool {
-  width: 44px; height: 44px;
-  display: flex; align-items: center; justify-content: center;
-  background: none; border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.tool:active { opacity: 0.55; }
 
-/* 加粗键（2026-11-23）：按下时**不出现任何框**，而是一层四边渐隐的灰。
-   为什么不用纯色块：色块四边是硬边（圆角也还是硬边），按下去像贴了一张纸；
-   径向渐变从 8.5% 灰一路化到 0，边缘没有"边界"，读起来才是「手指压在这一块上」。
-   outline / 系统高亮 / tap-highlight 全部关掉 —— 手机上那圈灰是浏览器画的，不是设计。 */
-.tool-bold {
+/* 圆圈按钮（用户要「带圆圈的质感按钮，点一下会跳」）
+   浅底 + 顶部内高光 + 极轻投影 —— 与王冠页 .send-btn 同一族材质。
+   视觉 40、热区 44（::after 外扩）——HIG 要的是热区 ≥44，不是看着像 44。 */
+.tool-circle {
+  width: 40px; height: 40px;
   position: relative;
-  -webkit-appearance: none; appearance: none;
-  outline: none;
-  -webkit-tap-highlight-color: transparent;
-}
-.tool-bold::before {
-  content: '';
-  position: absolute; inset: 2px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%,
-    rgba(0, 0, 0, 0.085) 0%,
-    rgba(0, 0, 0, 0.05) 45%,
-    rgba(0, 0, 0, 0) 72%);
-  opacity: 0;
-  transition: opacity 0.18s ease-out;
-  pointer-events: none;
-}
-.tool-bold:active::before { opacity: 1; }
-/* 按下时不再叠一层整体变淡（那是 .tool:active 的通用态，加粗键有自己的反馈） */
-.tool-bold:active { opacity: 1; }
-/* 键盘导航的焦点画在圆内部，不向外描 —— 外圈在手机上就是用户说的那个框 */
-.tool-bold:focus { outline: none; }
-.tool-bold:focus-visible { box-shadow: inset 0 0 0 2px var(--color-accent); }
-.bold-glyph {
-  position: relative;
-  font-size: var(--text-18);
-  font-weight: 800;
-  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%;
+  background: var(--color-bg-input);
   color: var(--color-text-muted);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 1px 2px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
 }
+.tool-circle::after { content: ''; position: absolute; inset: -2px; }
+.tool-circle:active { animation: toolPop 0.3s cubic-bezier(0.34, 1.4, 0.64, 1); }
+.tool-circle:focus { outline: none; }
+.tool-circle:focus-visible { box-shadow: inset 0 0 0 2px var(--color-accent); }
+
+/* 跳动：压扁 → 弹过一点 → 落回。0.3s 打完才像「按钮的回应」，
+   再慢就变成「动画在演」（HIG：反馈动画要简短精确）。 */
+@keyframes toolPop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(0.88); }
+  65%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+.bold-glyph { font-size: var(--text-17); font-weight: 800; line-height: 1; }
 
 .tool-spacer { flex: 1; }
 
-/* 完成：整页唯一的实心色块 —— 高频动作里最该被一下点到的那个 */
+/* 完成：整页唯一的实心色块 —— 高频动作里最该被一下点到的那个。
+   尺寸跟圆圈按钮同一档（42），跳动也用同一条 keyframes，三种按钮一套手感。 */
 .done-btn {
-  width: 44px; height: 44px;
+  width: 42px; height: 42px;
   display: flex; align-items: center; justify-content: center;
   border: none; border-radius: 50%;
   background: var(--color-accent);
@@ -393,6 +402,8 @@ function handleClose() {
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 122, 255, 0.34);
   -webkit-tap-highlight-color: transparent;
+  outline: none;
 }
-.done-btn:active { transform: scale(0.94); }
+.done-btn:active { animation: toolPop 0.3s cubic-bezier(0.34, 1.4, 0.64, 1); }
+.done-btn:focus-visible { box-shadow: inset 0 0 0 2px #fff, 0 4px 14px rgba(0, 122, 255, 0.34); }
 </style>

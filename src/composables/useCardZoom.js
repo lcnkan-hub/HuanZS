@@ -26,14 +26,14 @@
  */
 import { ref, onBeforeUnmount } from 'vue'
 
-const DUR_OPEN  = 360
-const DUR_CLOSE = 280
+const DUR_OPEN  = 440
+const DUR_CLOSE = 320
 /** 打开：前段有响应、中段持续变化、尾段收住（实测比 .32/.72 均匀得多） */
 const EASE_OPEN  = 'cubic-bezier(0.25, 0.1, 0.15, 1)'
 /** 收起：直接加速离场，不做回弹 —— 用户已经在往回走了，别拖 */
 const EASE_CLOSE = 'cubic-bezier(0.4, 0, 0.85, 1)'
 
-const HANDOVER = 300      // 内容换手的起跑时刻（ms）
+const HANDOVER = 380      // 内容换手的起跑时刻（ms）：总时长 440 → 最后 60ms 换手
 
 export function useCardZoom() {
   /** 是否正在跑（界面可据此禁用点击） */
@@ -49,8 +49,20 @@ export function useCardZoom() {
     if (host) return
     host = document.createElement('div')
     host.id = 'hz-zoom-layer'
+    /**
+     * ⚠ 挂载位置是这套东西最要紧的一行（2026-11-23 修「闪烁」）：
+     *
+     * 必须插进 `.page-stack` 里、**在详情 sheet 之前**，并且 `z-index: 0`——
+     * 于是分层正好是：列表 → 白壳 → 详情内容。
+     *
+     * 之前挂在 body 上、z-index 150，结果浮层压在详情内容（z-index 100）之上：
+     * 内容淡入时被白壳挡着，要等浮层整个撤掉才「跳」出来 —— 用户看到的就是闪烁。
+     *
+     * 也不能挂 body 再调低 z-index：详情在 #app 里、没有独立于 #app 的层级，
+     * 外部元素要么盖住整个 app，要么被整个 app 盖住，没有「夹在列表和详情之间」这个位置。
+     */
     host.style.cssText =
-      'position:fixed;inset:0;z-index:150;pointer-events:none;overflow:hidden;' +
+      'position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;' +
       'contain:layout paint style;'
     shell = document.createElement('div')
     shell.style.cssText =
@@ -64,7 +76,11 @@ export function useCardZoom() {
     host.appendChild(shell)
     host.appendChild(photo)
     host.appendChild(text)
-    document.body.appendChild(host)
+
+    const stack = document.querySelector('.page-stack')
+    const detailSheet = stack && stack.querySelector('.detail-sheet')
+    if (stack && detailSheet) stack.insertBefore(host, detailSheet)
+    else document.body.appendChild(host)
   }
 
   function cancelAnims() {
@@ -74,8 +90,15 @@ export function useCardZoom() {
 
   function teardown() {
     cancelAnims()
-    if (host && host.parentNode) host.parentNode.removeChild(host)
+    if (!host) return
+    // 先别拆 DOM：直接 removeChild 会让合成层当场销毁，低端机上就是「收尾闪一下」。
+    // 压成透明、下一帧再摘，画面已经落到详情页自己身上了。
+    const dead = host
+    dead.style.opacity = '0'
     host = null; shell = null; photo = null; text = null
+    requestAnimationFrame(() => {
+      if (dead.parentNode) dead.parentNode.removeChild(dead)
+    })
   }
 
   /** 副本内容：照片地址 + 卡片那段文字的 HTML（与卡片同字号同行高，交接时不跳字） */
@@ -104,7 +127,13 @@ export function useCardZoom() {
     const o = { duration: DUR_OPEN, easing: EASE_OPEN, fill: 'both' }
 
     anims.push(shell.animate([
-      { ...box(src.sheet), borderRadius: 'var(--radius-2xl)', boxShadow: '0 2px 8px rgba(0,0,0,.04)' },
+      /**
+       * ⚠ 圆角必须写**字面值 14px**，不能写 `var(--radius-2xl)`：
+       * Web Animations 对 CSS 变量**不做插值**（变量是替换期的概念，动画拿到的是字符串），
+       * 结果就是整段动画里四个角停在 14px 不动、最后一帧才跳成 0 ——
+       * 用户看到的就是「展开时四个角一直是半圆角，跟卡片本身一样」（2026-11-23 反馈）。
+       */
+      { ...box(src.sheet), borderRadius: '14px', boxShadow: '0 2px 8px rgba(0,0,0,.04)' },
       { ...box(dst.sheet), borderRadius: '0px', boxShadow: '0 0 0 rgba(0,0,0,0)' }
     ], o))
 
@@ -172,7 +201,7 @@ export function useCardZoom() {
     // 起点是「铺满」（dst），终点是「卡片」（src）—— 与打开完全反向
     anims.push(shell.animate([
       { ...box(dst.sheet), borderRadius: '0px' },
-      { ...box(src.sheet), borderRadius: 'var(--radius-2xl)' }
+      { ...box(src.sheet), borderRadius: '14px' }
     ], o))
 
     if (photo.style.display !== 'none') {
