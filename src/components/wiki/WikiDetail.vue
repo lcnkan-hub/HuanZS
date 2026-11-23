@@ -89,7 +89,7 @@
         <span class="bold-glyph" aria-hidden="true">B</span>
       </button>
       <span class="tool-spacer"></span>
-      <button class="done-btn" type="button" aria-label="完成" @click="handleClose">
+      <button class="done-btn" type="button" aria-label="完成" @click="handleDone">
         <AppIcon name="check" :size="19" />
       </button>
     </div>
@@ -226,7 +226,17 @@ function hint(msg) {
   setTimeout(() => { shareHint.value = '' }, 2600)
 }
 
-/** 完成 / 返回：先把正文里没落库的草稿写下去，再退出 */
+/**
+ * 「完成」：结束编辑、回阅读态（工具栏随之收起），**不离开详情页**。
+ *
+ * 编辑态下有两个出口，各管一件事：底部「完成」= 我写完了，看；顶栏返回 = 我走了。
+ * 两个都关页面的话，用户没有"写完但还想再看一眼"的路（2026-11-23 定的分工）。
+ * 两个入口都会先 flush 一次，防抖没到的那几个字不会丢。
+ */
+function handleDone() {
+  bodyRef.value?.exitEdit()
+}
+
 function handleClose() {
   bodyRef.value?.flush()
   emit('close')

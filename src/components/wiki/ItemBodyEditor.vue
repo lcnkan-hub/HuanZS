@@ -112,10 +112,13 @@ onMounted(() => {
 onBeforeUnmount(() => flush())
 
 /**
- * 进出编辑态要告诉父级（2026-11-23）：详情页的底部工具栏**只在编辑态出现**，
- * 阅读态整条不渲染 —— 看的时候不需要「完成」和「加粗」。
+ * 进出编辑态要告诉父级（2026-11-23）：详情页的底部工具栏**只在编辑态出现**。
+ *
+ * ⚠ 必须 immediate：新建记录进来时 `editing` 的初值就是 true（autoEdit），
+ *   没有"变化"可等 —— 不加 immediate 父级永远收不到第一次通知，
+ *   结果就是「点记录进编辑态了，工具栏却不在」（2026-11-23 实测反馈）。
  */
-watch(editing, (v) => emit('editing-change', v))
+watch(editing, (v) => emit('editing-change', v), { immediate: true })
 
 function startEdit() {
   if (editing.value) return
@@ -141,6 +144,16 @@ watch(draft, (v) => {
 function flush() {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
   if (editing.value && draft.value !== (props.record.wiki || '')) emit('save', draft.value)
+}
+
+/**
+ * 结束编辑、回到阅读态（底部「完成」键）。
+ * 先把没落库的草稿写下去再退 —— 不然 600ms 防抖还没到就退出，最后几个字会丢。
+ */
+function exitEdit() {
+  if (!editing.value) return
+  flush()
+  editing.value = false
 }
 
 /**
@@ -199,7 +212,7 @@ async function handleImageSelected(event) {
   event.target.value = ''
 }
 
-defineExpose({ startEdit, insertImage, insertBold, flush, isEditing: editing })
+defineExpose({ startEdit, exitEdit, insertImage, insertBold, flush, isEditing: editing })
 </script>
 
 <style scoped>
