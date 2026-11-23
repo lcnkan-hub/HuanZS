@@ -48,11 +48,8 @@
       删除
     </button>
 
-    <!-- ⚠ 遮罩必须放在**最后**：它在网格里是 `.photo-grid` 的子元素，
-         放前面会让第一个 `.cell` 变成 `nth-child(2)`，
-         于是 `.n3 .cell:nth-child(1)`（左大跨两行）失配 —— 三张图当场塌成一排。
-         绝对定位的元素不占格，但**仍然算一个子元素**。 -->
-    <div v-if="marked >= 0" class="mark-mask" @click.stop="clearMark"></div>
+    <!-- 不再放"标记遮罩"：它只有图区那么大，点图区外面（正文、顶栏）就取消不了。
+         现在改成在 document 捕获阶段监听 pointerdown —— 点哪儿都能取消。 -->
   </div>
 </template>
 
@@ -127,6 +124,9 @@ function onDown(e, i) {
     fired = true
     markPoint.value = { x: startX, y: startY }
     marked.value = i
+    // 标记一出现就上"全局取消"：点图片外面的任何地方（正文、顶栏、空白）都要能取消。
+    // 只靠图区里的遮罩不行 —— 它只有图区那么大，用户点正文时什么都不会发生（实测报过）。
+    document.addEventListener('pointerdown', onDocPointerDown, true)
   }, LONG_PRESS_MS)
 }
 
@@ -143,9 +143,28 @@ function onUp() {
   clearPress()
 }
 
-/** 点图：长按/滑动过就不放大；已经标记着就当作「取消」 */
+/**
+ * 全局兜底取消。捕获阶段触发，所以比被点的元素自己的 handler 更早。
+ * 点删除按钮 → 不算（那要真删）；点被标记那张图 → 取消；点别处 → 取消。
+ */
+let swallowUntil = 0
+
+function onDocPointerDown(e) {
+  if (marked.value < 0) return
+  const t = e.target
+  if (t && t.closest && t.closest('.del-btn')) return
+  const cells = rootEl.value && rootEl.value.querySelectorAll('.cell')
+  const mk = cells && cells[marked.value]
+  if (mk && mk.contains(t)) { clearMark(); return }   // 点自己那张 = 反悔
+  clearMark()
+  // 这一下不要顺带把点中的另一张放大（用户只是想取消标记）
+  swallowUntil = performance.now() + 400
+}
+
+/** 点图：长按/滑动过就不放大；刚取消过标记也不放大；已经标记着就当作「取消」 */
 function onCellClick(i) {
   if (fired || moved) { fired = false; moved = false; return }
+  if (performance.now() < swallowUntil) return
   if (marked.value >= 0) { clearMark(); return }
   emit('preview', i)
 }
@@ -169,9 +188,13 @@ function onDeleteClick(i) {
 
 function clearMark() {
   marked.value = -1
+  document.removeEventListener('pointerdown', onDocPointerDown, true)
 }
 
-onBeforeUnmount(clearPress)
+onBeforeUnmount(() => {
+  clearPress()
+  document.removeEventListener('pointerdown', onDocPointerDown, true)
+})
 
 const MAX_CELLS = 9
 
@@ -247,10 +270,7 @@ watch(() => urls.value.length, async (n, o) => {
   position: relative;   /* 标记遮罩的定位基准 */
 }
 
-/* 标记状态下的透明遮罩：点它取消标记；层级低于被标记的 cell */
-.mark-mask {
-  position: absolute; inset: 0; z-index: 1;
-}
+/* 标记取消走 document 捕获监听（见 onDocPointerDown），不再需要图区遮罩 */
 
 .cell {
   position: relative;
