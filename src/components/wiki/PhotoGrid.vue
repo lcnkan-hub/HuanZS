@@ -284,35 +284,36 @@ watch(() => urls.value.length, async (n, o) => {
 .cell img {
   width: 100%; height: 100%;
   object-fit: cover;
+  object-position: center;   /* 原图比例和格子不一样时，以原图中心为准裁切（点开可在查看器看全图） */
   display: block;
   -webkit-user-drag: none;
 }
 .cell:active img { opacity: 0.86; }
 .cell-void { width: 100%; height: 100%; background: var(--color-border-light, #f2f2f7); }
 
-/* 标记态：图区**拆成独立小卡**（留出 10px 给阴影落、缝隙 3→6、露出 12 圆角）。
-   这一步同时是"进入编辑态"的信号 —— 平时它是一整块拼图。 */
-.photo-grid.is-marking { overflow: visible; padding: 10px; margin: -10px; gap: 6px; }
+/* 标记态：**只放开裁切**（让阴影不被裁掉）+ 每张独立圆角。
+   绝不能动 padding / margin / gap —— 那会改图区尺寸，文字跟着上移、n3 的跨格比例被挤乱
+   （用户 11-23 报过：长按后文字上移、城堡图只剩一条、日期压在图上面）。 */
+.photo-grid.is-marking { overflow: visible; }
 .photo-grid.is-marking .cell { border-radius: 12px; }
 
-/* 被选中：**去色 + 只靠阴影表达浮起**，图片本体一动不动。
-   为什么不上移、不放大：上移 6px 就会压住上面那张的下沿，放大 2% 也会越界半像素 ——
-   用户 2026-11-23 的原话是「稍微浮空一点，但不要覆盖住其他图片的部分」。
-   几何上不动、阴影向外扩散，读起来仍然是「它浮在这一层之上」。 */
+/* 被选中：原图色彩不变，只**原地放大 3% + 阴影**表示"这张被捏起来了"。
+   不放色彩滤镜：用户明确要"原图色彩就行，不用变灰色"。
+   不上移：上移会盖住上面那张（用户之前否过一次）；居中放大的溢出四周均摊，看不出来。 */
 .cell.is-marked {
   z-index: 3;
   border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.26), 0 2px 6px rgba(0, 0, 0, 0.14);
-  transition: box-shadow 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: scale(1.03);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.26), 0 3px 8px rgba(0, 0, 0, 0.14);
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s;
 }
-.cell.is-marked img { filter: grayscale(0.9) brightness(1.04) contrast(0.94); }
-/* 只留一圈白色内高光（像卡片边缘被光扫到），不做红框、不加红罩 */
+/* 只留一圈白色内高光（像卡片边缘被光扫到），不上色、不灰化 */
 .cell.is-marked::after {
   content: '';
   position: absolute; inset: 0;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.05));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(0, 0, 0, 0.04));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
 }
 
 /* 删除按钮：与「我的」长按菜单里那颗**完全同一套材质**

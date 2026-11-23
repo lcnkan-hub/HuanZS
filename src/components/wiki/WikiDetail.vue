@@ -95,16 +95,27 @@
       </button>
     </div>
 
-    <!-- 看图浮层：点图区里任意一张放大，点任意处关掉。
+    <!-- 看图浮层：点图区里任意一张放大。
          黑底铺满 + contain —— 看图时最忌讳把边上裁掉，所以不用 cover。 -->
-    <div v-if="viewer.open" class="photo-viewer" @click="viewer.open = false">
-      <img :src="viewer.url" alt="" />
+    <!-- 看图：横向一屏一张，左右滑切图；点图片外的黑边返回（用户 11-23 指定）。
+         用原生 scroll-snap 而不是自己算手势：惯性、边界回弹、无障碍滚动全是浏览器给的。 -->
+    <div
+      v-if="viewer.open"
+      ref="viewerEl"
+      class="photo-viewer"
+      @click="onViewerClick"
+      @scroll.passive="onViewerScroll"
+    >
+      <div v-for="(u, i) in viewer.urls" :key="i" class="viewer-slide">
+        <img :src="u" alt="" draggable="false" />
+      </div>
+      <span v-if="viewer.urls.length > 1" class="viewer-page">{{ viewer.index + 1 }} / {{ viewer.urls.length }}</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import ItemBodyEditor from './ItemBodyEditor.vue'
 import { isFavorite, toggleFavorite } from '../../composables/useFavorites'
@@ -120,16 +131,38 @@ const emit = defineEmits(['close', 'rename', 'save-body', 'delete', 'add-pic', '
  * 看图浮层。PhotoGrid 只回传序号（blob URL 是它内部解析的），这里按序号回头取 id 再解析一次
  * —— getImageUrl 带缓存，第二次调用几乎是零成本。
  */
-const viewer = ref({ open: false, url: '' })
+const viewer = ref({ open: false, urls: [], index: 0 })
+const viewerEl = ref(null)
+
+/** 点开某张：把**这一组**图都取出来（滑动切图要用），并直接定位到点的那张 */
 async function openPhoto(index) {
-  const id = (props.openedItem.pics || [])[index]
-  if (!id) return
+  const ids = props.openedItem.pics || []
+  if (!ids.length) return
   try {
-    const url = await getImageUrl(id)
-    if (url) viewer.value = { open: true, url }
+    const urls = await Promise.all(ids.map((id) => getImageUrl(id).catch(() => '')))
+    const list = urls.filter(Boolean)
+    if (!list.length) return
+    viewer.value = { open: true, urls: list, index: Math.min(index, list.length - 1) }
+    await nextTick()
+    const el = viewerEl.value
+    if (el) el.scrollLeft = viewer.value.index * el.clientWidth
   } catch {
     // 图读不出来就什么都不做：看图失败不该弹个错打断阅读
   }
+}
+
+/** 滑动停下时更新页码（原生惯性结束后才有意义） */
+function onViewerScroll() {
+  const el = viewerEl.value
+  if (!el) return
+  const i = Math.max(0, Math.min(Math.round(el.scrollLeft / el.clientWidth), viewer.value.urls.length - 1))
+  if (i !== viewer.value.index) viewer.value.index = i
+}
+
+/** 点在图片本体上 → 不关（图片区留给滑动）；点上下黑边 → 返回 */
+function onViewerClick(e) {
+  if (e.target && e.target.tagName === 'IMG') return
+  viewer.value.open = false
 }
 
 const bodyRef   = ref(null)
@@ -323,16 +356,40 @@ function handleClose() {
   padding-bottom: calc(96px + var(--safe-bottom) + var(--kb-pad, 0px));
 }
 
-/* 看图：黑底铺满 + contain。z-index 高于详情页本身（100），低于看图时的系统手势层 */
+/* 看图：黑底铺满 + contain。z-index 高于详情页本身（100），低于看图时的系统手势层
+   横向一屏一张（scroll-snap），滑动切换；黑边也能滑，所以两个方向都交给原生滚动 */
 .photo-viewer {
   position: fixed; inset: 0; z-index: 300;
   background: rgba(0, 0, 0, 0.94);
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior: contain;      /* 滑到头不把整页带着回弹 */
+  -webkit-overflow-scrolling: touch;
   animation: viewerIn 0.16s ease;
 }
-.photo-viewer img {
+.viewer-slide {
+  flex: 0 0 100%;
+  height: 100%;
+  scroll-snap-align: center;
+  display: flex; align-items: center; justify-content: center;
+}
+.viewer-slide img {
   max-width: 100%; max-height: 100%;
   object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+/* 页码：图多于一张才出现，压在底部安全区之上，不挡手势 */
+.viewer-page {
+  position: fixed;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--safe-bottom) + 24px);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: var(--text-13);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }
 @keyframes viewerIn {
   from { opacity: 0; }
