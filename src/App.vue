@@ -335,7 +335,9 @@ async function closeDetailAndCleanup() {
   const returnToBar = !!pendingNewId.value && pendingNewId.value === openedId
   const id = openedId || pendingNewId.value
   pendingNewId.value = null
-  await closeWithZoom(returnToBar)
+  // 空记录的删除放进 closeWithZoom、在跑动画之前执行 —— 见那里的说明：
+  // 先收再删会让别的卡在动画结束后整体上移一截，看起来像「卡片跳动」。
+  await closeWithZoom(returnToBar, id)
   closeDetail()
   // 内联的 transform/opacity 必须等 closeDetail 之后再摘：
   // 摘早了 primary 会先掉回 sheet-leave（opacity 0）闪一下，才被 sheet-active 接住。
@@ -345,7 +347,6 @@ async function closeDetailAndCleanup() {
     primary.style.removeProperty('opacity')
     primary.style.removeProperty('transform')
   }
-  if (id) await recordsApi.dropIfEmpty(id)
 }
 
 /**
@@ -356,7 +357,7 @@ async function closeDetailAndCleanup() {
  * 2. **列表要先显形**：详情打开期间列表是 `sheet-leave`（opacity 0），不先恢复的话，
  *    东西会「飞回一片空白」。这里临时压掉它的 transition 直接显形，收完再交还给它自己。
  */
-async function closeWithZoom(returnToBar = false) {
+async function closeWithZoom(returnToBar = false, dropId = null) {
   const sheetEl = document.querySelector('.detail-sheet')
   const id = openedItem.value && openedItem.value.id
   if (!sheetEl || !id) return false
@@ -383,7 +384,15 @@ async function closeWithZoom(returnToBar = false) {
   const originEl = returnToBar ? document.querySelector('.add-bar') : cardEl
   const src = readCardRects(originEl)
   const dst = readDetailRects(sheetEl)
-  if (!src || !dst) return false     // 卡片已滚出视口 / 已删除 → 没有落点，直接关
+  if (!src || !dst) {
+    // 没有落点就跑不了动画，但空记录仍然必须删掉（否则会留一张空卡）
+    if (dropId) recordsApi.dropIfEmpty(dropId)
+    return false
+  }
+
+  // 落点和副本素材都先取下来：下面可能把这条记录删掉，删了 DOM 就没了
+  const photoUrl = cardEl?.querySelector('.card-cover img')?.src || ''
+  const textHtml = cardTextHtml(cardEl)
 
   /**
    * 顶栏补偿：详情打开时顶栏被卸载、主内容区占满整屏；收完之后顶栏挂回来、
@@ -396,11 +405,24 @@ async function closeWithZoom(returnToBar = false) {
     if (src[key]) src[key].t += chromeTop
   }
 
+  /**
+   * **空记录先删、再收**（2026-11-23 第二次修「已经记录的卡片跳动」）。
+   *
+   * 留着它先收再删的话：列表在收起动画一开始就已经显形了，而那张空卡要等动画
+   * 结束才消失 —— 它一消失，下面每一张卡都要上移一整张卡的高度，用户看到的是
+   * 「别的卡跳了一下」。
+   *
+   * 而且它本来就没在列表里"出现过"：新建是从横条长出来的，收回也是回横条。
+   * 提前删掉等于这一趟没发生过 —— 不 await 是因为数组改动本身是同步的
+   * （await 的只是后面的图片回收，那是后台事）。
+   */
+  if (dropId) recordsApi.dropIfEmpty(dropId)
+
   await zoom.close({
     src,
     dst,
-    photoUrl: cardEl?.querySelector('.card-cover img')?.src || '',
-    textHtml: cardTextHtml(cardEl),
+    photoUrl,
+    textHtml,
     textTo: dst.textTo,
     inner: dst.inner,
     header: dst.header,
