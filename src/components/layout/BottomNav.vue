@@ -19,6 +19,11 @@
 -->
 <template>
   <div class="bottom-nav" :aria-hidden="sunk ? 'true' : 'false'">
+    <!-- 渐进模糊带（2026-11-23）：内容滚到浮岛这一带时，越往下越糊 —— 图四那种"化开"。
+         不用 mask-image 做渐隐：iOS Safari 里 mask 会切断 backdrop-filter 的合成层，
+         表现出来是一条硬边。三层不同 blur 高度递进，肉眼读作渐变。
+         也不用白色渐变遮罩：那是"糊了一层面粉"，材质做的是透过，不是盖住。 -->
+    <div class="nav-fade" aria-hidden="true"><i></i><i></i><i></i></div>
     <nav class="nav-dock" :class="{ 'is-sunk': sunk }" role="tablist" aria-label="主导航">
       <span class="nav-pill" :style="{ '--pill-i': activeIndex }" aria-hidden="true"></span>
       <button
@@ -84,6 +89,23 @@ const activeIndex = computed(() => {
      （2026-11-23 实测：浮岛会被聊天页整片盖住，elementFromPoint 命中的是 chat-container）。 */
   z-index: 40;
 }
+
+/* 渐进模糊带：贴在屏幕底部，三层从"微糊"到"很糊"。
+   高度 140 + 安全区，覆盖浮岛上下 —— 内容在这一带经过时逐步化掉。
+   sunk（开「我的」/ 键盘弹起）时一起淡出，否则底栏沉了模糊带还在，像留了一条雾。 */
+.nav-fade {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  height: calc(140px + var(--safe-bottom));
+  display: flex; flex-direction: column;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+.nav-fade i { display: block; flex: 1; }
+.nav-fade i:nth-child(1) { backdrop-filter: blur(2px);  -webkit-backdrop-filter: blur(2px);  background: rgba(245, 245, 247, 0.02); }
+.nav-fade i:nth-child(2) { backdrop-filter: blur(7px);  -webkit-backdrop-filter: blur(7px);  background: rgba(245, 245, 247, 0.05); }
+.nav-fade i:nth-child(3) { backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); background: rgba(245, 245, 247, 0.10); }
+.bottom-nav[aria-hidden='true'] .nav-fade { opacity: 0; }
 
 /* 浮岛。两个位移量走 CSS 变量叠加，因为 transform 里已经有一个 translateX(-50%) 居中，
    直接再写一个 translateX 会互相覆盖。 */

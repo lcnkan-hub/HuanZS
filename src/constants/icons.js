@@ -62,7 +62,7 @@ export const iconMore = (size = 20) =>
   svg(size, '更多', '<circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/>')
 
 export const iconSearch = (size = 20) =>
-  svg(size, '搜索', '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>')
+  svg(size, '搜索', '<circle cx="10.5" cy="10.5" r="6.75"/><line x1="15.4" y1="15.4" x2="20" y2="20"/>')
 
 // ========== 分类 / 导航 Tab ==========
 
@@ -102,8 +102,19 @@ export const iconMic = (size = 20) =>
  * 形状刻意跟 export（导出备份）分开：
  *   export 是方框里一个向上的箭头（数据搬走），share 是方框**开口**、箭头穿出去（内容递出去）。
  */
+/**
+ * 分享：方框 + 向上箭头（2026-11-23 换成参考图那个形状）。
+ * 原来还带两条从框侧伸出的弧线，看着像"箭从框里射出"，跟用户给的图形不一致 —— 去掉。
+ */
 export const iconShare = (size = 20) =>
-  svg(size, '分享', '<path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M20 14v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5"/><path d="M9 11H5a2 2 0 0 0-2 2"/><path d="M15 11h4a2 2 0 0 1 2 2"/>')
+  svg(size, '分享', '<path d="M12 16V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M5 13.5v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/>')
+
+/**
+ * 主页（记录）：三条横线，无圆点、线端圆角 —— 依用户 2026-11-23 给的参考图。
+ * 与已有的 `list` 区别：`list` 左侧带三个点（列表语义），这里要的是纯"三横"。
+ */
+export const iconMenu = (size = 20) =>
+  svg(size, '记录', '<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>')
 
 /**
  * 书签（2026-11-21）：底栏「记录」Tab 的图标。
@@ -196,6 +207,7 @@ export const ICON_MAP = {
   trash: iconTrash,
   edit: iconEdit,
   search: iconSearch,
+  menu: iconMenu,
   game: iconGame,
   note: iconNote,
   life: iconLife,

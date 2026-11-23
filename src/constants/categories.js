@@ -19,7 +19,7 @@ export const TAB_NAMES = {
 
 // 底部导航项配置
 export const NAV_ITEMS = [
-  { id: 'record', icon: 'bookmark', text: '记录' },
+  { id: 'record', icon: 'menu',  text: '记录' },
   { id: 'crown',  icon: 'crown', text: '王冠' }
 ]
 

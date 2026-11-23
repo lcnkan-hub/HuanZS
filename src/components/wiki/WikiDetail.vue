@@ -19,35 +19,35 @@
 -->
 <template>
   <div class="detail-page-wrapper">
-    <!-- 顶部：返回（左）+ 分享 + 更多（右）。
-         分享和更多都是 34 视觉 / 44 热区；更多点开是竖排菜单（往左下弹，右边缘对齐） -->
+    <!-- 顶部：左边一颗玻璃圆钮（只有箭头，不带文字）+ 右边一颗「⋯」圆钮。
+         分享从顶栏独立图标收进了菜单里（用户 11-23：顶栏只留两个键） -->
     <div class="detail-header">
-      <button class="back-link-btn" @click="handleClose">
-        <AppIcon name="back" :size="17" /> 返回
+      <button class="round-btn" type="button" aria-label="返回" @click="handleClose">
+        <AppIcon name="back" :size="20" />
       </button>
       <div class="top-actions">
-        <button class="icon-btn" type="button" aria-label="分享" @click="onShare">
-          <AppIcon name="share" :size="19" />
-        </button>
         <button
-          class="icon-btn"
+          class="round-btn"
           type="button"
           aria-label="更多操作"
           :aria-expanded="menuOpen ? 'true' : 'false'"
           @click="menuOpen = !menuOpen"
         >
-          <AppIcon name="more" :size="19" />
+          <AppIcon name="more" :size="20" />
         </button>
-      </div>
 
-      <!-- 竖排菜单：收藏 / 删除。跟列表卡片的菜单同一套规格，只是方向竖着 -->
-      <div v-if="menuOpen" class="top-menu">
-        <button class="menu-item fav" type="button" @click="onToggleFav">
-          <AppIcon name="bookmark" :size="14" /> {{ favorited ? '取消收藏' : '收藏' }}
-        </button>
-        <button class="menu-item del" type="button" @click="onDelete">
-          <AppIcon name="trash" :size="14" /> 删除
-        </button>
+        <!-- 向下展开的玻璃菜单：收藏 / 分享 / 删除，整颗同一套材质（用户 11-23） -->
+        <div v-if="menuOpen" class="top-menu">
+          <button class="menu-item fav" type="button" @click="onToggleFav">
+            <AppIcon name="bookmark" :size="15" /><span>{{ favorited ? '取消收藏' : '收藏' }}</span>
+          </button>
+          <button class="menu-item share" type="button" @click="onShare">
+            <AppIcon name="share" :size="15" /><span>分享</span>
+          </button>
+          <button class="menu-item del" type="button" @click="onDelete">
+            <AppIcon name="trash" :size="15" /><span>删除</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -230,6 +230,7 @@ function onDelete() {
  * 内容按用户定的：整条记录（标题 + 正文）。
  */
 async function onShare() {
+  menuOpen.value = false
   const title = (props.openedItem.name || '').trim() || '未命名'
   const body = props.openedItem.wiki || ''
   const text = body ? `${title}\n\n${body}` : title
@@ -295,47 +296,65 @@ function handleClose() {
   position: relative;          /* 菜单要相对顶栏定位 */
   -webkit-user-select: none; user-select: none;
 }
-.back-link-btn {
-  background: none; border: none; color: var(--color-accent);
-  font-size: var(--text-15); font-weight: 500; cursor: pointer;
-  min-height: 44px; padding: 0 4px;
-  display: flex; align-items: center; gap: 2px;
-}
-
-/* 右上两枚图标：34 视觉宽度、44 高度撑足热区 */
-.top-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
-.icon-btn {
-  width: 34px; height: 44px;
+/* 顶栏两颗圆钮（2026-11-23）：玻璃底、44×44 热区（视觉即 44 —— check 脚本只认真实 rect，
+   伪元素扩热区不算数）。玻璃而不是无底：它常浮在封面照片上，无底会跟图糊在一起。 */
+.round-btn {
+  width: 44px; height: 44px;
   display: flex; align-items: center; justify-content: center;
-  background: none; border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
+  border: none; border-radius: 50%;
+  background-color: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-highlight), var(--glass-edge), 0 2px 10px rgba(0, 0, 0, 0.08);
+  color: var(--color-text-primary);
+  cursor: pointer; padding: 0;
+  transition: transform 0.16s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.icon-btn:active { opacity: 0.55; }
+.round-btn:active { transform: scale(0.94); }
 
-/* 竖排菜单：右边缘对齐顶栏，向下弹（往上会顶出屏幕） */
+.top-actions {
+  margin-left: auto; display: flex; align-items: center; gap: 8px;
+  position: relative;   /* 菜单相对它定位，右边缘跟「⋯」对齐 */
+}
+
+/* 向下展开的玻璃菜单：一颗容器装三行，材质统一（用户 11-23）。
+   以前是三个各自带底色的小胶囊（浅蓝/浅红/浅蓝）—— 三块颜色并排像三个系统通知，
+   而且跟"玻璃"的语义冲突：玻璃是透过，色块是隔断。 */
 .top-menu {
-  position: absolute; top: 46px; right: 8px; z-index: 20;
-  display: flex; flex-direction: column; gap: 4px;
-  animation: menuPop 0.16s var(--ease-pop) backwards;
+  position: absolute; top: 50px; right: 0; z-index: 20;
+  width: 136px; padding: 5px;
+  display: flex; flex-direction: column; gap: 2px;
+  border-radius: var(--radius-lg);
+  background-color: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow:
+    var(--glass-highlight),
+    var(--glass-edge),
+    0 12px 32px rgba(0, 0, 0, 0.14),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+  transform-origin: top right;
+  animation: menuIn 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
 .menu-item {
-  display: flex; align-items: center; gap: 5px;
-  height: 36px; padding: 0 12px;
+  display: flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 10px;
   border: none; border-radius: var(--radius-md);
-  font-size: var(--text-13); font-weight: 500;
-  cursor: pointer; white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
+  background-color: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--text-14); font-weight: 500;
+  cursor: pointer; white-space: nowrap; text-align: left;
   -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.16s ease;
 }
-.menu-item:active { transform: scale(0.96); }
-.menu-item.fav { background: var(--color-accent-light); color: var(--color-accent); }
-.menu-item.del { background: var(--color-danger-bg); color: var(--color-danger); }
-@keyframes menuPop {
-  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
+.menu-item:active { background-color: rgba(0, 0, 0, 0.06); }
+.menu-item.del { color: var(--color-danger); }
 
 /* 点任何地方关菜单。放在菜单之下（z-index 10 < 20） */
 .menu-mask { position: fixed; inset: 0; z-index: 10; }
