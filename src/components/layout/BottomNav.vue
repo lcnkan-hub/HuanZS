@@ -19,11 +19,19 @@
 -->
 <template>
   <div class="bottom-nav" :aria-hidden="sunk ? 'true' : 'false'">
-    <!-- 渐进模糊带（2026-11-23）：内容滚到浮岛这一带时，越往下越糊 —— 图四那种"化开"。
-         不用 mask-image 做渐隐：iOS Safari 里 mask 会切断 backdrop-filter 的合成层，
-         表现出来是一条硬边。三层不同 blur 高度递进，肉眼读作渐变。
-         也不用白色渐变遮罩：那是"糊了一层面粉"，材质做的是透过，不是盖住。 -->
-    <div class="nav-fade" aria-hidden="true"><i></i><i></i><i></i></div>
+    <!-- 底部玻璃场（2026-11-24 · 与参考文件的 .ambient 同一份实现，样式在 variables.css）
+         和顶栏那一条是同一种材质，整体 .is-up 翻过来 —— 渐隐方向对调，遮罩一个数都不用改。
+         王冠页不显示（那一页有自己的输入浮岛与夜板），靠 is-hidden 淡出而不是 v-if 拆掉，
+         免得切页那一刻"啪"地消失。 -->
+    <div
+      class="ambient is-up"
+      :class="{ 'is-hidden': modelValue === 'crown', 'is-sunk': sunk }"
+      aria-hidden="true"
+    >
+      <i class="layer wide"></i>
+      <i class="layer mid"></i>
+      <i class="layer core"></i>
+    </div>
     <nav class="nav-dock" :class="{ 'is-sunk': sunk }" role="tablist" aria-label="主导航">
       <span class="nav-pill" :style="{ '--pill-i': activeIndex }" aria-hidden="true"></span>
       <button
@@ -90,22 +98,26 @@ const activeIndex = computed(() => {
   z-index: 40;
 }
 
-/* 渐进模糊带：贴在屏幕底部，三层从"微糊"到"很糊"。
-   高度 140 + 安全区，覆盖浮岛上下 —— 内容在这一带经过时逐步化掉。
-   sunk（开「我的」/ 键盘弹起）时一起淡出，否则底栏沉了模糊带还在，像留了一条雾。 */
-.nav-fade {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  height: calc(140px + var(--safe-bottom));
-  display: flex; flex-direction: column;
-  pointer-events: none;
-  transition: opacity 0.2s ease-out;
+/* 底部的「化开」只由这一层的玻璃场负责（.ambient.is-up，实现见 variables.css）。历史：
+   2026-11-23 删过一整条渐变带（读起来是"一条横带"）；2026-11-24 换成三层模糊；
+   同一天还把 useCardFade（按卡写内联 opacity 的淡出）整组删掉 ——
+   底部不再有"卡片自己变淡"这套并行机制，也不会再有 16px 的错位死区。 */
+
+/* 底部玻璃场（2026-11-24 · 按 huanzhongshu_glass_homepage_full.html）
+   实现是共享的（variables.css 的 .ambient / .layer），这里只管位置与层位：
+     · absolute + bottom:0 —— 父级 .bottom-nav 是 fixed、height:0 的壳，
+       所以场从**屏幕底**往上长，连手势条那块安全区一起盖住。
+     · .is-up —— 整条翻过来，遮罩方向对着内容（顶部那种是"越靠上越糊"）。
+     · z-index:-1 —— 父级已有 z-index:40 自成上下文，负层正好压在内容之上、浮岛之下。
+   两种隐去：切王冠（is-hidden）/ 浮岛下沉（is-sunk = 开「我的」或键盘弹起）。
+   浮岛走了场还留着，屏幕上就是一条没有主人的横带。 */
+.bottom-nav > .ambient {
+  bottom: 0;
+  z-index: -1;
+  transition: opacity 0.18s ease-out;
 }
-.nav-fade i { display: block; flex: 1; }
-.nav-fade i:nth-child(1) { backdrop-filter: blur(2px);  -webkit-backdrop-filter: blur(2px);  background: rgba(245, 245, 247, 0.02); }
-.nav-fade i:nth-child(2) { backdrop-filter: blur(7px);  -webkit-backdrop-filter: blur(7px);  background: rgba(245, 245, 247, 0.05); }
-.nav-fade i:nth-child(3) { backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); background: rgba(245, 245, 247, 0.10); }
-.bottom-nav[aria-hidden='true'] .nav-fade { opacity: 0; }
+.bottom-nav > .ambient.is-hidden,
+.bottom-nav > .ambient.is-sunk { opacity: 0; }
 
 /* 浮岛。两个位移量走 CSS 变量叠加，因为 transform 里已经有一个 translateX(-50%) 居中，
    直接再写一个 translateX 会互相覆盖。 */
@@ -130,7 +142,7 @@ const activeIndex = computed(() => {
   /* 与 .page-stack 同一条曲线；opacity 更短，让它先退一步 ——
      两个同时走完，交叉期间会看见浮岛压在聊天界面上。 */
   transform: translate(calc(-50% + var(--dock-x)), var(--dock-y));
-  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+  transition: transform var(--slide-dur) var(--spring-glide),
               opacity   0.18s ease-out;
   pointer-events: auto;
 }
@@ -140,12 +152,17 @@ const activeIndex = computed(() => {
 .nav-dock.is-sunk   {
   --dock-y: calc(100% + 40px);
   /* 打开「我的」的节奏保持原样，别被上面的改动带快 */
-  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1),
+  transition: transform var(--slide-dur) var(--spring-glide),
               opacity   0.18s ease-out;
 }
 
 /* 滑动指示器：一块实心圆，靠 translateX 在格位间移动，比「每项自己变底色」多一次位移信息 ——
-   用户能看见"我选了另一个"，而不只是"这个亮了那个灭了"。 */
+   用户能看见"我选了另一个"，而不只是"这个亮了那个灭了"。
+   2026-11-23 两处升级：
+     ① 曲线换成 --ease-pop（带回弹）。直线插值的药丸只是"移动"，过冲一点才像有质量的液体。
+        时长 0.38 是配合回弹的：太快看不出过冲，太慢会拖住下一次点击。
+     ② 深色块也补一道顶光（inset 0 1px 0 白 .18）。纯色圆是"贴纸"，
+        有顶光才和外面的玻璃浮岛是同一套材质语言。 */
 .nav-pill {
   position: absolute;
   top: 6px;
@@ -154,12 +171,13 @@ const activeIndex = computed(() => {
   height: 46px;
   border-radius: 50%;
   background-color: var(--color-text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   /* 组件局部变量的默认值：真值由模板 :style 内联覆盖（activeIndex）。
      在这里定义是为了让「有没有定义」可查 —— 只在 var() 里写 fallback，
      首次渲染前那一帧会算出一个没人声明的值。 */
   --pill-i: 0;
   transform: translateX(calc(var(--pill-i) * 54px));  /* 54 = 46 图标位 + 8 间距 */
-  transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform var(--pop-dur) var(--spring-pop);
   pointer-events: none;
 }
 
@@ -178,14 +196,32 @@ const activeIndex = computed(() => {
   color: var(--color-text-muted);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: color 0.22s var(--ease-out), transform 0.16s var(--ease-out);
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: color 0.22s var(--ease-out),
+              transform var(--press-now-dur) var(--press-now-ease);
 }
-.nav-item:active { transform: scale(0.94); }
+.nav-item:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
 .nav-item.active { color: var(--color-text-on-accent); }
 
 /* 王冠就绪：配好密钥后点亮。未激活时金、激活时白（激活块是深色，金色压不住）。 */
 .nav-item .nav-icon.is-crown.is-ready { color: var(--color-crown-lit); }
 .nav-item.active .nav-icon { color: var(--color-text-on-accent); }
+
+/* 深色作用域下的反色药丸（2026-11-23）：
+   theme-deep 把 --color-text-primary 翻成了白色，药丸底跟着变白，
+   而图标吃的是 --color-text-on-accent（也是白）→ 白底白字，图标直接隐形。
+   这里把这一对换过来：白药丸 + 深色图标。写死颜色而不新增令牌，
+   是因为它只服务于这一个反色场景，多一个令牌没人看也不会有人维护。 */
+.bottom-nav.theme-deep .nav-pill { background-color: #F2E7E8; }
+.bottom-nav.theme-deep .nav-item.active { color: #17100F; }
+/* 图标是单独设色的（.nav-item.active .nav-icon 写的是 on-accent 白），
+   所以光改父级 color 不够 —— 这条必须再点一次 .nav-icon。 */
+.bottom-nav.theme-deep .nav-item.active .nav-icon { color: #17100F; }
 
 /* 视觉上是纯图标，文字仍留在可访问性树里（屏读器要读得出这是「记录 / 王冠」） */
 .nav-text {
@@ -196,5 +232,12 @@ const activeIndex = computed(() => {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* 没有 backdrop-filter 的环境：浮岛退化成半实底。
+   玻璃的前提是"背后的内容被糊掉"；糊不掉时半透明等于让卡片从图标缝里透出来，
+   比一块实的更难读。HIG · Materials 的降级口径是可读优先，不是保通透。 */
+@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+  .nav-dock { background: rgba(255, 252, 252, 0.94); }
 }
 </style>
