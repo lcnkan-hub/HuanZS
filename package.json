@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "description": "寰中枢 - 属于你的多维核心枢纽百科系统",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build && npm run check:secret",
     "preview": "vite preview",
+    "test": "node scripts/test-all.mjs",
     "test:crisis": "node scripts/run-crisis-tests.mjs",
     "test:backup": "node scripts/run-backup-tests.mjs",
     "test:image": "node scripts/run-image-tests.mjs",
