@@ -38,35 +38,11 @@
       @touchstart.passive="onListTouchStart"
       @touchmove.passive="onListTouchMove"
     >
-      <div
-        v-for="msg in messages"
-        :key="msg.id"
-        class="message-row"
-        :class="msg.role"
-      >
-        <!-- AI 头像（SVG 王冠，替代 emoji） -->
-        <div v-if="msg.role === 'assistant'" class="avatar" aria-hidden="true"><AppIcon name="crown" :size="18" /></div>
-        <div v-else class="avatar-spacer"></div>
+      <!-- 一条消息 = ChatBubbleRow（2026-11-24 抽出的展示组件） -->
+      <ChatBubbleRow v-for="msg in messages" :key="msg.id" :msg="msg" />
 
-        <div class="bubble-wrapper">
-          <div class="bubble" :class="msg.role">
-            <div class="bubble-content">{{ msg.content }}</div>
-          </div>
-          <div class="msg-time">{{ formatTime(msg.time) }}</div>
-        </div>
-      </div>
-
-      <!-- 王冠正在输入… -->
-      <div v-if="isThinking" class="message-row assistant">
-        <div class="avatar avatar-thinking" aria-hidden="true"><AppIcon name="crown" :size="18" /></div>
-        <div class="bubble-wrapper">
-          <div class="bubble assistant typing-bubble">
-            <span class="dot"></span>
-            <span class="dot"></span>
-            <span class="dot"></span>
-          </div>
-        </div>
-      </div>
+      <!-- 王冠正在输入…（同一条消息行的 thinking 变体） -->
+      <ChatBubbleRow v-if="isThinking" :msg="{ role: 'assistant', thinking: true }" />
 
       <!-- 空状态提示（模块6三要素：视觉意象+阐述+CTA） -->
       <div v-if="messages.length === 0" class="empty-state">
@@ -135,8 +111,9 @@
 </template>
 
 <script setup>
-import { ref, nextTick, watch, onMounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import ChatBubbleRow from './ChatBubbleRow.vue'
 import MemorySheet from './MemorySheet.vue'
 import CrownEntrance from './CrownEntrance.vue'
 import CrownBackdrop from './CrownBackdrop.vue'
@@ -148,6 +125,7 @@ import { useAIConfig } from '../../composables/useApiKey'
 import { buildWikiContext } from '../../composables/useWikiContext'
 import AiSettingsModal from '../user/AiSettingsModal.vue'
 import { useKeyboard } from '../../composables/useKeyboard'
+import { useChatScroll } from '../../composables/useChatScroll'
 import { readRaw, writeRaw } from '../../services/storageAdapter'
 
 // 键盘几何：kbOpen（底栏下沉 / 让位收回）、kbInset（列表底部留白）、kbShift（输入栏上浮量）
@@ -188,47 +166,13 @@ const showAiSettings = ref(false)
 const { config: aiConfig } = useAIConfig()
 const aiConfigured = computed(() => !!(aiConfig.value?.apiKey || '').trim())
 
-/** 自动滚动到底部 */
-async function scrollToBottom() {
-  await nextTick()
-  if (listRef.value) {
-    listRef.value.scrollTop = listRef.value.scrollHeight
-  }
-}
-
-/* —— 滑动即收键盘（2026-11-23 用户拍板要） ——
-   为什么要自己写：iOS/Safari 拖动消息列表时系统本来就会收键盘，Android WebView 不会，
-   结果同一个动作在两种手机上手感不同。
-   为什么用 touch 手势、不用 scroll 事件：发消息后我们自己会调 scrollToBottom()，
-   那同样会触发 scroll —— 用 scroll 会在"刚发完一条消息"时把键盘收掉，恰是用户最不想它收的时刻。
-   触摸手势天然只来自"人在滑"。直接调 blur：没焦点时是空操作，所以不用先判断键盘开没开。 */
-const DISMISS_DY = 12      // 手指位移超过这么多像素才算"在滑"（点按时的抖动通常在 5px 内）
-let touchStartY = 0
-
-function onListTouchStart(e) {
-  touchStartY = e.touches?.[0]?.clientY ?? 0
-}
-
-function onListTouchMove(e) {
-  const y = e.touches?.[0]?.clientY ?? 0
-  if (Math.abs(y - touchStartY) < DISMISS_DY) return
-  touchStartY = y          // 一次手势只收一次：持续 move 不反复 blur
-  inputRef.value?.blur()
-}
-
-// 新消息到达时自动滚动
-watch(messages, scrollToBottom, { deep: true })
-// 王冠开始/结束思考时也滚到底部，让输入提示可见
-watch(isThinking, () => {
-  if (isThinking.value) scrollToBottom()
+/** 自动滚动到底部 + 滑动即收键盘（2026-11-24 抽到 composables/useChatScroll.js） */
+const { onListTouchStart, onListTouchMove } = useChatScroll({
+  listRef, inputRef, messages, isThinking, kbInset
 })
-// 键盘一升一降都会改变"可见的消息区有多高"，跟着滚一次底，
-// 免得键盘顶上来以后最后一条消息刚好被输入栏/键盘盖住（2026-11-23）。
-watch(kbInset, () => { scrollToBottom() })
-// 刷新页面 / 切换回王冠 Tab 时，定位到最新对话（修复：刷新后停在顶部）
+
+// 冷启动后第一次进王冠 → 播入场动画（内存态，热切换不播；杀 app 内存清空重置）
 onMounted(() => {
-  scrollToBottom()
-  // 冷启动后第一次进王冠 → 播入场动画（内存态，热切换不播；杀 app 内存清空重置）
   if (!entrancePlayed) {
     entrancePlayed = true
     // 走适配器（2026-11-24）：这是全局键、「1」不是 JSON，用 readRaw 而不是 readJSON
@@ -302,13 +246,6 @@ function focusInput() {
 function handleEntranceDone() {
   showEntrance.value = false
   writeRaw(INTRO_KEY, '1')
-}
-
-/** 格式化时间：只显示 HH:mm */
-function formatTime(timeStr) {
-  if (!timeStr) return ''
-  const parts = timeStr.split(' ')
-  return parts[1] || timeStr.slice(-5)
 }
 </script>
 
@@ -415,97 +352,10 @@ function formatTime(timeStr) {
   padding: 56px 12px calc(8px + var(--kb-inset, 0px));
 }
 
-/* ===== 消息行 ===== */
-.message-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  animation: msgEnter 0.24s var(--ease-out);
-}
-.message-row.user {
-  flex-direction: row-reverse;
-}
-
-/* 消息入场：fade + 8px 微上浮 240ms ease-out（克制，无过冲） */
-@keyframes msgEnter {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ===== 头像（SVG 王冠，金色渐变圆底） ===== */
-.avatar {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  background: var(--crown-avatar-bg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--crown-avatar-icon);
-  flex-shrink: 0;
-  box-shadow: var(--crown-avatar-shadow);
-}
-.avatar-spacer {
-  width: 32px;
-  flex-shrink: 0;
-}
-/* 王冠思考时头像呼吸（收缩式 0.98↔1.0，几乎不可察觉，只留生命感） */
-.avatar-thinking {
-  animation: crownBreath 2.4s ease-in-out infinite;
-}
-@keyframes crownBreath {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(0.98); }
-}
-/* 无障碍：减少动效偏好时关闭入场/呼吸/打字动画（模块5） */
-@media (prefers-reduced-motion: reduce) {
-  .message-row,
-  .message-row.assistant,
-  .avatar-thinking,
-  .typing-bubble .dot { animation: none; }
-}
-
-/* ===== 气泡容器 ===== */
-.bubble-wrapper {
-  max-width: 78%;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.message-row.user .bubble-wrapper {
-  align-items: flex-end;
-}
-
-/* ===== 聊天气泡 ===== */
-.bubble {
-  padding: 10px 14px;
-  border-radius: 18px;
-  line-height: 1.5;
-  font-size: var(--text-14);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.bubble.assistant {
-  background: var(--color-bg-card);
-  color: var(--color-text-primary);
-  border-bottom-left-radius: 6px;
-  box-shadow: var(--shadow-card);
-}
-.bubble.user {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-  border-bottom-right-radius: 6px;
-  text-align: left;
-}
-
-/* ===== 时间戳 ===== */
-.msg-time {
-  font-size: var(--text-10);
-  color: var(--color-text-muted);
-  padding: 0 4px;
-}
-.message-row.user .msg-time {
-  text-align: right;
-}
+/* ===== 消息行与气泡（2026-11-24 搬到 ChatBubbleRow.vue） =====
+   一条消息的骨架、头像、气泡圆角、"正在输入"三个点、时间戳、以及它们各自的
+   入场/呼吸/跳动动画，全部跟着组件走。这里不再留任何 .message-row / .bubble 规则 ——
+   两份样式必然漂移，思考行就是靠这份唯一出处才不至于和普通消息长得不一样。 */
 
 /* ===== 空状态（模块6三要素：视觉意象+阐述+CTA） ===== */
 .empty-state {
@@ -714,25 +564,7 @@ function formatTime(timeStr) {
   inset: -4px;
 }
 
-/* ===== 王冠正在输入…（三个跳动圆点） ===== */
-.typing-bubble {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 14px;
-}
-.dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--color-text-muted);
-  animation: dotPulse 1.2s infinite ease-in-out;
-}
-.dot:nth-child(2) { animation-delay: 0.2s; }
-.dot:nth-child(3) { animation-delay: 0.4s; }
-@keyframes dotPulse {
-  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
-  40% { opacity: 1; transform: translateY(-2px); }
-}
+/* ===== 王冠正在输入… 的三个点已搬到 ChatBubbleRow.vue（thinking 变体） ===== */
 
 /* ===== 未配置密钥提示（BYOK）· 小胶囊（2026-11-23 改）
    原来是"全宽横条 + 独立去配置按钮"，压在输入浮岛上方 —— 底部三层、两种材质，间距读起来不均。
