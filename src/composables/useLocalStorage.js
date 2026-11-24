@@ -15,7 +15,7 @@
 import { ref, watch } from 'vue'
 import { scopeKey } from '../utils/storageScope'
 import { onExternalChange } from '../utils/storageSync'
-import { reportWriteFailure, clearWriteFailure } from '../utils/storageHealth'
+import { reportWriteFailure, clearWriteFailure } from './useStorageHealth'
 // 存储统一走适配器（2026-11-24）：本文件是「Vue 响应式外壳」，
 // 读写仍然要经过 adapter —— 否则「换存储后端只改一个文件」不成立。
 import { readRaw, readRawScoped, tryWriteRaw } from '../services/storageAdapter'

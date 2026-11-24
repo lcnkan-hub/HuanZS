@@ -8,7 +8,7 @@
  *   标准格式：![](https://...)       — 外部链接（仅渲染，不过滤）
  *   编辑态插入时自动生成 id:// 引用
  */
-import { getImageUrl, IMAGE_ID_SOURCE, isImageId } from '../composables/useImageStore'
+import { IMAGE_ID_SOURCE, isImageId } from './imageId'
 
 /**
  * 异步渲染 Markdown → HTML（支持图片异步加载）
@@ -65,11 +65,38 @@ export function renderMarkdownToHtml(text) {
 }
 
 /**
- * 异步渲染（带 IndexedDB 图片解析）
- * 调用方需要用 v-html 渲染后，再调用此方法替换 id:// 图片
+ * 异步渲染（把 id:// 引用换成真实 blob URL）
+ *
+ * 2026-11-24 改为**注入式**：不再 import 图片库，由调用方把「id → url」的取法传进来。
+ * 为什么：utils 层混进 composables/useImageStore 之后，这个纯解析模块在 node 里
+ * 没法单独跑（要先备 IndexedDB 替身），也没法换一种图片来源（比如以后走云端 CDN）。
+ * 不传 resolveImage 就直接返回原 HTML —— 宁可图不显示，也不假装成功。
  *
  * @param {string} html 已渲染的 HTML 字符串
+ * @param {(id: string) => Promise<string|null>|string|null} resolveImage 取图片 URL 的函数
  * @returns {Promise<string>} 替换了 id:// 的 HTML
+ */
+export async function resolveImagesAsync(html, resolveImage) {
+  if (typeof resolveImage !== 'function') return html
+  const refs = findImageRefsInHtml(html)
+  const done = new Map()
+
+  await Promise.all(refs.map(ref => Promise.resolve(resolveImage(ref.id)).then(blobUrl => {
+    if (blobUrl) done.set(ref.full, withBlobSrc(ref.full, blobUrl))
+  }).catch(() => { /* 单张图取不到不影响其余 */ })))
+
+  let result = html
+  done.forEach((to, from) => {
+    result = result.replace(from, to)
+  })
+
+  return result
+}
+
+/**
+ * 从 HTML 里找出所有 id:// 图片引用
+ * @param {string} html 已渲染的 HTML
+ * @returns {{full: string, id: string}[]} 整个 <img> 标签 + 图片 id
  */
 export function findImageRefsInHtml(html) {
   // RegExp 构造函数里斜杠**不需要转义** —— 一律不写 \/ ，免得被二次转义成 \\/ 之后
@@ -93,22 +120,6 @@ export function findImageRefsInHtml(html) {
 export function withBlobSrc(tag, blobUrl) {
   if (/\ssrc="[^"]*"/.test(tag)) return tag.replace(/\ssrc="[^"]*"/, ' src="' + blobUrl + '"')
   return tag.replace('<img', '<img src="' + blobUrl + '"')
-}
-
-export async function resolveImagesAsync(html) {
-  const refs = findImageRefsInHtml(html)
-  const done = new Map()
-
-  await Promise.all(refs.map(ref => getImageUrl(ref.id).then(blobUrl => {
-    if (blobUrl) done.set(ref.full, withBlobSrc(ref.full, blobUrl))
-  })))
-
-  let result = html
-  done.forEach((to, from) => {
-    result = result.replace(from, to)
-  })
-
-  return result
 }
 
 /**

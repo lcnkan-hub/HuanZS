@@ -50,6 +50,9 @@ globalThis.alert = () => { alerts++ }
 const { nextTick } = await import('vue')
 const { useLocalStorage } = await import('../src/composables/useLocalStorage.js')
 const health = await import('../src/utils/storageHealth.js')
+// 2026-11-24 拆分：纯函数（labelOfKey / measureUsage / formatMB）留在 utils，
+// 响应式账本（useStorageHealth / reportWriteFailure / __resetStorageHealth）搬到 composables。
+const healthUI = await import('../src/composables/useStorageHealth.js')
 const { STORAGE_KEYS, KEY_LABELS } = await import('../src/constants/categories.js')
 
 const assert = (await import('node:assert/strict')).default
@@ -71,7 +74,7 @@ async function ok(name, fn) {
 const reset = () => {
   STORE.clear()
   STORE.failNext = false
-  health.__resetStorageHealth()
+  healthUI.__resetStorageHealth()
   alerts = 0
 }
 
@@ -114,7 +117,7 @@ await ok('写不下 → 记一笔，账上是人话标签', async () => {
   reset()
   const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
   await writeFailing(data, [{ id: 'g1' }])
-  const f = health.useStorageHealth().failures.value
+  const f = healthUI.useStorageHealth().failures.value
   assert.equal(f.length, 1)
   assert.equal(f[0].label, '记录')
   assert.match(f[0].reason, /空间|quota/i)
@@ -140,7 +143,7 @@ await ok('同一个键连续失败三次 → 只留一条（不刷屏）', async
   await writeFailing(data, [{ id: 'a' }])
   await writeFailing(data, [{ id: 'b' }])
   await writeFailing(data, [{ id: 'c' }])
-  assert.equal(health.useStorageHealth().failures.value.length, 1)
+  assert.equal(healthUI.useStorageHealth().failures.value.length, 1)
 })
 await ok('两个不同的键都失败 → 两条，各自说清是哪一份', async () => {
   reset()
@@ -148,17 +151,17 @@ await ok('两个不同的键都失败 → 两条，各自说清是哪一份', as
   const mem = useLocalStorage(STORAGE_KEYS.MEMORY, [])
   await writeFailing(db.data, [{ id: 'a' }])
   await writeFailing(mem.data, [{ id: 'm1', type: 'event', content: 'x' }])
-  const labels = health.useStorageHealth().failures.value.map(f => f.label).sort()
+  const labels = healthUI.useStorageHealth().failures.value.map(f => f.label).sort()
   assert.deepEqual(labels, ['王冠的记忆', '记录'].sort())   // 按字符序，不按我们想要的顺序
 })
 await ok('★ 空间腾出来、写成功了 → 这笔账要销掉（恢复了就说恢复）', async () => {
   reset()
   const { data } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
   await writeFailing(data, [{ id: 'a' }])
-  assert.equal(health.useStorageHealth().failures.value.length, 1)
+  assert.equal(healthUI.useStorageHealth().failures.value.length, 1)
   data.value = [{ id: 'b' }]   // failNext 已关 → 这次写得进去
   await nextTick()
-  assert.equal(health.useStorageHealth().failures.value.length, 0)
+  assert.equal(healthUI.useStorageHealth().failures.value.length, 0)
 })
 await ok('销账只销自己那个键，不动别人的账', async () => {
   reset()
@@ -168,7 +171,7 @@ await ok('销账只销自己那个键，不动别人的账', async () => {
   await writeFailing(db.data, [{ id: 'a' }])
   db.data.value = [{ id: 'b' }]  // db 恢复
   await nextTick()
-  const labels = health.useStorageHealth().failures.value.map(f => f.label)
+  const labels = healthUI.useStorageHealth().failures.value.map(f => f.label)
   assert.deepEqual(labels, ['王冠的记忆'])
 })
 
@@ -211,13 +214,13 @@ await ok('真的写满一次：超限后记账、且体检能报出用量', asyn
   reset()
   const tight = makeStore(2000)   // 2KB 就满
   globalThis.localStorage = tight
-  health.__resetStorageHealth()
+  healthUI.__resetStorageHealth()
   const big = [{ id: 'g', wiki: 'x'.repeat(1500) }]
   let threw = false
   try { tight.setItem(STORAGE_KEYS.RECORDS, JSON.stringify(big)) } catch { threw = true }
   assert.ok(threw, '替身必须真的会因为超限抛错')
-  health.reportWriteFailure(STORAGE_KEYS.RECORDS, '本机存储空间满了')
-  const u = health.useStorageHealth().usage.value
+  healthUI.reportWriteFailure(STORAGE_KEYS.RECORDS, '本机存储空间满了')
+  const u = healthUI.useStorageHealth().usage.value
   assert.equal(u.limitBytes, 5 * 1024 * 1024)
   globalThis.localStorage = STORE
 })
