@@ -20,9 +20,6 @@
 const svg = (size, title, inner) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><title>${title}</title>${inner}</svg>`
 
-const svgFilled = (size, title, fillColor, inner) =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"><title>${title}</title>${inner.replace(/fill="currentColor"/g, `fill="${fillColor}"`)}</svg>`
-
 // ========== 导航方向 ==========
 
 export const iconBack = (size = 20) =>

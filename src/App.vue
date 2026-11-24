@@ -44,8 +44,10 @@
           <div class="page-sheet primary-sheet" :class="pageClass('primary')">
             <!-- ⚠ 这里**不许加 `:key`、也不许加 `v-if`**（2026-11-23 拆掉 key 后立的规矩）：
                  两者都会让整块列表重建 —— 卡片重新挂载、入场动画集体重播
-                 （按 (序号 × 70ms) 排队，记录越多越夸张），而重播期间 CSS 动画的优先级
-                 高过逐卡淡出写的内联 opacity，于是"已经淡到透明的卡会先亮一次再淡回去"。
+                 （按 (序号 × 70ms) 排队，记录越多越夸张）。
+                 当年重播还有个更糟的症状：CSS 动画优先级高过内联 `opacity`，
+                 会把"已经淡到透明的卡"重新点亮一次（那套逐卡淡出已于 2026-11-24 删除，
+                 但规矩不变：重建就是重播）。
                  历史上这个坑踩了两次：详情页的 v-if 一次、切王冠时的 :key 一次
                  （后者原本是给"4 个平级内容 Tab 切页重播"用的，现在底栏只剩记录/王冠，
                  王冠还是全屏叠层页、记录页根本没换内容，那套 key 早就是误伤）。
@@ -83,6 +85,7 @@
         <!-- 「我的」浮层：放在主内容区内，天然不盖顶栏与底栏，左侧露出记录页一小条 -->
         <MineSheet
           v-if="mineOpen"
+          :class="{ 'theme-deep': isNight }"
           :userProfile="userProfile"
           :records="records"
           @close="closeMine"
@@ -100,6 +103,7 @@
       <BottomNav
         v-if="!openedItem"
         v-model="currentTab"
+        :class="{ 'theme-deep': isNight && currentTab === 'crown' }"
         :sunk="mineOpen || (kbOpen && currentTab === 'crown')"
         :crownReady="crownReady"
       />
@@ -132,6 +136,8 @@ import { startProactiveTrigger } from './composables/useProactiveTrigger'
 import { useAIConfig } from './composables/useApiKey'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
 import { useKeyboard } from './composables/useKeyboard'
+// 昼夜判定：记录页/详情页与王冠共用同一个来源（useTimeMode，6:00–18:00 = 昼）
+import { useTimeMode } from './composables/useTimeMode'
 import { useCardZoom } from './composables/useCardZoom'
 import { readCardRects, readDetailRects, cardTextHtml } from './utils/cardZoomRects'
 import { useStorageHealth, formatMB } from './utils/storageHealth'
@@ -140,6 +146,8 @@ import { useStorageHealth, formatMB } from './utils/storageHealth'
 // 未登录 → 只渲染 AuthView；登录/注册成功后整页重载，
 // 让所有业务 composable 的存储键在 boot 时按新账号重新解析（见 utils/storageScope.js）
 const loggedIn = ref(isLoggedIn())
+const timeMode = useTimeMode()   // 返回的就是一个 Ref<'day'|'night'>
+const isNight = computed(() => timeMode.value === 'night')
 
 const handleAuthed = () => {
   loggedIn.value = true
@@ -519,7 +527,12 @@ const handleProfileUpdate = (updatedData) => {
 <style scoped>
 .app-container {
   display: flex; flex-direction: column; height: 100vh; height: 100dvh; width: 100vw;
-  background-color: var(--color-bg-primary); color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  /* 纸面 + 两团极淡色斑（2026-11-24 轻盈通透方向）。
+     不再用 background-attachment: fixed —— 这一层是 100dvh、本身不滚，
+     列表在自己的容器里滚，底色天然不动；fixed 在 iOS 上只会白烧一层合成。 */
+  background-image: var(--page-canvas-image);
+  color: var(--color-text-primary);
   font-family: var(--font-system); overflow: hidden; user-select: none;
   position: relative;
   /* 刘海/挖孔机：整块内容从状态栏下沿起算（A10） */
@@ -527,6 +540,13 @@ const handleProfileUpdate = (updatedData) => {
   padding-top: var(--safe-top);
 }
 .main-content { flex: 1; position: relative; overflow: hidden; }
+
+/* === 夜间画布（2026-11-24 删除）===
+   这里原来在 .is-night 下把 --deep-canvas-* 换成酒红黑 + 玫瑰网格，只服务详情页。
+   2026-11-24 详情页也换成纸面之后，这套令牌全库零引用，令牌本身已在 variables.css 删除，
+   这里的覆盖也跟着删 —— 留一段指向不存在令牌的 CSS，比没有更糟。
+   （要回退深色画布：换纸前那个提交里的 variables.css + 本文件 .is-night 两段一起取回。） */
+
 
 /* ===== 页面叠层容器 ===== */
 .page-stack {
@@ -540,8 +560,8 @@ const handleProfileUpdate = (updatedData) => {
      又据 HIG · Materials 的功能层/内容层分层 —— 所以位移量从整整一屏（-100%）
      缩到 10px，改用极小的后退（scale 0.99）表达"它在后面一层"。
      2026-11-22 从 0.36s/100% 改成 0.24s/10px，起因是用户反馈"过渡太生硬"。 */
-  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
-              opacity   0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform var(--slide-dur) var(--spring-glide),
+              opacity   var(--slide-dur) var(--spring-glide);
   transform-origin: center center;
 }
 .page-stack.is-pushed {
@@ -559,8 +579,8 @@ const handleProfileUpdate = (updatedData) => {
 }
 .crown-pane-enter-active,
 .crown-pane-leave-active {
-  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
-              opacity   0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform var(--slide-dur) var(--spring-glide),
+              opacity   var(--slide-dur) var(--spring-glide);
 }
 
 /* 顶部栏退场：只淡不抽高度（抽高度就是 Layout 动画，会抖） */
@@ -579,8 +599,8 @@ const handleProfileUpdate = (updatedData) => {
   perspective: 1000px;
 
   /* 接近 iOS 惯性的非线性曲线，持续 360ms */
-  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1.0),
-              opacity   0.36s cubic-bezier(0.2, 0.8, 0.2, 1.0);
+  transition: transform var(--slide-dur) var(--spring-glide),
+              opacity   var(--slide-dur) var(--spring-glide);
 }
 
 /* ---- 主面板（记录列表）：默认和离开态一致，避免归位闪烁 ---- */
@@ -588,19 +608,20 @@ const handleProfileUpdate = (updatedData) => {
   transform: translateY(-18px);
   opacity: 0;
 
-  /* 顶部边缘淡出（--head-fade，14px）：
-     顶栏改成"不垫底、不画线"的浮件之后，列表的裁切边裸露在页面底色上了
-     （以前被白色栏底盖住，看不见）。这一小段渐变让内容在顶栏下沿化开。
-     它必须小：顶栏还在文档流里、内容不从它底下过，给太大就会把第一张卡的首行也吃掉。
+  /* === 纸面上的卡片（2026-11-24 轻盈通透方向）===
+     作用域放在这一层而不是改 :root 的令牌：卡片材质只有记录页要换，
+     详情页 / 我的 / 王冠还在旧语言里，改全局会一起变。
+     换的是「重量」，不是「有没有」：卡还在、还分得清是一张一条，
+     但边从 1px 亮线降到半像素、影子从 8/24 降到 2/12 —— 内容才是主角。 */
+  --surface-card:           rgba(255, 254, 254, 0.78);
+  --surface-card-rim:       inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 0 0 0.5px rgba(90, 35, 55, 0.045);
+  --surface-card-shadow:    0 2px 12px rgba(90, 35, 55, 0.045), 0 1px 2px rgba(90, 35, 55, 0.025);
+  --surface-card-shadow-up: 0 10px 26px rgba(90, 35, 55, 0.08), 0 2px 5px rgba(90, 35, 55, 0.04);
 
-     底部**没有蒙版**（2026-11-22 二次修正，用户原话："不应该添加淡出的蒙版，
-     看起来是整个底部在淡出而不是卡片淡出"）。原因是手段不合：
-     mask 给**整片区域**削一层透明度，一张卡会被切成上半截实、下半截透明；
-     而且浮岛玻璃底下也被削空，材质没有内容可透（透色才是材质，削空就只是色板）。
-     底部改成**逐卡淡出**：每张卡自己带透明度，滚到浮岛那一段整张变淡，
-     屏幕上不存在"一条带"，淡化的主体是卡片本身。见 composables/useCardFade.js。 */
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, #000 var(--head-fade));
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, #000 var(--head-fade));
+  /* 2026-11-23：顶部那 14px 的渐变蒙版删掉了（用户要求：主页不要渐变）。
+     2026-11-24 渐变以另一种形式回来了 —— 不再是削在列表上的 mask，
+     而是 AppHeader 里一层独立的玻璃场（variables.css 的 .ambient，三层模糊 + 遮罩）：
+     内容整块穿过去被化开，不是"上半实、下半透"地被切。这一层自己仍然不挂任何 mask。 */
 }
 .primary-sheet.sheet-active {
   transform: translateY(0);
@@ -629,13 +650,15 @@ const handleProfileUpdate = (updatedData) => {
 
 /* ===== 主面板内容切换动画（tab 切换时重建，触发 enter 动画） ===== */
 .sheet-body {
-  /* 顶上让出 --head-fade：蒙版的前 14px 是"内容离开屏幕时化开"的过渡带，
-     静止时第一块内容（「记录一条」）必须落在它下面，否则它自己的顶边会被抹淡
-     —— 那是排版错误不是效果。滚动时内容照样穿过这条带，这正是要的。
-     min-height 用 calc(100% - 留白)：本项目没开全局 border-box，
-     不扣回来的话短列表会凭空多出 14px 可滚动高度。 */
-  padding-top: var(--head-fade);
-  min-height: calc(100% - var(--head-fade));
+  /* 2026-11-23：顶栏改成浮层后，这里补回让位高度 —— 但这次让的是「按钮本身」，
+     不是一条横带：滚动时内容会从两颗按钮后面穿过（上面 55px 不再被挖掉）。
+     用 var(--header-height) 而不是写死 55，免得两处对不上。
+
+     2026-11-24：再加一段 --sheet-top-gap。顶栏现在带着 148px 的纸色雾幕，
+     内容若仍从 55px 起，第一行正好长在雾最浓的位置（读起来像被水洗过）。
+     多让 44px，静止时第一条内容就站在雾已经淡开的地方；滚动时该穿过的照样穿过。 */
+  padding-top: calc(var(--header-height) + var(--sheet-top-gap));
+  min-height: calc(100% - var(--header-height) - var(--sheet-top-gap));
   animation: bodyEnter 0.36s cubic-bezier(0.2, 0.8, 0.2, 1.0);
 }
 

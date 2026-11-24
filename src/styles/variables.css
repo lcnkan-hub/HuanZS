@@ -16,64 +16,62 @@ html, body {
 }
 
 :root {
-  /* === 色彩系统 === */
-  --color-bg-primary:    #f5f5f7;
-  --color-bg-card:       #ffffff;
-  --color-bg-input:      #f0f0f2;
-  --color-bg-modal:      #f9f9fc;
-  --color-bg-subtle:     #f8f9fa;
+  /* === 色彩系统 · 酒红丝绒（2026-11-23 换肤第二步：整库换成第 7 套，结构未动）===
+     取色逻辑：象牙粉灰纸底 + 三色分工（同一颜色不表达两件事）
+       主 · 酒红 #7E2340 —— 主动作、链接、用户气泡、实心按钮（白卡上 9.5，压白字 9.5）
+       辅 · 灰蓝 #4A6178 —— 王冠头像、身份锚点（6.4）
+       点 · 铜   #A8763E —— 一次性信号与就绪态（3.9，只做图形）
+     正文三级（对新底实测）：#1B1214 16.9 / #463A3D 9.1 / #6D5A5E 6.4（卡）· 5.5（底）
+     ⚠ 三色各守一职：酒红不当状态色，灰蓝不当按钮底，铜不当正文（3.9 只够图形）。 */
+  --color-bg-primary:    #F6F1F0;
+  --color-bg-card:       #FFFFFF;
+  --color-bg-input:      #EDE4E5;
+  --color-bg-modal:      #FFFAFB;
+  --color-bg-subtle:     #F5EDEE;
 
-  --color-text-primary:  #1d1d1f;
-  --color-text-secondary:#3a3a3c;
+  --color-text-primary:  #1B1214;
+  --color-text-secondary:#463A3D;
   /* 次要文字。原值 #8e8e93 是 Apple 的 systemGray —— 它在四种底色上量出来是
      2.86(输入框底) ~ 3.26(卡片) ，连 AA 要求的 4.5 都够不到，而它管着全库约四十处
      时间戳、说明、脚注，字号多在 11~13。真机白天在户外看就是"糊成一片"。
-     换成 #6a6a6f：卡片 5.38 / 页面 4.94 / 输入框底 4.73 / 浅块 5.10，四处全过，
-     并且与 secondary(≈10) 和 primary(≈15) 仍拉开三档，层级没有被压平。 */
-  --color-text-muted:    #6a6a6f;
+     换成 #6D5A5E（酒红丝绒纸底上的暖玫瑰灰）：卡片 6.4 / 页面 5.5 / 输入框底 5.1，
+     三处全过，并且与 secondary(9.1) 和 primary(16.9) 仍拉开三档，层级没有被压平。 */
+  --color-text-muted:    #6D5A5E;
   /* 原 --color-text-light(#aeaeae) 已删：它只有 1.95~2.22，是全库唯一连 3:1 都不到的
      文字色，四处用例（渲染占位、工具条提示、足迹理念句、条目入口提示）本来就是 muted
      的语义，归到上面一档即可，不必再养一个读不出来的第四级灰。 */
 
-  --color-accent:        #007aff;
-  --color-accent-light:  #f0f4f8;
-  --color-danger:        #ff3b30;
-  --color-danger-bg:     #ffeef0;
-  /* 成功 / 开启态。原先四处各写各的：#2e9e5b（开关、AI 连通测试）与 #34a853（登录、备份）并存。
-     取深一点的 #2e9e5b：四处里有三处是**文字**，Apple 那颗亮绿 #34C759 当正文对比度不够。 */
-  --color-success:       #2e9e5b;
-  /* 成功的另外两级。同一支绿的三个亮度，对应三种对比场景，不是三套色：
-       --color-success      #2e9e5b  白底上的绿字（4.5:1 够用）
-       --color-success-deep #2e7d32  **浅绿底上的绿字**。这两个原先硬编码在「有内容」「插入图片」
-                                    两个小标签里，10~11px。不能直接换成 --color-success ——
-                                    它压在 #e8f5e9 上只有 3.0:1，小字不过关；#2e7d32 是 4.6:1。 */
-  --color-success-deep:  #2e7d32;
-  --color-success-bg:    #e8f5e9;
-  /* 中性按钮文字（取消键）。原先在四个 .cancel-btn 里各硬编码一遍同一个 #515154 */
-  --color-text-neutral:  #515154;
-  /* 实底上的前景色。原先 13 处强调色按钮各写一遍 color: white（与 #515154 同一类重复），
-     另有 2 处深底上的白色字形。分成两个令牌而不是一个：将来做深色主题时，
-     强调底会提亮、其上的文字要翻成深色；而深色品牌块 / 图片遮罩一直是深色、
-     其上的字形一直是白 —— 两者会往相反方向走，共用一个令牌就会打架。 */
+  /* 主色：酒红。白卡上 9.5、纸底 8.6，压白字 9.5 —— 全库唯一在四种语境都稳的强调色。
+     原 #007aff 只有 4.02，作正文/链接本来就不合格。 */
+  --color-accent:        #7E2340;
+  --color-accent-light:  #F7E7EC;
+  --color-danger:        #A32A2A;
+  --color-danger-bg:     #FAE8E9;
+  /* 成功 / 开启态。深一点的一支绿：四处里有三处是**文字**，亮绿当正文对比度不够。 */
+  --color-success:       #2E6B4C;
+  /* 成功的另外两级：同一支绿的三个亮度，对应三种对比场景，不是三套色 */
+  --color-success-deep:  #24543B;
+  --color-success-bg:    #E9F1EA;
+  /* 中性按钮文字（取消键） */
+  --color-text-neutral:  #5A4A4E;
+  /* 实底上的前景色。分两个令牌：深色主题里强调底会提亮、其上文字要翻深色；
+     图片遮罩/深色品牌块一直是深底白字，两者方向相反，不能共用一个令牌。 */
   --color-text-on-accent: #ffffff;
   --color-text-on-dark:   #ffffff;
 
-  --color-border:        #e5e5e5;
-  --color-border-light:  #f2f2f7;
-  --color-border-input:  #e5e5ea;
+  --color-border:        #E6DCDE;
+  --color-border-light:  #F0E8E9;
+  --color-border-input:  #E2D6D9;
 
   /* 原 --color-progress-game / note / life 已随三分类一起删除（2026-11-21 单层记录重构） */
 
-  --color-markdown-blue: #2f6497;
-  --color-markdown-brown:#9c6843;
-  --color-markdown-green:#3b7a57;
-
-  --color-toolbar-blue-bg:  #eef4fa;
-  --color-toolbar-brown-bg: #fdf5ee;
-  --color-toolbar-green-bg: #eefaf2;
+  /* markdown 里的三种强调字 = 主色的三个近亲（不是新增第四第五色）：
+     蓝→辅色、褐→主色加深、绿→成功色同族，语义与正文强调一致 */
+  --color-markdown-blue: #4A6178;
+  --color-markdown-brown:#8A3A2E;
+  --color-markdown-green:#2E6B4C;
 
   /* === 圆角 === */
-  --radius-sm:    6px;
   --radius-md:    8px;
   --radius-lg:    10px;
   --radius-xl:    12px;
@@ -84,17 +82,44 @@ html, body {
   --radius-4xl:   24px;
 
   /* === 阴影 === */
-  --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.04);
-  --shadow-card-md: 0 4px 14px rgba(0, 0, 0, 0.04);
+  --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.04);   /* 只剩王冠页两处还在用；记录页/我的页已换 --surface-card-* */
   --shadow-modal:   0 10px 30px rgba(0, 0, 0, 0.15);
   /* 原 --shadow-nav 已删：底栏改用 border-top + 半透明底 + 模糊做分层，全库零引用。
      注意 --radius-2xl 目前也零引用，但它在 sm/md/lg/xl/2xl/3xl 这套完整圆角刻度里 ——
      删了刻度就缺口，所以留着。 */
 
-  /* === 动画 === */
+  /* === 动画 ===
+     2026-11-24 立「弹簧账本」：交互手感只从这三条曲线 + 四个时长里取，别再就地写 cubic-bezier。
+
+     为什么是 linear() 而不是 cubic-bezier：
+       贝塞尔只能过冲**一次**，弹不出第二下 —— 系统按钮那种「按下去一顿、松手弹回来」
+       本质是一条阻尼振动曲线，只能采样成多段折线近似。下面的值是按
+       y(t)=1-e^(-ζωt)(cos(ω_d t)+ζω/ω_d sin(ω_d t)) 采 36 个点生成的，
+       采样窗口 = 该曲线的目标时长，所以 duration 和曲线天然对齐、不用另外调参。
+
+     ζ（阻尼比）怎么选：ζ=1 一到站就停（滑、不弹）；ζ 越小弹得越狠。
+       · press   ζ0.95 → 过冲 0%，按下要「脆」，弹一下就不到位反而是坏的
+       · pop     ζ0.72 → 过冲 3.8%，iOS 默认那点回弹（系统 bounce≈0.3 的量级）
+       · glide   ζ1.00 → 过冲 0%，位移/展开用，有长尾但不回弹
+
+     ⚠ 改这里的数值必须同时跑 check:ui 之外的真机观感，静态扫描测不出手感。 */
+  --spring-press: linear(0, 0.009746 2.8%, 0.03557 5.6%, 0.07311 8.3%, 0.1188 11.1%, 0.1698 13.9%, 0.2239 16.7%, 0.2794 19.4%, 0.3348 22.2%, 0.3892 25.0%, 0.4418 27.8%, 0.492 30.6%, 0.5395 33.3%, 0.584 36.1%, 0.6255 38.9%, 0.664 41.7%, 0.6993 44.4%, 0.7317 47.2%, 0.7612 50.0%, 0.788 52.8%, 0.8123 55.6%, 0.8342 58.3%, 0.8538 61.1%, 0.8714 63.9%, 0.8872 66.7%, 0.9012 69.4%, 0.9137 72.2%, 0.9247 75.0%, 0.9345 77.8%, 0.9431 80.6%, 0.9507 83.3%, 0.9574 86.1%, 0.9632 88.9%, 0.9683 91.7%, 0.9728 94.4%, 0.9767 97.2%, 1);
+  --spring-pop:   linear(0, 0.01694 2.8%, 0.06162 5.6%, 0.1259 8.3%, 0.2028 11.1%, 0.2869 13.9%, 0.3738 16.7%, 0.4598 19.4%, 0.5425 22.2%, 0.6199 25.0%, 0.6909 27.8%, 0.7546 30.6%, 0.8109 33.3%, 0.8596 36.1%, 0.9011 38.9%, 0.9357 41.7%, 0.964 44.4%, 0.9866 47.2%, 1.004 50.0%, 1.017 52.8%, 1.027 55.6%, 1.033 58.3%, 1.037 61.1%, 1.038 63.9%, 1.038 66.7%, 1.037 69.4%, 1.035 72.2%, 1.032 75.0%, 1.029 77.8%, 1.026 80.6%, 1.022 83.3%, 1.019 86.1%, 1.016 88.9%, 1.013 91.7%, 1.011 94.4%, 1.008 97.2%, 1);
+  --spring-glide: linear(0, 0.008797 2.8%, 0.03213 5.6%, 0.06608 8.3%, 0.1075 11.1%, 0.1539 13.9%, 0.2032 16.7%, 0.254 19.4%, 0.305 22.2%, 0.3554 25.0%, 0.4043 27.8%, 0.4514 30.6%, 0.4963 33.3%, 0.5388 36.1%, 0.5787 38.9%, 0.6161 41.7%, 0.6508 44.4%, 0.683 47.2%, 0.7127 50.0%, 0.74 52.8%, 0.7651 55.6%, 0.7881 58.3%, 0.809 61.1%, 0.8281 63.9%, 0.8454 66.7%, 0.8611 69.4%, 0.8754 72.2%, 0.8883 75.0%, 0.8999 77.8%, 0.9104 80.6%, 0.9199 83.3%, 0.9284 86.1%, 0.9361 88.9%, 0.9429 91.7%, 0.9491 94.4%, 0.9546 97.2%, 1);
+
+  /* 时长：与上面三条采样窗口一致，别单独改其中一个 —— 改了对不上就会「弹到一半被掐断」 */
+  --press-dur:   160ms;   /* 按下：短，手指还没抬起来就该到位 */
+  --release-dur: 420ms;   /* 松手回弹：比按下长，弹出余韵 */
+  --pop-dur:     320ms;   /* 小件弹出：菜单、chip、指示器 */
+  --slide-dur:   460ms;   /* 大件位移：底栏下沉、sheet 上滑 */
+
+  /* 按压缩放只留两个档：常规按钮、小图标（图标面积小，缩得少就看不出回应） */
+  --press-scale:    0.95;
+  --press-scale-sm: 0.92;
+
+  /* === 旧曲线：仍在被引用，暂留；新代码请用上面三条弹簧 === */
   --ease-out:  cubic-bezier(0.4, 0, 0.2, 1);
   --ease-pop:  cubic-bezier(0.34, 1.56, 0.64, 1);
-  --ease-slide:cubic-bezier(0.32, 0.94, 0.6, 1);
 
   /* === 间距 === */
   /* 刘海/挖孔机上沿安全区：Android(Capacitor) 与 iOS 都读同一条 env（A10） */
@@ -104,7 +129,6 @@ html, body {
   /* === 字体 === */
   /* 苹方优先：Apple 设备原生渲染，非 Apple 设备自动 fallback 到高质量系统字体 */
   --font-system: "PingFang SC", "PingFang TC", "Helvetica Neue", "Microsoft YaHei", "Hiragino Sans GB", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono:   "SF Mono", "Menlo", "Consolas", "PingFang SC", -apple-system, monospace;
 
   /* === 字号刻度 ===
      为什么要有这张表：以前字号的唯一来源是"当时手边觉得合适"，于是全库长出 18 档
@@ -139,11 +163,12 @@ html, body {
      原来这里是一条 --nav-height: 75px，只给 BottomNav 的「占位层」撑高度用；
      占位层拆掉以后，底栏不再吃布局，改成下面几件事共用同一份几何：
        · 记录列表的底部留白（滚到底时最后一张卡要能浮到浮岛上沿之上）
-       · 底栏区的高度（卡片滚到这一段时**整张**变淡，见 composables/useCardFade.js）
-     58 = 浮岛内边距 6 + 图标位 46 + 下内边距 6；14 = 浮岛离屏幕底边的距离。
+       · 底栏区的高度（逐卡淡出 useCardFade 当年用这个区间算淡化；
+         那套逻辑 2026-11-24 已删，现在只有列表底部留白在用这个数）
+     历史：58 = 旧浮岛内边距 6 + 图标位 46 + 6；14 = 浮岛离屏幕底边的距离。
      2026-11-22 二次修正：这里原本还有一条 --nav-fade（= zone + 50px），
-     它是给"整片蒙版淡出"用的呼吸量；改成逐卡淡出后没有任何引用了，删掉，
-     别留一个描述旧做法的令牌。 */
+     它是给"整片蒙版淡出"用的呼吸量；后来改成逐卡淡出，2026-11-24 逐卡淡出也删了 ——
+     底部现在只剩玻璃场，这个令牌没有引用者，但列表底部留白仍要用 zone 的几何，留着。 */
   --nav-dock-height: 58px;
   --nav-dock-gap:    14px;
   /* 视口底 → 浮岛上沿的距离（含手势条/刘海机底部安全区） */
@@ -157,56 +182,237 @@ html, body {
   --kb-inset: 0px;
   --kb-shift: 0px;
 
-  /* 顶部淡出带（2026-11-22 C2）：顶栏不再垫实心底，内容在它的下沿被"化开"而不是被直尺切掉。
-     量小是有原因的：顶栏还在流里（内容不从它底下过），所以只需要在列表裁切边那一小段过渡；
-     给到 50px 会把第一张卡的头一行也吃掉。 */
-  --head-fade: 14px;
+  /* 顶部淡出带 --head-fade 已删（2026-11-23 用户要求主页去掉渐变）：
+     它只服务于 .primary-sheet 那条 14px 的 mask 蒙版，蒙版删了，令牌也就没人用了。
+     现在列表滚到顶是一条硬边 —— 要恢复渐变，把 mask + 这个令牌一起加回来。 */
 
-  /* === 玻璃材质（功能层唯一配方 · 2026-11-22 C2 顶部去块化时收成令牌）===
-     用它的只有「功能层」浮件：底部导航浮岛、顶部搜索框。
+  /* === 记录页「纸面 + 雾幕」（2026-11-24 · 轻盈通透方向）===
+     设计语言换了：白 / 暖白 / 浅灰打底，层次靠透明度、模糊、渐变和空间关系，
+     不靠厚卡片、明显边框、成排的分割线（参考 frosted_glass_top_bottom_navigation_v2.html）。
+
+     ⚠ 这套**只服务记录页**（.app-container 的纸底 + .primary-sheet 的卡）。
+       详情页、王冠、我的仍是旧语言（深色画布 + 深色卡），本轮只改主页、只验方向，
+       别顺手扩散 —— 要统一另开一轮，见 PROJECT.md。
+
+     --page-rgb 是纸色的裸通道值，唯一用途是给下面的雾幕拼 rgba()。
+     它必须与 --color-bg-primary(#F6F1F0) 是同一个颜色：CSS 没法从 hex 反推分量，
+     所以这里是「一个颜色、两处书写」，改底色时两处一起改。 */
+  --page-rgb: 246, 241, 240;
+
+  /* 两团极淡的色斑：右上玫瑰、左下暖沙。
+     作用不是装饰 —— 玻璃要有颜色可透，才不会读成一块灰板（和深色底那三团同一个道理）。 */
+  --page-canvas-image: radial-gradient(62% 46% at 88% 10%, rgba(212, 176, 194, 0.34), transparent 70%), radial-gradient(58% 42% at 6% 84%, rgba(228, 204, 186, 0.38), transparent 72%);
+
+  /* === 玻璃场（顶部 / 底部过渡层 · 2026-11-24 按 huanzhongshu_glass_homepage_full.html）===
+     这一层只干一件事：让内容从屏幕边缘**化开**。按钮、玻璃条、卡片都不归它管。
+
+     做法照参考原样：三层不同半径的 backdrop-filter（18 / 24 / 32）各带一条遮罩渐隐，
+     叠在同一条 56px 带子里，再盖一层 28% 的染色和一道收尾面纱。
+     为什么是三层：单层模糊的遮罩边界太硬，换半径就能看见一条边；三层错开、透明度各 55%，
+     边界被抹成连续过渡（参考文件原注释：three independently feathered blur fields）。
+
+     ⚠ 实测（本机 Chromium）：元素或它的祖先带 mask，backdrop-filter 就整层失效，
+       桌面预览里只能看到一层染色、看不到模糊。目标环境是手机 WebView（Safari / 移动版 Blink），
+       那里这一套是生效的 —— 所以按参考原样写，不为了桌面预览降级。
+       手机上要看的验收点是：字滚进这条带子时"糊掉"而不是"变淡"，且上下边界没有硬线。
+     ⚠ 颜色不属于材质：全部走 --page-rgb，换主色时这几条不用动。 */
+  --fade-size: 56px;
+  --blur-wide: 18px;
+  --blur-mid: 24px;
+  --blur-core: 32px;
+  --glass-sat: 145%;
+  /* 三层遮罩：core 最实、wide 最淡。数值直接取参考，别按手感改 —— 三者的差值才是"没有边"的原因 */
+  --fade-mask-wide: linear-gradient(to bottom, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.28) 30%, rgba(0, 0, 0, 0.15) 66%, transparent 100%);
+  --fade-mask-mid: linear-gradient(to bottom, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.40) 28%, rgba(0, 0, 0, 0.20) 62%, transparent 100%);
+  --fade-mask-core: linear-gradient(to bottom, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.46) 22%, rgba(0, 0, 0, 0.19) 53%, transparent 88%);
+  /* 染色与收尾面纱（0.154 = .28×.55、0.067 = .28×.24，与参考的 :after 同值） */
+  --fade-tint: rgba(var(--page-rgb), 0.28);
+  --fade-veil: linear-gradient(to bottom, rgba(var(--page-rgb), 0.154) 0%, rgba(var(--page-rgb), 0.067) 35%, transparent 100%);
+
+  /* 列表顶部让位：顶栏 55 + 这一段。少了它，「记录」按钮正好落在雾最浓的一格里，
+     读起来像被水洗过；有了它，静止时第一条内容已经站在雾散开的地方。 */
+  --sheet-top-gap: 44px;
+
+  /* === 玻璃材质（功能层唯一配方 · 2026-11-23 升级为「有厚度」版）===
+     用它的只有「功能层」浮件：底部导航浮岛、顶部按钮/搜索框、详情页圆钮与工具栏。
      HIG · Materials：材质 = 颜色 alpha + 模糊，两样都要；只加 blur 不加半透明在纯白内容上
      几乎看不出效果。所以下面三条必须成组使用，别只挑一条。
      ⚠ 只给功能层用（导航/工具栏/浮层）。内容卡片不许玻璃 —— 那会造成"控件与内容不分层"，
      依据 HIG · Materials 规则 1「不要在内容层用 Liquid Glass」。
-     阴影不在这里：浮岛要"浮起 10px+28px"，搜索框只需要 4px+14px，两者各自写、各自动量。 */
-  --glass-fill:      rgba(255, 255, 255, 0.72);
-  --glass-blur:      blur(24px) saturate(180%);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.65);  /* 顶边一道内高光，玻璃像有厚度 */
-  --glass-edge:      0 0 0 0.5px rgba(0, 0, 0, 0.06);          /* 半像素描边代替边框线 */
+     阴影不在这里：浮岛要"浮起 10px+28px"，搜索框只需要 4px+14px，两者各自写、各自动量。
 
-  /* === 王冠主题（2026-08-14 收敛版：金色只留给记忆信号，头像金色保留=王冠身份锚点） === */
-  --crown-avatar-bg: linear-gradient(135deg, #f7c948, #f5a623);
-  --crown-avatar-shadow: 0 2px 6px rgba(245, 166, 35, 0.25);
+     2026-11-23 三处升级（依据 Apple HIG + iOS 27 的材质口径）：
+       ① 高光从「一道」变「上下两道」：顶边 .78 是迎着光的那道，底边 .32 是桌面反上来的弱光。
+          只有顶边时玻璃像一张贴纸，两头都有光才像一块有厚度的板。
+       ② 描边里加了内侧暗边（inset 0 0 14px）：iOS 27 给玻璃加的那圈「暗角」，
+          作用是让内容别贴着边、也让玻璃和背后的亮内容分开。
+       ③ fill 从 .72 降到 .66、blur 24→28：透得更明显，糊得更厚 —— 之前偏"磨砂纸"，
+          现在偏"厚玻璃"。白底上这两条是唯一能看出差别的两个旋钮。 */
+  /* 酒红丝绒：玻璃带一点玫瑰调（不是中性白）—— 纯白玻璃压在 #F6F1F0 上会发青，
+     读成一块冷板；玫瑰白 + 酒红描边，透色后仍与底同族。 */
+  --glass-fill:      rgba(255, 249, 251, 0.66);
+  --glass-blur:      blur(28px) saturate(175%);
+  --glass-highlight: inset 0 1px 0 rgba(255, 253, 254, 0.80), inset 0 -1px 0 rgba(255, 249, 251, 0.34);
+  --glass-edge:      0 0 0 0.5px rgba(90, 35, 55, 0.06), inset 0 0 14px rgba(90, 35, 55, 0.035);
+
+  /* === 内容层材质（卡片）= 亚克力，不是玻璃 ===
+     卡片不挂 backdrop-filter：白底上采样纯色等于白烧一层合成，滚动几十张必掉帧。
+     质感全靠三样静止的东西做出来：顶边一道内高光 + 半像素描边 + 双层柔投影。
+     双层投影（近处 1px 硬边 + 远处 14px 软边）比单层更像"离桌面有一点距离"。 */
+  /* 注意：这几条必须写成一行 —— check:tokens 的解析器只认「同一行内定义」的令牌，
+     值一旦换行，它会把后半截当成别的东西，报「全库没有定义」。 */
+  --surface-card:           rgba(255, 253, 253, 0.88);
+  --surface-card-rim:       inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 0 0.5px rgba(90, 35, 55, 0.05);
+  --surface-card-shadow:    0 3px 14px rgba(90, 35, 55, 0.055), 0 1px 2px rgba(90, 35, 55, 0.035);
+  /* 按下 / 悬停：影子散开、描边亮一档 —— 抬起来 2px 的读感 */
+  --surface-card-shadow-up: 0 10px 28px rgba(90, 35, 55, 0.09), 0 2px 5px rgba(90, 35, 55, 0.045);
+
+  /* === 王冠主题 · 酒红丝绒（2026-11-23 换肤第二步）===
+     金色彻底退场：头像用主色的玫瑰→酒红渐变（同族两档，不抢主色），
+     "记忆信号 / 就绪态"交给点色铜 #A8763E。 */
+  --crown-avatar-bg: linear-gradient(135deg, #C25476, #7E2340);
+  --crown-avatar-shadow: 0 2px 6px rgba(126, 35, 64, 0.28);
   --crown-avatar-icon: #ffffff;
-  /* 记忆信号专用色（低饱和暖金，仅记忆浮现时使用，P2 后启用；平时绝不用） */
-  --memory-signal: #C9A24B;
-  /* 底栏王冠「已就绪」亮金（2026-11-21）：配好 API 密钥后王冠图标点亮用。
-     与 --memory-signal 分开是因为语义不同：那是记忆浮现的一次性信号，
-     这是常驻的状态指示。比记忆金亮一档，才配得上「亮起来」。 */
-  --color-crown-lit: #E8A317;
+  /* 底栏王冠「已就绪」：配好 API 密钥后点亮用，是常驻状态指示，不是一次性信号。
+     用点色铜 #A8763E —— 于白卡 3.9、于纸底 3.6，作线条图标过 3:1（原金 #E8A317 只有 2.17）。 */
+  --color-crown-lit: #A8763E;
   /* 王冠界面背景（深夜书房米白，与入场动画"照亮"后的暖氛围适配） */
-  --crown-bg: #F7F6F3;
+  --crown-bg: #F6F2F4;
 
   /* === 王冠玻璃材质（昼）—— 提取为变量：夜板只需换值，全页材质自动跟随 === */
-  --crown-glass-bg:  rgba(255, 255, 255, 0.85); /* 顶部悬浮件（返回键 / 记忆胶囊） */
+  --crown-glass-bg:  rgba(255, 250, 251, 0.86); /* 顶部悬浮件（返回键 / 记忆胶囊） */
 
   /* === 王冠夜晚板（2026-09-12）===
      时间同步：与入场动画「灯醒」共用同一判定（useTimeMode：6:00–18:00 白天，其余夜晚）
      用途：夜晚时聊天界面的基底 + 材质换值，让界面与「灯醒」落在同一个空间里 */
-  --crown-night-bg:             #18181f; /* 与入场暗室同色：动画散开时看不出"换场" */
+  --crown-night-bg:             #17100F; /* 酒红黑（与入场暗室同色，动画散开时看不出"换场"） */
   /* 夜板残光的色标序列写在 CrownBackdrop.vue 内（与入场光晕的配方并排可比对），此处不重复定义 */
-  --crown-night-surface:        rgba(255, 255, 255, 0.07); /* 夜里助手气泡 / 卡片 */
-  --crown-night-surface-input:  rgba(255, 255, 255, 0.08); /* 夜里输入框底 */
-  --crown-night-glass:          rgba(255, 255, 255, 0.10); /* 夜里玻璃（悬浮件 / 输入栏） */
-  --crown-night-border:         rgba(255, 255, 255, 0.10);
-  --crown-night-text:           #ECEAE3;
-  --crown-night-text-secondary: #C7C4BC;
-  --crown-night-text-muted:     #9A968C;
-  --crown-night-accent:         #0A84FF; /* Apple 深色模式蓝（比 #007AFF 亮一档，夜里才够亮） */
+  /* 夜的每一档都转成玫瑰白（255,235,240）；冷白在半透明下会把这盏灯读成灰 */
+  --crown-night-surface:        rgba(255, 235, 240, 0.07); /* 夜里助手气泡 / 卡片 */
+  --crown-night-surface-input:  rgba(255, 235, 240, 0.08); /* 夜里输入框底 */
+  --crown-night-glass:          rgba(255, 235, 240, 0.10); /* 夜里玻璃（悬浮件 / 输入栏） */
+  --crown-night-border:         rgba(255, 235, 240, 0.10);
+  --crown-night-text:           #F2E7E8; /* 卡上 14.0 */
+  --crown-night-text-secondary: #CBBABD; /* 9.6 */
+  --crown-night-text-muted:     #A08C8F; /* 卡上 5.3 */
+  /* 夜里的主色提亮一档到 #E08BA6：暗底上 6.8；
+     ⚠ 其上文字必须翻成深墨（--color-text-on-accent 在 .night 作用域里改成 #1A0E12），
+     白字压这颗玫瑰只有 2.4，会糊。 */
+  --crown-night-accent:         #E08BA6;
+
+  /* === 深色画布 --deep-canvas-* 已删（2026-11-24）===
+     它曾是记录页与详情页的底（「底色 + 56px 网格 + 三团色斑」，昼深蓝、夜酒红黑）。
+     2026-11-24 两页都换成纸面（--page-rgb / --page-canvas-image）之后，全库零引用，
+     check:tokens 会把它列成"定义了没人用"，所以连令牌一起删 —— 别留一套描述已删设计的名字。
+     要回退深色画布：`git show <换纸前那个提交>:src/styles/variables.css` 里原样都在。
+     ⚠ 保留教训：check:tokens 的解析器只认「同一行内定义」，值换行会报"全库没有定义"。 */
+}
+
+/* === 玻璃场（共享实现 · 顶部 / 底部过渡层）===
+   主页顶/底、详情页顶/底用的是同一份东西，所以实现放在全局，组件里只写"在哪、第几层"。
+   scoped 样式只给选择器加属性、不改类名，所以这条能命中组件内部的 .ambient。
+   方向：默认朝下（顶部那种：越靠上越糊）；底部把它翻过来（.is-up），遮罩就不用写第二份。 */
+.ambient {
+  position: absolute; left: 0; right: 0;
+  height: var(--fade-size);
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient .layer {
+  position: absolute; inset: 0;
+  background-color: var(--fade-tint);
+  -webkit-backdrop-filter: saturate(var(--glass-sat));
+  backdrop-filter: saturate(var(--glass-sat));
+  will-change: backdrop-filter;
+}
+.ambient .layer.wide {
+  opacity: 0.55;
+  -webkit-backdrop-filter: blur(var(--blur-wide)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--blur-wide)) saturate(var(--glass-sat));
+  -webkit-mask-image: var(--fade-mask-wide);
+  mask-image: var(--fade-mask-wide);
+}
+.ambient .layer.mid {
+  opacity: 0.55;
+  -webkit-backdrop-filter: blur(var(--blur-mid)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--blur-mid)) saturate(var(--glass-sat));
+  -webkit-mask-image: var(--fade-mask-mid);
+  mask-image: var(--fade-mask-mid);
+}
+.ambient .layer.core {
+  opacity: 0.55;
+  -webkit-backdrop-filter: blur(var(--blur-core)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--blur-core)) saturate(var(--glass-sat));
+  -webkit-mask-image: var(--fade-mask-core);
+  mask-image: var(--fade-mask-core);
+}
+.ambient::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--fade-veil);
+  pointer-events: none;
+}
+/* 底部：整条翻过来。渐变/遮罩都不用重写 —— 翻转就是"把同一个衰减倒过来读" */
+.ambient.is-up { transform: scaleY(-1); }
+
+/* 没有 backdrop-filter 的环境（老 WebView / 关掉硬件加速）：
+   场本身靠模糊存在，糊不掉时它只会剩一层淡染色 —— 那点东西不值得留着占层位，直接不画。 */
+@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+  .ambient { display: none; }
+}
+
+/* === 深色作用域（2026-11-23 · 用户要求：记录页与详情页要达到 demo 的深色玻璃效果）===
+   做法是「换一组令牌」，不是逐个组件改颜色 —— 加一个类，整棵子树自动换主题，
+   组件内部一行都不用动。用它的只有记录页（.page-stack）与顶栏/底栏：
+   王冠页有自己的夜板（--crown-night-*），我的浮层保持浅色（从右侧滑出的抽屉），
+   两者都不会被这个作用域碰到。
+
+   参数直接取自 demo（glass-dashboard-step5），没再拍脑袋：
+     · 玻璃 fill 0.075、blur 20px saturate 150% —— 深色底上这个透明度才透得出色斑
+     · 高光 0.55（顶）/ 0.13（底）+ 1px 发丝边 + 内侧 26px 暗边 —— demo 的厚度配方
+     · 卡片 rgba(11,14,21,.62) 半透明实底 —— 深色底上「比背景亮一点点」才立得起来 */
+.theme-deep {
+  --color-bg-primary:     #17100F;               /* 酒红黑底 */
+  --color-bg-card:        #241A1C;               /* 卡/底 1.25：夜里能看出"卡在上面" */
+  --color-bg-input:       rgba(255, 235, 240, 0.08);
+  --color-bg-modal:       #2A2023;
+  --color-bg-subtle:      rgba(255, 235, 240, 0.04);
+  --color-text-primary:   #F2E7E8;               /* 底上 15.4 / 卡上 13.6 */
+  --color-text-secondary: #CBBABD;               /* 9.6 */
+  --color-text-muted:     #A08C8F;               /* 卡上 5.3 */
+  --color-text-neutral:   #BCA9AC;               /* 8.1 */
+  --color-border:         rgba(255, 228, 236, 0.10);
+  --color-border-light:   rgba(255, 228, 236, 0.06);
+  --color-border-input:   rgba(255, 228, 236, 0.12);
+  --color-accent-light:   rgba(255, 235, 240, 0.06);
+  /* 深色作用域必须显式覆盖强调色 —— 否则这里会继承昼态的酒红 #7E2340，
+     压在 #17100F 上只有 1.5，是最难读的一处错位。 */
+  --color-accent:         #E08BA6;
+  --color-text-on-accent: #1A0E12;
+  --color-danger:         #FF8A8A;
+  --color-danger-bg:      rgba(255, 110, 110, 0.14);
+  --color-success:        #8FD0AE;
+  --color-success-deep:   #B4E0C8;
+  --color-success-bg:     rgba(143, 208, 174, 0.14);
+
+  --glass-fill:      rgba(255, 230, 238, 0.075);
+  --glass-blur:      blur(20px) saturate(150%);
+  --glass-highlight: inset 0 1px 0 rgba(255, 236, 242, 0.55), inset 0 -1px 0 rgba(255, 236, 242, 0.13);
+  --glass-edge:      0 0 0 1px rgba(255, 230, 238, 0.16), inset 0 0 26px rgba(0, 0, 0, 0.18);
+
+  /* 玻璃场在暗底上换一组值（2026-11-24）：亮色那组是"盖一层纸"，夜里会变成一层发白的板；
+     暗底要"压暗 + 提亮一档"，所以染色用玫瑰白 5%、面纱用酒红黑。 */
+  --fade-tint: rgba(255, 235, 240, 0.05);
+  --fade-veil: linear-gradient(to bottom, rgba(23, 16, 15, 0.45) 0%, rgba(23, 16, 15, 0.20) 35%, transparent 100%);
+
+  --surface-card:          rgba(36, 26, 28, 0.62);
+  --surface-card-rim:      inset 0 1px 0 rgba(255, 236, 242, 0.07), 0 0 0 1px rgba(255, 230, 238, 0.09);
+  --surface-card-shadow:   0 8px 24px rgba(0, 0, 0, 0.38);
+  --surface-card-shadow-up: 0 14px 34px rgba(0, 0, 0, 0.52);
 }
 
 /* ===== 全局：滚动条一律不显示 =====
-   本产品是移动端优先（Capacitor / iOS），原生滚动条本来就不出现；
+    本产品是移动端优先（Capacitor / iOS），原生滚动条本来就不出现；
    但在桌面 Chrome 里每条可滚区域右侧都会挂一条灰条，看着像控件漏出来的 bug。
    2026-11-21 用户点名：主页和「我的」卡片里都有，去掉。
    项目只有这一个全局样式入口，所以重置规则放这里（不再另建 reset.css 分叉）。 */

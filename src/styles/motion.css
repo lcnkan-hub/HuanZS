@@ -1,0 +1,57 @@
+/**
+ * 交互手感积木（2026-11-24）
+ *
+ * 这个文件不产生视觉样式，只做两件事：写清「按下两段弹簧怎么接」，以及无障碍收口。
+ * 曲线和时长都在 variables.css 的「弹簧账本」里。
+ *
+ * ── 为什么按下要两段 ────────────────────────────────────────────────
+ * 以前全库是 `.x { transition: transform .16s ease }` + `.x:active { scale(.94) }`：
+ * 按下去软滑地缩、手指抬起又同样软滑地涨回来，像贴纸被压扁再擀平。
+ * 系统按钮的手感是**两段**：
+ *   · 按下 160ms / ζ0.95（不过冲）—— 手指还没抬起就必须到位，否则漏掉"回应"
+ *   · 松手 420ms / ζ0.72（约 3.8% 过冲）—— 这一下才是「跳」的来源
+ * 两段时长差 2.6 倍，节奏就有了；同一条曲线做不出来。
+ *
+ * ── 怎么接（关键，写错就看不见效果）──────────────────────────────────
+ * `transition` 是简写，同一元素上后加载的整条生效。组件 scoped 样式加载在
+ * 全局之后，所以**别指望挂个全局类去覆盖组件里的 transition** —— 会被整条盖掉。
+ *
+ * 正确的接法是把「时长 / 曲线」做成变量，在 :active 里换值：
+ *
+ *   .my-btn {
+ *     --press-now-dur: var(--release-dur);
+ *     --press-now-ease: var(--spring-pop);
+ *     transition: transform var(--press-now-dur) var(--press-now-ease),
+ *                 color .2s var(--ease-out);        ← 别的属性照常写自己的
+ *   }
+ *   .my-btn:active {
+ *     --press-now-dur: var(--press-dur);
+ *     --press-now-ease: var(--spring-press);
+ *     transform: scale(var(--press-scale));         ← 缩放值也只从这里取
+ *   }
+ *
+ * 为什么变量能这么用：按下瞬间 :active 命中，变量值变新，浏览器按新的
+ * duration/easing 起跑；松手时 :active 撤销，变量回落到 release 那组，
+ * 回弹自动用长弹簧。不用写两遍 transition，也不用 JS。
+ *
+ * ⚠ 元素自带 translate（居中、拖拽位移）时，scale 必须和它写在同一条
+ *   transform 里（`translateX(-50%) scale(...)`），否则按下瞬间会跳位。
+ *
+ * ⚠ 大件位移（sheet 上滑、底栏下沉）不要用 --spring-pop：3.8% 过冲落到
+ *   半屏高度就是 20~30px 的"冲过去再退回来"，读起来是抖不是弹。
+ *   大件一律 --spring-glide。
+ */
+
+/* ── 无障碍收口 ────────────────────────────────────────────────────
+   把时长令牌压到 1ms，所有引用令牌的地方自动变成立即切换。
+   为什么不用 `* { animation-duration: 1ms !important }`：那会连入场编排
+   （CrownEntrance 的 1~3s、换底 0.8s）一起杀掉 —— 那些是氛围不是反馈。
+   HIG《Motion》要收的是"会晃人的动"，不是"让界面有生命"。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --press-dur:   1ms;
+    --release-dur: 1ms;
+    --pop-dur:     1ms;
+    --slide-dur:   1ms;
+  }
+}
