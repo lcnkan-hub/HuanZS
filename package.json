@@ -18,7 +18,6 @@
     "test:reminder": "node scripts/backup-reminder.test.mjs",
     "test:sync": "node scripts/storage-sync.test.mjs",
     "test:retrieval": "node scripts/retrieval.test.mjs",
-    "test:browser": "node scripts/browser.test.mjs",
     "check:secret": "node scripts/check-no-secret.mjs",
     "check:tokens": "node scripts/check-tokens.mjs",
     "check:ui": "node scripts/check-ui.mjs",
@@ -30,14 +29,12 @@
     "@capacitor/core": "^8.4.2",
     "@capacitor/filesystem": "^8.1.4",
     "@capacitor/share": "^8.0.3",
-    "pngjs": "^7.0.0",
     "vue": "^3.4.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",
     "eslint": "^10.15.0",
     "eslint-plugin-vue": "^10.12.1",
-    "typescript": "^7.0.2",
     "vite": "^5.0.0"
   }
 }

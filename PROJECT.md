@@ -240,3 +240,164 @@ memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]
 卡高 449、`scrollWidth = 442`（无横向溢出）；二级页标题/返回正常，王冠页 285px；
 420 高视口下卡被夹到 370 = 88%，body 可滚动。截图见 `docs/screenshots/06~10`。
 
+**2026-11-23 二次修正（弹窗与二级页尺寸）**
+- **弹窗位置不受控**：`EditProfileModal` / `AiSettingsModal` 原来挂在 MinePage 里，
+  落在 `.mine-card-body` 的滚动容器内，而 `.mine-card` 有 `transform`（入场动画）→
+  它成了 fixed 的包含块，`100vw/100vh` 的遮罩按视图算、被卡片 `overflow:hidden` 裁掉，
+  表现为「弹窗位置不对、看不全」。现在两个弹窗是卡片的直接子元素、在滚动区外。
+- **高度上限改成 JS 量**：卡片的 height 是 auto，百分比 `max-height` 在"祖先高度不确定"的链条里
+  会被当成 `none`（实测 `100%` 与 `calc(100% - 24px)` 都无效），所以 `ModalBox` 在 mount/resize 时
+  按遮罩实际高度写 `maxHeight = 高度 − 20`；同时 `box-sizing:border-box`（限额必须按 border-box 裁，
+  否则 padding 40 漏在限额外）、内容区单独滚动、标题与动作键钉住。
+- **二级页与首页同高**：打开时量一次 `.mine-card-body` 的自然高度写死成内联 height。
+  `.mine-card-body` 必须 `flex: 0 1 auto`（`flex:1` 的 `flex-basis:0` 会把 height 顶掉，实测切页后卡片缩回内容高）
+  + `box-sizing:border-box`（量的是 border-box，写回的也得是，否则每量一次长 8px）。内容多了在卡内滚。
+- **头部高度钉 44**：返回键本身 44，会让头部从 36 长到 52 —— 进二级页卡片凭空长 16px。
+- **切换淡入**：`<transition mode="out-in">` 0.1s 出 / 0.18s 入，高度已固定所以只有透明度在动；
+  MinePage 原来那条 `fadeInContent` 撤掉（两处各淡一次 = 0.48s 的拖沓）。
+- **实测**（442×786）：首页 / 王冠 / 我的收藏 / 数据与备份四页卡高都是 **457**；
+  编辑弹窗 **429**、AI 设置 **437**，都在卡内（上下留 10~14px），无需滚动；
+  500 高视口下卡 440、弹窗 420，弹窗内部可滚 9px。截图 `docs/screenshots/07~12`。
+
+## 2026-11-24 记录页：纸面 + 上下雾幕（v3.4）
+
+**为什么**：用户给了一份参考（`frosted_glass_top_bottom_navigation_v2.html`）和一份设计方向说明。
+要的是「轻量、通透、悬浮、内容穿透、柔和渐隐」这套**设计语言**，不是给按钮加一层 `blur()`。
+原来的记录页恰好相反：深色画布（昼 `#070910` 白网格 + 蓝橙青斑，夜 `#17100F` 玫瑰网格），
+卡片是深色半透明。浅纸底 + 白玻璃悬浮是另一套空间关系，不是调个色能到的地方。
+
+**只改记录页**（用户明确：先只改主页、验方向，别一次改整个项目）。
+详情页 / 王冠 / 「我的」仍是旧语言，留给"统一语言"那一轮。
+
+**改动**
+- `variables.css`：新增 `--page-rgb` / `--page-canvas-image` / `--mist-top(-mask)` /
+  `--mist-bottom(-mask)` / `--mist-top-height` / `--mist-bottom-height` / `--sheet-top-gap`。
+  ⚠ `--page-rgb` 与 `--color-bg-primary` 是**同一个颜色的两处书写**（CSS 无法从 hex 反推 channel），
+  改纸色要两处一起改。
+- `App.vue`：`.app-container` 去掉 `is-deep`（深色画布不再铺在记录页），改挂 `--page-canvas-image`；
+  夜间令牌覆盖从 `.is-deep.is-night` 收窄成 `.is-night` —— **它现在只服务详情页**，
+  写回三元条件会让夜里进详情页掉回蓝紫霓虹底。
+  `.primary-sheet` 作为纸面作用域覆盖 `--surface-card*` 四条（卡片轻量化，不动全局令牌）。
+  `.sheet-body` 顶部让位 55 → 55 + `--sheet-top-gap`(44)。
+- `AppHeader.vue`：新增 `.chrome-mist`（`z-index:-1`，父级 `.header` 已有 z-index:20 自成上下文
+  → 正好压在内容之上、按钮之下）。gradient 给颜色、mask 柔化远端；附 `@supports` 降级。
+- `BottomNav.vue`：新增 `.nav-mist`（同上口径；geometric 是 `absolute` + `bottom:0`，
+  父级 fixed/height:0 → 雾从屏幕底往上长，盖住手势条）。王冠页 `is-hidden`、浮岛下沉时 `is-sunk` 淡出。
+  `theme-deep` 改成由 `App.vue` 只在「夜间 + 王冠 Tab」绑 —— 记录页昼夜都是浅色。
+- `WikiDetail.vue`：`.theme-deep .detail-page-wrapper` → 无条件 `.detail-page-wrapper`，
+  否则 page-stack 不挂 theme-deep 后详情页的网格与色斑会整个消失（只剩一块死黑）。
+- `vite.config.js`：`server.watch.ignored` 加 `**/*.tmpdir/**`。原子写入会在源码目录留
+  `.文件名.随机.tmpdir/`，Windows 上 Vite watcher 一 watch 到就 `EBUSY` 抛错、dev server 直接退出
+  （本轮实测崩了两次，其中一个症状是编辑工具报 `ReplaceFileW EIO`）。
+
+**验证**（390×844 真 Chrome：headless + 真尺寸 iframe，不用窗口缩放）
+- 截图：`docs/screenshots/13-record-paper-glass.png`（静止）、`14-record-scroll-mist.png`（滚 520px：
+  内容从顶栏后穿过并淡出）、`15-record-before-dark.png`（改前）。
+- 像素采样（竖扫 x=300/700）：纸底 `rgb(246,241,240)`；雾幕边缘上下相邻采样色差 **≤5/255**，
+  没有横向分层/色带；卡片边 `rgb(253,251,251)`。
+- 王冠页实拍确认：仍深色、浮岛仍走 `theme-deep`、底部雾幕不出现（`is-hidden`）。
+- `build`（含 `check:secret`）/ `check:ui` / `check:tokens` / `lint` 全绿。
+
+**已知没做的**
+- **夜间记录页也是浅色**（按设计方向，不再跟昼夜走）。若用户要"夜里回到深色"，
+  在 `App.vue` 给 `.is-night` 加一组 `--page-*` / `--mist-*` 覆盖即可，不用动结构。
+- 「我的」浮层夜间仍是深色（`theme-deep` 绑定未动），压在浅色记录页上会显得跳；留给统一那一轮。
+- 真机未验：`backdrop-filter` 在 Android WebView（Capacitor）上的合成开销、
+  iOS Safari 的 `mask-image` 前缀行为 —— 桌面 Chromium 与真机在这两点上不等价。
+
+## 2026-11-24 详情页跟进：也换成纸面（v3.4.1）
+
+用户要求"把详情页也按照改动"。做的是**同一套材质**，不是新设计：两页共用
+`--color-bg-primary` + `--page-canvas-image`，卡片展开时从纸面长成纸面，中途没有底色跳变。
+
+**改动**
+- `WikiDetail.vue`：`.detail-page-wrapper` 底色从 `--deep-canvas-*` 换成纸面；
+  删掉文末那条重复的同名规则（同一个东西写两遍，改一处必漏一处）。
+- `WikiDetail.vue` `.top-menu`：填充 `.66 → .86`。这一块里是三行**要读的字**，且正压在正文上：
+  `.66` 时背后正文透成一层灰影子（实测暗字透出约 **1.4:1**，读不动又甩不掉），
+  且不支持 `backdrop-filter` 的环境里模糊完全不生效。图标类浮件（圆钮 / 工具栏）保持 `.66`。
+- `variables.css` + `App.vue`：`--deep-canvas-bg` / `--deep-canvas-image` 全库零引用后连令牌一起删，
+  连同 `.app-container.is-night` 的覆盖与容器上的 `is-night` 类。留一段指向已删令牌的 CSS 比没有更糟。
+  （回退所需的两段都在换纸前那个提交里。）
+
+**验证**（390×844 真视口）
+- 截图：`docs/screenshots/16-detail-paper.png`（阅读态）、`17-detail-edit-toolbar.png`（编辑态工具栏）。
+- 顶部「⋯」菜单：改前模块内暗字 177/255、改后 228/255（同一坐标），即背景正文从"灰影子"退成"看不太见"。
+- `build`（含 `check:secret`）/ `check:ui` / `check:tokens` / `lint` 全绿；
+  `check:tokens` 的孤儿令牌从 3 个降到 1 个（剩 `--ease-pop` 是历史遗留，与本轮无关）。
+
+**仍未做**
+- 卡片→详情的转场外壳仍用 `--color-bg-card`（纯白）：最后一帧 60ms 内有白→纸的交叉，量级小但存在。
+- 桌面 headless 的合成器不跑 `backdrop-filter`，所以"模糊是否真生效"只能靠真机确认；
+  菜单的 `.86` 就是按"糊不掉也必须读得清"的底线定的，真机上会显得比现在更实一点。
+
+**2026-11-24 追加：去掉详情页的底部雾幕**
+详情页曾经也有上下两条雾幕（与记录页共用 `--mist-*` 令牌）。用户指出编辑态底部"还有一层"：
+实测那是 `.detail-mist.bottom`（172px、`z-index:1`、纸色渐变，压在正文之上、工具栏之下），
+它加上 `.detail-body` 的 172px 底部留白，把底部切成了"正文 → 雾 → 工具栏"三层。
+
+- 删掉 `.detail-mist.bottom` 元素与规则，**只保留顶部那条**（随滚动淡入）。
+- `.detail-body` 底部留白随后又按用户要求**归零**（"滚动框要一直到屏幕最底"）：
+  96px 那块在纸面上就是一截空白，正文看着像被截在中间。
+  代价是编辑态的工具栏改由 `.body-input` 自己留 `66px + 安全区` 的**内部**下内边距 —
+  滚动框仍然顶到屏幕底，但滚到底时最后一行停在工具栏上方，不会被栏压住。
+- `--mist-bottom*` 令牌**没删**：记录页的 `.nav-mist` 还在用。
+- 截图 `docs/screenshots/16-detail-paper.png` / `17-detail-edit-toolbar.png` 已按新状态更新。
+  （`--mist-*` 令牌后来在下一节里整组删掉了，这行当时写的"没删"已过期。）
+
+## 2026-11-24 顶部/底部过渡层：换成「玻璃场」（v3.5）
+
+参考 `huanzhongshu_glass_homepage_full.html` 的 `.ambient`。用户明确：**只改过渡层，按钮不动；
+以手机效果为准，网页端无所谓**。
+
+**做了什么**
+- `variables.css`：删掉上一版的纸色雾幕令牌（`--mist-top/-mask/-height`、`--mist-bottom/-mask/-height`），
+  换成玻璃场令牌：`--fade-size: 56px`、`--blur-wide/mid/core`（18/24/32）、
+  `--fade-mask-wide/mid/core`、`--fade-tint`、`--fade-veil`、`--glass-sat`。
+  共享实现（`.ambient` / `.layer.wide|mid|core` / `::after` 面纱 / `.is-up` 翻转）放在 variables.css，
+  组件里只写「在哪、第几层」—— 三处不再各抄一份。
+- `AppHeader.vue`：`.chrome-mist` → `.ambient`（三层），位置与层位不变。
+- `BottomNav.vue`：`.nav-mist` → `.ambient.is-up`，隐藏逻辑（切王冠 / 下沉）原样保留。
+- `WikiDetail.vue`：顶部 `.detail-mist` → `.ambient.top`（保留"停在顶上时隐去"的 `.is-on` 判据）；
+  **底部新增** `.ambient.is-up.bottom`，阅读态与编辑态都在。
+
+**为什么是三层**
+单层模糊的遮罩边界太硬，换个半径就能看见一条边。三层半径错开、透明度各 0.55、遮罩浓淡递减，
+边界才被抹成连续过渡 —— 这是参考文件的设计意图（原注释：three independently feathered blur fields），
+不是随手叠了三层。**别把它们合成一层**，合成后边界会回来。
+
+**必须记住的限制**
+Chromium 里，元素**或它的祖先**带 `mask` 时，`backdrop-filter` 整层失效（实测两种写法都不糊）。
+所以桌面预览里只能看到那 28% 的染色 —— 不是没生效，是渲染器不支持这个组合。
+目标环境（iOS Safari / Android WebView）支持，手机上才是完整效果。
+
+**手机验收清单（桌面看不到，只能真机）**
+1. 字滚进顶/底那条 56px 带子时是**糊掉**，不是单纯变淡。
+2. 带子的上下边界**没有一条线**（有的话说明某层 mask 没生效）。
+3. 编辑态：底部那条带子在工具栏后面，工具栏本身不该被染白/染糊。
+4. 快速滚动是否掉帧（三层 backdrop-filter 叠在滚动容器上，低端机有成本）。
+5. 详情页阅读态底部：最后一行/日期滚到底时应该"化进边缘"，不是被切。
+
+**验证**
+- 计算样式实测（390×844）：四处场各 3 层，`backdrop-filter` 分别为 `blur(18/24/32) saturate(1.45)`、
+  `opacity: .55`、`mask-image` 各不相同；高度都是 56；详情页顶场 0–56、底场 788–844。
+- `build`（含 `check:secret`）/ `check:ui` / `check:tokens` / `lint` 全绿。
+- 截图：`docs/screenshots/20-detail-bottom-field.png`（阅读态到底）、`21-detail-edit-field.png`（编辑态）。
+  桌面截图里只能看到淡色，看不到模糊 —— 这是上面那条限制，不是缺陷。
+
+**2026-11-24 同日：删掉「逐卡淡出」（useCardFade）**
+底部过渡层换成 56px 玻璃场之后，卡片淡出区间（从浮岛上沿 772 起）和模糊带（从 788 起）差了 16px，
+最下面一截成了"已半透明、还没进模糊"的死区。用户要求把这套逻辑整组去掉。
+
+- 删 `composables/useCardFade.js`（整文件）、`WikiList` 里的 import / 调用 / `ref="listRoot"`。
+- 现在底部只有玻璃场负责"化开"；卡片滚到底仍是不透明的，也不再因为 `opacity < 0.2`
+  被写 `pointer-events: none`（那条副作用一并消失，底部几张卡恢复可点）。
+- 同步改了提到它的注释与规则：`AGENTS.md` 第 3 条从"逐卡淡出与入场动画共用 opacity"
+  改成"别用常驻动画管状态类透明度"（教训保留，机制不再存在）；`variables.css` / `App.vue` /
+  `BottomNav.vue` / `WikiList.vue` 里过期的说明一并改掉。
+- 验证：`build` / `check:ui` / `check:tokens` / `lint` 全绿；390×844 滚到底截图确认
+  最后一张卡完整不透明、浮岛只压住它下沿的一小条。截图 `docs/screenshots/22-no-card-fade.png`。
+
+
+
+
