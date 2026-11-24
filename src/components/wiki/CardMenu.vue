@@ -83,11 +83,14 @@ function onDelete() {
   height: 38px;
   padding: 0;
   /* 弹出：从 0.94 起、18ms 内到位。够快才不像弹窗 */
-  animation: cardMenuPop 0.18s var(--ease-pop) backwards;
+  /* 拆成两条动画：透明度快（.14s，别让人等）、形变走弹簧。
+     一条 keyframes 只能用一条曲线，而"淡入干脆 + 弹出带一下过冲"才是出现的手感。 */
+  animation: cardMenuFade 0.14s linear backwards,
+             cardMenuPop var(--pop-dur) var(--spring-pop) backwards;
 }
+@keyframes cardMenuFade { from { opacity: 0 } }
 @keyframes cardMenuPop {
-  from { opacity: 0; transform: scale(0.94) translateY(2px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  from { transform: scale(0.90) translateY(3px); }
 }
 
 .cm-item {
@@ -101,8 +104,15 @@ function onDelete() {
   -webkit-appearance: none; appearance: none;
   -webkit-tap-highlight-color: transparent;
   outline: none;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease);
 }
-.cm-item:active { transform: scale(0.96); }
+.cm-item:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale-sm));
+}
 .cm-item.fav { background: var(--color-accent-light); color: var(--color-accent); }
 .cm-item.del { background: var(--color-danger-bg); color: var(--color-danger); }
 </style>

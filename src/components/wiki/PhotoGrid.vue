@@ -266,7 +266,7 @@ watch(() => urls.value.length, async (n, o) => {
   margin-bottom: 18px;
   border-radius: 14px;
   overflow: hidden;
-  background: var(--color-bg-subtle, #f8f9fa);
+  background: var(--color-bg-subtle);
   position: relative;   /* 标记遮罩的定位基准 */
 }
 
@@ -275,7 +275,7 @@ watch(() => urls.value.length, async (n, o) => {
 .cell {
   position: relative;
   overflow: hidden;
-  background: var(--color-border-light, #f2f2f7);
+  background: var(--color-border-light);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
@@ -289,7 +289,7 @@ watch(() => urls.value.length, async (n, o) => {
   -webkit-user-drag: none;
 }
 .cell:active img { opacity: 0.86; }
-.cell-void { width: 100%; height: 100%; background: var(--color-border-light, #f2f2f7); }
+.cell-void { width: 100%; height: 100%; background: var(--color-border-light); }
 
 /* 标记态：**只放开裁切**（让阴影不被裁掉）+ 每张独立圆角。
    绝不能动 padding / margin / gap —— 那会改图区尺寸，文字跟着上移、n3 的跨格比例被挤乱
@@ -305,7 +305,7 @@ watch(() => urls.value.length, async (n, o) => {
   border-radius: 12px;
   transform: scale(1.03);
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.26), 0 3px 8px rgba(0, 0, 0, 0.14);
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s;
+  transition: transform var(--pop-dur) var(--spring-pop), box-shadow 0.2s;
 }
 /* 只留一圈白色内高光（像卡片边缘被光扫到），不上色、不灰化 */
 .cell.is-marked::after {
@@ -338,7 +338,7 @@ watch(() => urls.value.length, async (n, o) => {
   -webkit-tap-highlight-color: transparent;
   outline: none;
 }
-.del-btn:active { transform: translate(-50%, -50%) scale(0.94); }
+.del-btn:active { transform: translate(-50%, -50%) scale(var(--press-scale-sm)); }
 
 /* 超过 9 张：第 5 格右下角标 +N */
 .cell-more {

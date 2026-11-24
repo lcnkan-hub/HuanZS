@@ -32,9 +32,17 @@ defineEmits(['add'])
   border: none; border-radius: var(--radius-md);
   font-size: var(--text-15); font-weight: 500;
   text-align: left; cursor: pointer;
-  transition: opacity 0.16s ease;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              opacity 0.16s ease;
 }
-.add-btn:active { opacity: 0.55; }
+.add-btn:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(0.985);
+  opacity: 0.55;
+}
 .add-plus {
   flex: 0 0 auto;
   width: 22px; height: 22px;

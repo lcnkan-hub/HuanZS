@@ -5,7 +5,7 @@
           但「搜不到」「只看我创建的」必须给一句话，否则用户会以为记录丢了。
 -->
 <template>
-  <div ref="listRoot" class="page-content">
+  <div class="page-content">
     <!-- 按日期分组：记录只有时间一个维度，就用时间给列表做出节奏。
          今天 / 昨天 / 更早 —— 不给标签就不加（没有内容的分组标题是噪音）。 -->
     <template v-if="items.length === 0">
@@ -48,7 +48,6 @@ import { computed, ref, watch, nextTick } from 'vue'
 import WikiCard from './WikiCard.vue'
 import CardMenu from './CardMenu.vue'
 import { isFavorite, toggleFavorite } from '../../composables/useFavorites'
-import { useCardFade } from '../../composables/useCardFade'
 
 const props = defineProps({
   items:     { type: Array,  default: () => [] },
@@ -60,13 +59,13 @@ defineEmits(['open-item', 'delete-item'])
  * 入场动画「只播一次」（2026-11-23）
  *
  * 病根：cardFadeIn 原来是挂在 `.data-card` 上的常驻 animation —— 只要卡片被重新挂载，
- * 它就从头播一遍；而动画播放期间 CSS 动画优先级**高于**逐卡淡出写的内联 opacity，
- * 于是"已经淡到透明的卡会先亮一次、等动画结束再淡回去"（切王冠返回时必现）。
+ * 它就从头播一遍，整列卡片按序号排队重播（切王冠返回时必现）。
+ * 当年还有第二层症状：逐卡淡出（useCardFade，**已于 2026-11-24 删除**）写的是内联 opacity，
+ * 而动画播放期间 CSS 动画的优先级高过内联值，于是"已经淡到透明的卡会先亮一次再淡回去"。
  *
  * 解法：动画改成一类开关（`.is-entering`，见 WikiCard），这里按 **id** 记住谁入过场：
  *   · 只有第一次出现的 id 才拿到 .is-entering 与那 70ms 的错峰延迟；
- *   · 动画播完（WikiCard 的 animationend）立刻摘掉标记 —— 之后透明度只归逐卡淡出管，
- *     两者再也不会打架。
+ *   · 动画播完（WikiCard 的 animationend）立刻摘掉标记，之后再没有任何动画管这张卡。
  *
  * 为什么这套记忆放在**模块级**而不是组件内：组件一旦被重建（历史上详情页 v-if、切页 key
  * 都干过这事），组件内状态会归零 → 又集体重播。放模块级 = 与 DOM 生命周期解耦，
@@ -89,7 +88,7 @@ function syncEntering() {
 }
 watch(() => props.items, syncEntering, { immediate: true })
 
-/** 某张卡的入场动画播完了 → 摘掉待播标记（此后它只受逐卡淡出控制） */
+/** 某张卡的入场动画播完了 → 摘掉待播标记（此后这张卡不再有动画） */
 function markEntered(id) {
   if (!entering.value.has(id)) return
   const next = new Set(entering.value)
@@ -97,12 +96,12 @@ function markEntered(id) {
   entering.value = next
 }
 
-/**
- * 底部逐卡淡出（2026-11-22）：卡片滚到浮岛那一段时**整张**变淡，
- * 不再是"一条蒙版把整个底部削掉"。几何与判据全在 composable 里。
- */
-const listRoot = ref(null)
-useCardFade(listRoot, () => props.items)
+/* 底部逐卡淡出（useCardFade）已于 2026-11-24 整组删除。
+   它原来按"卡的下边缘越过浮岛上沿"给每张卡写内联 opacity（区间 72px），
+   底部过渡层换成 56px 的玻璃场之后，两个区间对不上：卡从 772 就开始淡，
+   而模糊带从 788 才起 —— 最下面 16px 是"已半透明但还没进模糊"的死区。
+   用户要求整组去掉：现在底部只剩玻璃场负责"化开"，卡片本身不再变透明，
+   也不再因为淡出而被 `pointer-events: none` 关掉点击。 */
 
 /**
  * 列表重排的平滑过渡（FLIP，2026-11-23）
@@ -113,7 +112,7 @@ useCardFade(listRoot, () => props.items)
  *
  * ⚠ 两个坑：
  *  1. **新卡不参与**（`.is-entering` 还在）—— 它有自己的入场动画，两个动画抢 transform 会打架；
- *  2. 过渡结束要清掉内联 `transition`，否则下次逐卡淡出/拖动会被它拖慢。
+ *  2. 过渡结束要清掉内联 `transition`，否则下次拖动/滚动会被它拖慢。
  *
  * 用 0.34s / cubic-bezier(.2,.8,.2,1)：让「别的卡让位」读起来是被新卡**挤下去**的，
  * 而不是自己凭空平移了一段（用户原话：不要死板的平移）。
@@ -223,21 +222,6 @@ const groups = computed(() => {
 /* 左右 12 + 卡片内 10 = 距屏幕 22 —— 与详情正文同一左基线（展开时文字宽度不变）。
    底部给浮岛让位：最后一条不被它压住。 */
 .page-content { padding: 0 12px calc(var(--nav-zone) + 8px) 12px; animation: fadeInContent 0.3s ease-out; }
-
-/* 筛选 chip：与「我的」浮层里的入口同一套三色点 */
-.filter-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  position: relative;
-  padding: 5px 12px; margin: 12px 0 2px 0;
-  background: rgba(0, 122, 255, 0.08); color: var(--color-accent);
-  border: 1px solid rgba(0, 122, 255, 0.16); border-radius: 999px;
-  font-size: var(--text-12); font-weight: 500; cursor: pointer;
-  transition: background 0.2s;
-}
-.filter-chip:active { background: rgba(0, 122, 255, 0.16); }
-.filter-chip::after { content: ''; position: absolute; inset: -10px -4px; }
-.chip-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; background: var(--color-accent); }
-.chip-x { font-size: var(--text-10); opacity: 0.7; margin-left: 1px; }
 
 /* 分组标题：一档小字 + 疏排，作用是「切开」而不是「强调」—— 所以比我 muted 更淡、不占卡片重量 */
 .group-title {

@@ -30,7 +30,8 @@ export function stripChildren(list) {
   if (!Array.isArray(list)) return list
   return list.map(item => {
     if (!item || typeof item !== 'object') return item
-    const { children, ...rest } = item
+    const rest = { ...item }
+    delete rest.children
     return rest
   })
 }

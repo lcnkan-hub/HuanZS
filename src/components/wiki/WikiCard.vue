@@ -182,20 +182,34 @@ watch(
    反面教材见文件头第 3 条：宽度差 58px 时，展开过程整段文字会重新折行。 */
 .data-card {
   position: relative;
-  background: var(--color-bg-card);
+  /* 内容层用「亚克力」不是玻璃：一点点透 + 顶边内高光 + 半像素描边 + 双层柔投影。
+     不挂 backdrop-filter —— 白底上采样纯色等于白烧一层合成，列表几十张必掉帧。 */
+  background: var(--surface-card);
   border-radius: var(--radius-2xl);
   padding: 14px 10px;
   display: flex; flex-direction: column;
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow);
   cursor: pointer;
   overflow: hidden;
   /* 长按不该弹系统菜单、也不该选中文字 */
   -webkit-touch-callout: none;
   -webkit-user-select: none; user-select: none;
-  transition: transform 0.16s ease-out;
+  transition: transform 0.16s ease-out, box-shadow 0.22s ease-out;
 }
-/* 长按触发后卡片自己压低一点：告诉用户「这一张被按住了」，菜单属于它 */
-.data-card.is-pressing { transform: scale(0.985); }
+/* 桌面端悬停：抬 1px、影子散开 —— 「这张可以点开」的预演。
+   移动端没有 hover，用下面的按压态代替。 */
+@media (hover: hover) {
+  .data-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--surface-card-rim), var(--surface-card-shadow-up);
+  }
+}
+/* 长按触发后卡片自己压低一点：告诉用户「这一张被按住了」，菜单属于它。
+   写在 hover 之后，两者同时命中时以按压为准。 */
+.data-card.is-pressing {
+  transform: scale(0.985);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow-up);
+}
 
 /* 入场动画：只在这张卡第一次出现时由父级的 .is-entering 打开一次，播完即被摘掉 */
 .data-card.is-entering {
@@ -219,7 +233,7 @@ watch(
   margin-top: 10px;
   border-radius: var(--radius-2xl);
   overflow: hidden;
-  background: var(--color-border-light, #f2f2f7);
+  background: var(--color-border-light);
   flex: 0 0 auto;
 }
 .card-cover img {
@@ -227,7 +241,7 @@ watch(
   object-fit: cover; display: block;
   -webkit-user-drag: none;
 }
-.cover-void { width: 100%; height: 100%; background: var(--color-border-light, #f2f2f7); }
+.cover-void { width: 100%; height: 100%; background: var(--color-border-light); }
 
 /* 张数：**图片区**右下角。压暗底才能在任意照片上都读得出来 */
 .cover-count {

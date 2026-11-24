@@ -253,6 +253,16 @@ defineExpose({ startEdit, exitEdit, insertImage, insertBold, flush, isEditing: e
   min-height: 320px;
   box-sizing: border-box;
   padding: 0;
+  /* 顶部留白由详情页给（--edit-top-pad，默认 0）：
+     纯文字编辑时它等于「顶栏高度 + 10」，textarea 就能顶到屏幕最上沿、
+     让正文从顶栏后面滚过去 —— 雾幕才盖得到字（2026-11-24）。
+     变量没定义时这条声明直接失效，padding: 0 的语义不变。 */
+  padding-top: var(--edit-top-pad);
+  /* 底部留白（2026-11-24）：详情页的 .detail-body 底部留白已经归零（滚动框要顶到屏幕最底），
+     但编辑态那条玻璃工具栏是**浮在正文之上**的 —— 没有这一段的话，滚到底时最后一行
+     永远压在工具栏底下。66 = 工具栏离底 14 + 自身 52，加安全区是因为工具栏也跟着上移。
+     注意它加在 textarea **内部**：滚动框本身仍然到底，只是最后一行停在栏上方。 */
+  padding-bottom: calc(66px + var(--safe-bottom));
   background: none;
   border: none;
   outline: none;
