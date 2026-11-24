@@ -12,6 +12,11 @@
  */
 import { STORAGE_KEYS } from '../constants/categories'
 import { scopeSuffix, setScope, SCOPED_BASE_KEYS } from '../utils/storageScope'
+// 存储统一走适配器（2026-11-24）：账号表 / 登录态是「设备级键」，
+// 适配器内部的 scopeKey 会认出它们、不加账号前缀（见 storageScope 的 GLOBAL_KEYS）。
+import {
+  readJSON, writeJSON, tryWriteJSON, readRaw, writeRaw, removeKey
+} from '../services/storageAdapter'
 
 const USERNAME_MIN = 2
 const USERNAME_MAX = 20
@@ -20,22 +25,14 @@ const PASSWORD_MIN = 6
 // ========== 底层读写（设备级键，不走作用域） ==========
 
 function readAccounts() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNTS)
-    const list = raw ? JSON.parse(raw) : []
-    return Array.isArray(list) ? list : []
-  } catch {
-    return []
-  }
+  const list = readJSON(STORAGE_KEYS.ACCOUNTS, [])
+  return Array.isArray(list) ? list : []
 }
 
 function writeAccounts(list) {
-  try {
-    localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(list))
-    return true
-  } catch {
-    return false // 隐私模式等写入失败 → 让调用方给提示
-  }
+  // tryWriteJSON：真的写进 localStorage 才返回 true。
+  // 这里绝不能换成 writeJSON —— 那玩意失败会落内存兜底，注册就成了「假成功」。
+  return tryWriteJSON(STORAGE_KEYS.ACCOUNTS, list)
 }
 
 function genAccountId() {
@@ -61,14 +58,8 @@ export function hasAnyAccount() {
 
 /** 当前登录态（未登录返回 null） */
 export function getSession() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.SESSION)
-    if (!raw) return null
-    const s = JSON.parse(raw)
-    return s && s.userId ? s : null
-  } catch {
-    return null
-  }
+  const s = readJSON(STORAGE_KEYS.SESSION, null)
+  return (s && s.userId) ? s : null
 }
 
 export function isLoggedIn() { return !!getSession() }
@@ -153,11 +144,12 @@ export function claimLegacyData(userId) {
   const claimed = []
   SCOPED_BASE_KEYS.forEach(base => {
     try {
-      const legacy = localStorage.getItem(base)
+      // 这两个键名都必须用「不自带前缀」的原始读写：base 是旧键，target 已经拼好后缀
+      const legacy = readRaw(base)
       if (legacy === null) return
       const target = base + suffix
-      if (localStorage.getItem(target) !== null) return // 该账号已有数据 → 不覆盖
-      localStorage.setItem(target, legacy)
+      if (readRaw(target) !== null) return // 该账号已有数据 → 不覆盖
+      writeRaw(target, legacy)
       claimed.push(base)
     } catch {
       /* 单个键失败不影响其它键 */
@@ -256,18 +248,17 @@ export async function loginAccount(username, password) {
 
 /** 退出登录（只清登录态；各账号数据保留在自己的命名空间里，下次登录还在） */
 export function logoutAccount() {
-  try { localStorage.removeItem(STORAGE_KEYS.SESSION) } catch { /* 忽略 */ }
+  removeKey(STORAGE_KEYS.SESSION)
   setScope(null)
 }
 
 /** 写登录态（同时同步内存作用域，重载前两者保持一致） */
 function setSession(userId) {
-  try {
-    localStorage.setItem(STORAGE_KEYS.SESSION, JSON.stringify({
-      userId,
-      loginAt: new Date().toISOString()
-    }))
-  } catch { /* 忽略 */ }
+  // 登录态写不进去也不阻断：本次会话能正常用，只是下次打开要重新登录
+  writeJSON(STORAGE_KEYS.SESSION, {
+    userId,
+    loginAt: new Date().toISOString()
+  })
   setScope(userId)
 }
 
@@ -277,12 +268,13 @@ function setSession(userId) {
 function seedProfileName(userId, username) {
   try {
     const key = STORAGE_KEYS.USER + scopeSuffix(userId)
-    const raw = localStorage.getItem(key)
+    // key 已经拼好后缀 → 用 readRaw/writeRaw（再走 readJSON 会被再加一次前缀）
+    const raw = readRaw(key)
     if (raw) {
       const p = JSON.parse(raw)
       if (p && p.name) return // 已有昵称不动它
     }
-    localStorage.setItem(key, JSON.stringify({
+    writeRaw(key, JSON.stringify({
       id: 'u_' + userId,
       name: username,
       avatar: '🐱'

@@ -18,6 +18,9 @@ import { extractImageIds, dropUnused } from './useImageStore'
 import { STORAGE_KEYS } from '../constants/categories'
 import { getCurrentTimeString, generateUniqueId } from '../utils/uniqueId'
 import { scopeKey, SCOPE_SEP } from '../utils/storageScope'
+// 存储统一走适配器（2026-11-24）：键前缀、原始串、键枚举都在 adapter 里；
+// 这里保留 scopeKey 只是为了和「别人拼过的键」比较，不再直接碰 localStorage。
+import { resolveKey, readRaw, writeRaw, readRawScoped, listKeys } from '../services/storageAdapter'
 
 const { data: records, error: storageError } = useLocalStorage(STORAGE_KEYS.RECORDS, [])
 
@@ -165,10 +168,11 @@ function migrateTitleIntoBody() {
   if (dirty.length === 0) return 0
 
   // 退路：整份数据先快照一次。失败也不拦迁移（localStorage 满的时候宁可迁完再说），但要留痕。
-  const snapKey = scopeKey(STORAGE_KEYS.RECORDS) + '__pre_fold_title'
+  // 快照键 = 当前账号的记录键 + 后缀，所以先 resolveKey 再拼，读写用不加工的 readRaw/writeRaw
+  const snapKey = resolveKey(STORAGE_KEYS.RECORDS) + '__pre_fold_title'
   try {
-    if (localStorage.getItem(snapKey) === null) {
-      localStorage.setItem(snapKey, JSON.stringify(list))
+    if (readRaw(snapKey) === null) {
+      writeRaw(snapKey, JSON.stringify(list))
       console.info(`[记录迁移] 折标题前的快照已存到 ${snapKey}（${list.length} 条）`)
     }
   } catch (e) {
@@ -214,16 +218,16 @@ function readOtherAccountsRecords() {
   const broken = []
   const keys = []
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i)
-      if (k && k !== curKey && (k === base || k.startsWith(base + SCOPE_SEP))) keys.push(k)
+    // 枚举交给适配器（它负责拿不到时的降级），筛「同一条记录键的其它账号命名空间」
+    for (const k of listKeys()) {
+      if (k !== curKey && (k === base || k.startsWith(base + SCOPE_SEP))) keys.push(k)
     }
   } catch (e) {
     broken.push('枚举本机存储失败：' + (e && e.message))
   }
   keys.forEach(k => {
     let v = null
-    try { v = JSON.parse(localStorage.getItem(k)) } catch { broken.push(k); return }
+    try { v = JSON.parse(readRaw(k)) } catch { broken.push(k); return }
     if (isRecordArray(v)) others.push(v)
     else broken.push(k)
   })
@@ -238,7 +242,8 @@ function readOtherAccountsRecords() {
 function currentStoredKeyState() {
   let raw = null
   try {
-    raw = localStorage.getItem(scopeKey(STORAGE_KEYS.RECORDS))
+    // readRawScoped：不吞异常、也不把「坏数据」变成 null —— 这里必须分清「没数据」和「数据坏了」
+    raw = readRawScoped(STORAGE_KEYS.RECORDS)
   } catch (e) {
     return { ok: false, why: '本机存储读不到：' + (e && e.message) }
   }
