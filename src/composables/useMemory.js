@@ -361,7 +361,7 @@ writes 与 wiki 都可以是空数组 —— 大多数轮次两个都应该是�
 
       // 百科落库：类别白名单/标题/正文长度/同名去重 的校验在 useWikiWriter 里做；失败静默
       if (wikiWrites.length > 0) writeWikiItems(wikiWrites)
-    } catch (e) {
+    } catch {
       // 提取失败 = 本轮不写入，不污染库，不影响对话
     } finally {
       extracting = false

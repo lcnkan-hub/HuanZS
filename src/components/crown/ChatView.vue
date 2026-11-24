@@ -146,7 +146,6 @@ import { useMemory } from '../../composables/useMemory'
 import { useTimeMode } from '../../composables/useTimeMode'
 import { useAIConfig } from '../../composables/useApiKey'
 import { buildWikiContext } from '../../composables/useWikiContext'
-import { writeWikiItems } from '../../composables/useWikiWriter'
 import AiSettingsModal from '../user/AiSettingsModal.vue'
 import { useKeyboard } from '../../composables/useKeyboard'
 
@@ -282,7 +281,7 @@ async function handleSend() {
     const reply = await ask(messages.value, note)
     addReply(reply)
     await memory.finishTurn(text, reply)
-  } catch (e) {
+  } catch {
     // 错误已通过 error 内联提示显示，这里不再打扰
   }
 }
@@ -341,6 +340,9 @@ function formatTime(timeStr) {
   --color-text-secondary: var(--crown-night-text-secondary);
   --color-text-muted: var(--crown-night-text-muted);
   --color-accent: var(--crown-night-accent);
+  /* 夜态主色提亮成 #E08BA6 后，其上的字必须翻深墨（白字压它只有 2.4）。
+     这条与 variables.css 里 --color-text-on-accent 的注释是同一件事。 */
+  --color-text-on-accent: #1A0E12;
   --color-danger: #FF6961;
   --color-danger-bg: rgba(255, 69, 58, 0.14);
   --crown-glass-bg: var(--crown-night-glass);
@@ -371,10 +373,15 @@ function formatTime(timeStr) {
   font-size: var(--text-12);
   cursor: pointer;
   box-shadow: var(--shadow-card);
-  transition: transform 0.15s ease-out, opacity 0.2s ease;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              opacity 0.2s ease;
 }
 .memory-entry:active {
-  transform: translateX(-50%) scale(0.95);
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: translateX(-50%) scale(var(--press-scale));
 }
 /* 触控目标扩展 ≥44px */
 .memory-entry::after {
@@ -544,9 +551,16 @@ function formatTime(timeStr) {
   font-size: var(--text-14);
   font-weight: 500;
   cursor: pointer;
-  transition: transform 0.15s ease-out, opacity 0.2s ease;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              opacity 0.2s ease;
 }
-.empty-cta:active { transform: scale(0.96); }
+.empty-cta:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
 
 /* ===== 底部浮件组（2026-11-23）=====
    成员：未配置密钥的小胶囊（可选）+ 输入浮岛。
@@ -612,7 +626,7 @@ function formatTime(timeStr) {
   transition: box-shadow 0.2s;
 }
 .input-wrapper:focus-within {
-  box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+  box-shadow: 0 0 0 2px rgba(126, 35, 64, 0.22);
 }
 
 .chat-input {
@@ -641,7 +655,10 @@ function formatTime(timeStr) {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.15s ease-out, color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
   flex-shrink: 0;
 }
 /* 模块3 六状态：禁用态透明度标准 */
@@ -661,7 +678,9 @@ function formatTime(timeStr) {
   cursor: pointer;
 }
 .send-btn.active:active {
-  transform: scale(0.9);
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale-sm));
 }
 /* 输入栏自己成了玻璃浮岛之后，发送键原来那层 --color-bg-input（夜里是 .08 白）叠在
    .10 白的浮岛上几乎看不见 → 夜里单独提一档，让"可点的圆"读得出来。
@@ -743,9 +762,15 @@ function formatTime(timeStr) {
   cursor: pointer;
   position: relative;            /* ::after 命中区外扩的定位基准 */
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.15s ease-out;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease);
 }
-.setup-pill:active { transform: scale(0.96); }
+.setup-pill:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
 /* 触控目标 44px：视觉 32 高，上下各补 6 —— 与输入浮岛之间只有 6px gap，
    外扩会轻微压到浮岛边缘，但热区优先（人点的是胶囊中心，边缘误触概率极低） */
 .setup-pill::after {
