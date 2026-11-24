@@ -159,6 +159,24 @@ export function tryWriteJSON(key, value) {
   return true
 }
 
+/**
+ * 写原始字符串，返回是否真的落到 localStorage（不 scope，与 readRaw 配对）。
+ * 用途：备份导入写回损坏留证时要能数「失败了几条」，不能吞。
+ */
+export function tryWriteRaw(key, value) {
+  const serialized = String(value)
+  try {
+    if (typeof globalThis.localStorage !== 'undefined' && globalThis.localStorage.setItem) {
+      globalThis.localStorage.setItem(key, serialized)
+      return true
+    }
+  } catch {
+    return false
+  }
+  memStore.set(key, serialized)
+  return true
+}
+
 /** 测试辅助：清空全部内存态 */
 export function __clearMemForTest() {
   memStore.clear()

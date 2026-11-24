@@ -21,7 +21,13 @@
  *   node 测试环境没有 indexedDB / Blob / btoa —— 全部降级，不抛错，让断言脚本能在纯 node 里跑。
  */
 import { STORAGE_KEYS } from '../constants/categories'
-import { scopeKey, currentScope, GLOBAL_KEYS } from '../utils/storageScope'
+import { currentScope, GLOBAL_KEYS } from '../utils/storageScope'
+// 存储统一走适配器（2026-11-24）：备份要读「原始串 + 键名枚举」，
+// 这两件事都只有 adapter 知道怎么在浏览器 / node 环境下降级。
+import {
+  readRaw, readRawScoped, resolveKey, removeKey, listKeys,
+  tryWriteJSON, tryWriteRaw
+} from '../services/storageAdapter'
 import { CORRUPT_SUFFIX } from './useLocalStorage'
 import { stripChildren, normalizePics } from './useRecords'
 import { IMAGE_STORE_NAME, getImageDB, releaseAllImageUrls } from './useImageStore'
@@ -73,10 +79,10 @@ const CRISIS_SOURCES = [
 
 /** 读一个 JSON 键。不存在 → empty；存在但解析不了 → 抛错（宁可中止导出，也不导一份缺件的备份） */
 function readJsonKey(baseKey, empty) {
-  const realKey = scopeKey(baseKey)
   let raw = null
   try {
-    raw = localStorage.getItem(realKey)
+    // readRawScoped：按账号前缀读、且不吞异常 —— 「读不到」和「坏了」必须分开报
+    raw = readRawScoped(baseKey)
   } catch {
     throw new Error('本机存储读不到：' + baseKey)
   }
@@ -95,12 +101,15 @@ function cloneEmpty(empty) {
 }
 
 function writeJsonKey(baseKey, value) {
-  const realKey = scopeKey(baseKey)
   if (value === null || value === undefined) {
-    try { localStorage.removeItem(realKey) } catch { /* 忽略 */ }
+    removeKey(baseKey) // removeKey 内部按账号前缀删
     return
   }
-  localStorage.setItem(realKey, JSON.stringify(value))
+  // tryWriteJSON：写不进 localStorage 就返回 false —— 这里必须**抛**。
+  // 导入过程中静默吞掉写入失败，用户会以为恢复成功，其实是半份数据。
+  if (!tryWriteJSON(baseKey, value)) {
+    throw new Error('本机存储写不进去（可能空间已满或处于隐私模式）')
+  }
 }
 
 function setByPath(obj, path, value) {
@@ -310,16 +319,14 @@ function isCurrentAccountKey(rawKey) {
 export function readRescueCopies() {
   const out = {}
   try {
-    if (typeof localStorage === 'undefined' || typeof localStorage.length !== 'number') return out
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i)
+    for (const k of listKeys()) {
       if (!k || !String(k).endsWith(CORRUPT_SUFFIX)) continue
       // ⚠️ 顺序有讲究：**先剥掉 __corrupt 后缀，再判账号归属**。
       //    反过来的话 `…@uCUR123__corrupt` 会被当成"账号 id = CUR123__corrupt"，
       //    和当前账号永远对不上 → 全部留证被判成"别人的"、一个都带不走（断言抓到的第一个 bug）。
       const scoped = String(k).slice(0, -CORRUPT_SUFFIX.length)
       if (!isCurrentAccountKey(scoped)) continue
-      const raw = localStorage.getItem(k)
+      const raw = readRaw(k) // k 已含前缀，用不加工的 raw 读
       if (typeof raw !== 'string' || !raw) continue
       out[splitScoped(scoped).base] = raw
     }
@@ -339,9 +346,10 @@ export function restoreRescueCopies(rescue) {
     const raw = rescue[base]
     if (typeof raw !== 'string' || !raw) { out.failed++; return }
     try {
-      const target = scopeKey(base) + CORRUPT_SUFFIX
-      if (localStorage.getItem(target) !== null) { out.skipped++; return }
-      localStorage.setItem(target, raw)
+      const target = resolveKey(base) + CORRUPT_SUFFIX
+      if (readRaw(target) !== null) { out.skipped++; return }
+      // tryWriteRaw：写不进要计入 failed，不能吞
+      if (!tryWriteRaw(target, raw)) { out.failed++; return }
       out.restored++
     } catch { out.failed++ }
   })
@@ -398,8 +406,9 @@ export async function buildBackupPayload({ includeImages = true } = {}) {
 
 function currentAccountLabel() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEYS.ACCOUNTS)
-    const sid = localStorage.getItem(STORAGE_KEYS.SESSION)
+    // 账号表与登录态都是设备级键，用 readRaw（不加前缀）读原文，再自己解析出用户名
+    const raw = readRaw(STORAGE_KEYS.ACCOUNTS)
+    const sid = readRaw(STORAGE_KEYS.SESSION)
     if (!raw || !sid) return '本机'
     const id = (JSON.parse(sid) || {}).userId
     const acc = (JSON.parse(raw) || []).find(a => a.id === id)
