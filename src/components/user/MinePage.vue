@@ -22,7 +22,7 @@
         :avatar="userProfile?.avatar"
         :name="userProfile?.name"
         :meta="profileMeta"
-        @edit="showEditModal = true"
+        @edit="$emit('edit-profile')"
       />
 
       <!-- 三行入口：行只负责进页面，状态用副行说 -->
@@ -39,7 +39,7 @@
     </template>
 
     <!-- ========== 二级页 ========== -->
-    <CrownSection v-else-if="page === 'crown'" @open-ai-settings="showAiSettings = true" />
+    <CrownSection v-else-if="page === 'crown'" @open-ai-settings="$emit('open-ai-settings')" />
 
     <MyFavoritesEntry
       v-else-if="page === 'favorites'"
@@ -48,31 +48,17 @@
     />
 
     <BackupCenter v-else-if="page === 'backup'" />
-
-    <!-- 修改资料弹窗 -->
-    <EditProfileModal
-      v-if="showEditModal"
-      :name="userProfile?.name"
-      :avatar="userProfile?.avatar"
-      @close="showEditModal = false"
-      @save="(data) => { $emit('save-profile', data); showEditModal = false }"
-    />
-
-    <!-- AI 设置弹窗（用户自带密钥，只存本机） -->
-    <AiSettingsModal v-if="showAiSettings" @close="showAiSettings = false" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import UserProfileCard   from './UserProfileCard.vue'
 import MineRow           from './MineRow.vue'
 import LockRow           from './LockRow.vue'
 import CrownSection      from './CrownSection.vue'
 import MyFavoritesEntry  from './MyFavoritesEntry.vue'
 import BackupCenter      from './BackupCenter.vue'
-import EditProfileModal  from './EditProfileModal.vue'
-import AiSettingsModal   from './AiSettingsModal.vue'
 
 import { currentAccount } from '../../composables/useAccount'
 import { useFavorites } from '../../composables/useFavorites'
@@ -87,11 +73,9 @@ defineProps({
   // 当前二级页：'' | 'crown' | 'favorites' | 'backup'（由 MineSheet 持有，它才知道标题该写什么）
   page:        { type: String, default: '' }
 })
-// 事件：navigate（切二级页）/ save-profile / open-item（收藏里点一条 → 交给 App 关浮层并打开记录）
-defineEmits(['navigate', 'save-profile', 'open-item'])
-
-const showEditModal = ref(false)
-const showAiSettings = ref(false)
+// 事件：navigate（切二级页）/ edit-profile / open-ai-settings（两个弹窗挂在 MineSheet 上）/
+//       open-item（收藏里点一条 → 交给 App 关浮层并打开记录）
+defineEmits(['navigate', 'edit-profile', 'open-ai-settings', 'open-item'])
 
 /* ---------- 名片副行：本机 + 创建日期（原来在「本机锁」卡里，现在并到名片上） ---------- */
 const account = currentAccount()
@@ -138,23 +122,20 @@ function monthDay(iso) {
 
 <style scoped>
 /* 2026-11-21：容器从右侧抽屉换成底部卡片后，顶部留白由卡片的横杠+标题接管，
-   这里不再自留 20px，否则第一块名片会被顶下去一截 */
-.page-content { padding: 4px 20px 20px; animation: fadeInContent 0.3s ease-out; }
+   这里不再自留 20px，否则第一块名片会被顶下去一截。
+   2026-11-23：原来这里的入场 animation 撤掉了 —— 淡入改由 MineSheet 的
+   <transition> 统一做，两处各淡一次会变成 0.48s 的拖沓。 */
+.page-content { padding: 4px 20px 20px; }
 .mine-page-container { display: flex; flex-direction: column; gap: 16px; }
 
 .mine-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-3xl);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow);
   overflow: hidden;   /* 圆角要裁掉行自己的 hover 底色 */
 }
 
 /* 锁定与上面那组再拉开 8px（16 的组间距 + 8 = 24）：它不是一个普通入口 */
 .mine-lock-card { margin-top: 8px; }
-
-@keyframes fadeInContent {
-  from { opacity: 0; transform: translateY(5px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
 </style>

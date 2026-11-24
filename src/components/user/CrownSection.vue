@@ -78,7 +78,7 @@ function toggle() {
 .crown-card {
   background: var(--color-bg-card);
   border-radius: var(--radius-3xl);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow);
   padding: 14px 16px;
   border: 1px solid var(--color-border-light);
 }
@@ -122,9 +122,20 @@ function toggle() {
 .knob {
   width: 23px; height: 23px; border-radius: 50%;
   background: var(--color-bg-card); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1.0);
+  /* 旋钮位移与按压共用一条 transform：按下时缩、松手弹回，位置不能丢 */
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease);
 }
 .switch.on .knob { transform: translateX(19px); }
-.switch:active .knob { transform: scale(0.94); }
-.switch.on:active .knob { transform: translateX(19px) scale(0.94); }
+.switch:active .knob {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale-sm));
+}
+.switch.on:active .knob {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: translateX(19px) scale(var(--press-scale-sm));
+}
 </style>

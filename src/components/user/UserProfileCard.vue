@@ -39,7 +39,7 @@ defineEmits(['edit'])
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-3xl);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow);
   font-family: var(--font-system); text-align: left;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: background-color 0.16s ease;

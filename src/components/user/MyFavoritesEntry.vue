@@ -63,7 +63,7 @@ function shortTime(text) {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-3xl);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow);
   padding: 6px 16px;
 }
 .fav-list { list-style: none; margin: 0; padding: 0; }

@@ -58,8 +58,10 @@ const handleSave = () => {
   margin-bottom: 8px; font-weight: 500;
 }
 .avatar-selector-grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
-  margin-bottom: 18px; background: var(--color-border-light);
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+  /* gap 10→8、margin 18→10（2026-11-23）：弹窗被限制在「我的」卡内后，
+     这两处省下的 10px 正好让它不必滚动就能看全 */
+  margin-bottom: 10px; background: var(--color-border-light);
   padding: 10px; border-radius: var(--radius-xl);
 }
 /* 5 列网格，格子宽约 52；高度原本只有 emoji 行高 ≈ 37，补到 44 让每个头像是块方正的靶子 */

@@ -216,7 +216,7 @@ const handleRestore = async () => {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-3xl);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow);
   padding: 15px;
   display: flex; flex-direction: column; gap: 9px;
 }
@@ -227,9 +227,16 @@ const handleRestore = async () => {
   border-radius: var(--radius-xl); border: 1px solid var(--color-border);
   font-size: var(--text-14); font-weight: 500; font-family: var(--font-system);
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1.0), opacity 0.2s, background 0.2s;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              opacity 0.2s, background 0.2s;
 }
-.bk-btn:active { transform: scale(0.985); }
+.bk-btn:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
 .bk-btn:disabled { opacity: 0.55; }
 .bk-btn.primary { background: var(--color-accent); color: var(--color-text-on-accent); border-color: transparent; }
 .bk-btn.ghost   { background: var(--color-bg-card); color: var(--color-text-secondary); }
