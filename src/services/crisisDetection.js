@@ -6,7 +6,10 @@
  *   L2 仅粗筛命中时：一次独立分类 API 调用做语义确认（复用 askStructured）
  * 铁律：Detection observes. Router decides.
  */
-import { askStructured } from '../composables/useChatAI'
+// 分类器从端口取（composables/useChatAI 在加载时注册进来）。
+// 2026-11-24 之前这里是 `import { askStructured } from '../composables/useChatAI'`，
+// 和 crisisResponse 一起构成了 useChatAI → crisisResponse → crisisDetection → useChatAI 的环。
+import { getAIClassifier } from './aiClassifierPort'
 import {
   RISK_KEYWORDS,
   CONTEXT_DOWNGRADE_PATTERNS,
@@ -182,7 +185,11 @@ async function classifyWithFallback(message, recentContext, injection) {
       .map(c => `[${c.role}] ${c.content}`)
       .join('\n')
     const userContent = contextText ? `${contextText}\n[当前消息] ${message}` : message
-    const result = await (injection?.rawClassifier || askStructured)(CLASSIFIER_SYSTEM_PROMPT, userContent)
+    // 没注册实现（单测、或 useChatAI 尚未加载）→ 跳过 L2，只用 L1 粗筛。
+    // 不许退回到 import 上层模块 —— 那正是这个端口要消掉的东西。
+    const classify = injection?.rawClassifier || getAIClassifier()
+    if (!classify) return null
+    const result = await classify(CLASSIFIER_SYSTEM_PROMPT, userContent)
     if (!result || typeof result.confidence !== 'number') return null
     return {
       confidence: Math.min(1, Math.max(0, result.confidence)),

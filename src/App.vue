@@ -44,8 +44,10 @@
           <div class="page-sheet primary-sheet" :class="pageClass('primary')">
             <!-- ⚠ 这里**不许加 `:key`、也不许加 `v-if`**（2026-11-23 拆掉 key 后立的规矩）：
                  两者都会让整块列表重建 —— 卡片重新挂载、入场动画集体重播
-                 （按 (序号 × 70ms) 排队，记录越多越夸张），而重播期间 CSS 动画的优先级
-                 高过逐卡淡出写的内联 opacity，于是"已经淡到透明的卡会先亮一次再淡回去"。
+                 （按 (序号 × 70ms) 排队，记录越多越夸张）。
+                 当年重播还有个更糟的症状：CSS 动画优先级高过内联 `opacity`，
+                 会把"已经淡到透明的卡"重新点亮一次（那套逐卡淡出已于 2026-11-24 删除，
+                 但规矩不变：重建就是重播）。
                  历史上这个坑踩了两次：详情页的 v-if 一次、切王冠时的 :key 一次
                  （后者原本是给"4 个平级内容 Tab 切页重播"用的，现在底栏只剩记录/王冠，
                  王冠还是全屏叠层页、记录页根本没换内容，那套 key 早就是误伤）。
@@ -57,7 +59,7 @@
               <WikiList
                 :items="filteredItems"
                 :emptyHint="emptyHint"
-                @open-item="(item) => openDetail(item)"
+                @open-item="handleOpenItem"
                 @delete-item="(id) => handleDelete(id)"
               />
             </div>
@@ -74,6 +76,7 @@
               @save-body="handleSaveBody"
               @delete="handleDeleteFromDetail"
               @add-pic="handleAddPic"
+              @remove-pic="handleRemovePic"
             />
           </div>
 
@@ -82,6 +85,7 @@
         <!-- 「我的」浮层：放在主内容区内，天然不盖顶栏与底栏，左侧露出记录页一小条 -->
         <MineSheet
           v-if="mineOpen"
+          :class="{ 'theme-deep': isNight }"
           :userProfile="userProfile"
           :records="records"
           @close="closeMine"
@@ -99,6 +103,7 @@
       <BottomNav
         v-if="!openedItem"
         v-model="currentTab"
+        :class="{ 'theme-deep': isNight && currentTab === 'crown' }"
         :sunk="mineOpen || (kbOpen && currentTab === 'crown')"
         :crownReady="crownReady"
       />
@@ -107,7 +112,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 
 // 组件积木
 import SplashScreen from './components/common/SplashScreen.vue'
@@ -124,18 +129,25 @@ import AuthView     from './components/user/AuthView.vue'
 // 逻辑积木
 import { useUserProfile } from './composables/useUserProfile'
 import { useRecords }     from './composables/useRecords'
+import { deleteImage }    from './composables/useImageStore'
 import { usePageRouter }  from './composables/usePageRouter'
 import { readLastTab, writeLastTab } from './composables/useLastTab'
 import { startProactiveTrigger } from './composables/useProactiveTrigger'
 import { useAIConfig } from './composables/useApiKey'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
 import { useKeyboard } from './composables/useKeyboard'
+// 昼夜判定：记录页/详情页与王冠共用同一个来源（useTimeMode，6:00–18:00 = 昼）
+import { useTimeMode } from './composables/useTimeMode'
+import { useCardZoom } from './composables/useCardZoom'
+import { readCardRects, readDetailRects, cardTextHtml } from './utils/cardZoomRects'
 import { useStorageHealth, formatMB } from './utils/storageHealth'
 
 // ========== 登录闸门 ==========
 // 未登录 → 只渲染 AuthView；登录/注册成功后整页重载，
 // 让所有业务 composable 的存储键在 boot 时按新账号重新解析（见 utils/storageScope.js）
 const loggedIn = ref(isLoggedIn())
+const timeMode = useTimeMode()   // 返回的就是一个 Ref<'day'|'night'>
+const isNight = computed(() => timeMode.value === 'night')
 
 const handleAuthed = () => {
   loggedIn.value = true
@@ -173,6 +185,41 @@ const pendingNewId = ref(null)
 
 // 页面路由（详情打开/关闭 + 动画状态机）
 const { openedItem, pageClass, openDetail, closeDetail } = usePageRouter(currentTab)
+
+// 卡片 → 详情 的共享元素转场（2026-11-23）
+const zoom = useCardZoom()
+
+/**
+ * 点卡片打开详情。
+ *
+ * 顺序不能反：**先记下卡片的矩形**（打开后列表会淡出、布局也会变），再 openDetail，
+ * 等两帧让详情挂载、让 header 卸载带来的高度变化稳定下来，最后才量目标矩形。
+ * 拿早了的矩形会让白块飞到半路「二次长大」（实测踩过：early 量到 y=316 的目标）。
+ */
+async function handleOpenItem(item, cardEl) {
+  const src = readCardRects(cardEl)
+  const textHtml = cardTextHtml(cardEl)
+  const photoUrl = cardEl?.querySelector('.card-cover img')?.src || ''
+
+  openDetail(item)
+  await nextTick()
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+  const dst = readDetailRects(document.querySelector('.detail-sheet'))
+  // 量不到（卡片没图 / 目标还没渲染完）→ 不做动画，详情页自己在那儿，不跳也不丢内容
+  if (!src || !dst) return
+
+  await zoom.open({
+    src,
+    dst,
+    photoUrl,
+    textHtml,
+    textTo: dst.textTo,
+    inner: dst.inner,
+    header: dst.header,
+    bar: dst.bar
+  })
+}
 
 // ========== 计算属性 ==========
 // 昵称统一走这里取值：档案还没建好时给空串，避免模板里直接 .name 崩掉
@@ -255,26 +302,143 @@ function handleNoticeAction(value) {
 
 
 /**
- * 点「添加」：立刻建一条空记录并进详情页写标题与正文。
- * 为什么先落库：详情页的所有读写都依赖 openedItem.id 真实存在（子记录、正文保存都是按 id 定位）；
- * 造一个"假条目"要把每个调用点都判空，改动面反而大。
- * 收尾：返回时若标题正文都空，dropIfEmpty 会把它删掉（见 closeDetailAndCleanup）。
+ * 点「记录」新建：**从那条横条本身长出来**，返回时也收回横条（2026-11-23）。
+ *
+ * 两件事要一起说清：
+ * 1. **为什么先落库**：详情页的所有读写都依赖 openedItem.id 真实存在（正文保存、图片都是按 id 定位）；
+ *    造一个"假条目"要把每个调用点都判空，改动面反而大。返回时若标题正文图片全空，
+ *    dropIfEmpty 会把它删掉（见 closeDetailAndCleanup）。
+ * 2. **为什么起点是横条**：新建的记录没有「用户点的那张卡」——列表里刚插进去的那张还是空的，
+ *    而且返回时马上会被回收。用横条当起点，进出才对称：从哪儿发起，就回哪儿去。
  */
-function handleCreateRecord() {
+async function handleCreateRecord() {
+  const barEl = document.querySelector('.add-bar')
+  const src = readCardRects(barEl)
+
   const item = recordsApi.addRecord('', profileName.value)
   pendingNewId.value = item.id
   openDetail(item)
+
+  await nextTick()
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+  const dst = readDetailRects(document.querySelector('.detail-sheet'))
+  if (!src || !dst) return        // 量不到就让它直接出现，不硬跑一个没起点的动画
+
+  await zoom.open({
+    src,
+    dst,
+    photoUrl: '',
+    textHtml: '',
+    inner: dst.inner,
+    header: dst.header,
+    bar: dst.bar
+  })
 }
 
-/** 返回列表：任何记录（不只新建立的）只要标题、正文、图片全空，就在返回时回收 */
+/** 返回列表：先把详情缩回那张卡，再关；空记录在关完之后回收 */
 async function closeDetailAndCleanup() {
   // 2026-11-22 用户明确要求「任何记录，只要标题正文都空了，返回就删」——
   // 原来只清 pendingNewId（刚点「记录」新建的那条），老记录被清空后会留一张「未命名」空卡。
   // dropIfEmpty 现在把 pics 也算内容：只有图没有字的记录不算空，不会被误删。
-  const id = (openedItem.value && openedItem.value.id) || pendingNewId.value
+  const openedId = openedItem.value && openedItem.value.id
+  // 刚点「记录」建的那条：它是从横条长出来的，收也要收回横条（那张卡马上会被删掉）
+  const returnToBar = !!pendingNewId.value && pendingNewId.value === openedId
+  const id = openedId || pendingNewId.value
   pendingNewId.value = null
+  // 空记录的删除放进 closeWithZoom、在跑动画之前执行 —— 见那里的说明：
+  // 先收再删会让别的卡在动画结束后整体上移一截，看起来像「卡片跳动」。
+  await closeWithZoom(returnToBar, id)
   closeDetail()
-  if (id) await recordsApi.dropIfEmpty(id)
+  // 内联的 transform/opacity 必须等 closeDetail 之后再摘：
+  // 摘早了 primary 会先掉回 sheet-leave（opacity 0）闪一下，才被 sheet-active 接住。
+  const primary = document.querySelector('.primary-sheet')
+  if (primary) {
+    primary.style.removeProperty('transition')
+    primary.style.removeProperty('opacity')
+    primary.style.removeProperty('transform')
+  }
+}
+
+/**
+ * 收起动画（2026-11-23）。
+ *
+ * 两个细节：
+ * 1. **卡片和详情都要重新量**：列表可能滚过、详情可能滚过，用打开时的旧矩形会缩到错的落点。
+ * 2. **列表要先显形**：详情打开期间列表是 `sheet-leave`（opacity 0），不先恢复的话，
+ *    东西会「飞回一片空白」。这里临时压掉它的 transition 直接显形，收完再交还给它自己。
+ */
+async function closeWithZoom(returnToBar = false, dropId = null) {
+  const sheetEl = document.querySelector('.detail-sheet')
+  const id = openedItem.value && openedItem.value.id
+  if (!sheetEl || !id) return false
+
+  /**
+   * 先让列表显形 + 归位，再量落点。
+   * 详情打开期间列表是 `sheet-leave`（opacity 0 + translateY(-18px)），
+   * 照那个状态量出来的位置比真实落点高 18px —— 收完它才归位，壳就缩歪了。
+   */
+  const primary = document.querySelector('.primary-sheet')
+  if (primary) {
+    primary.style.transition = 'none'
+    primary.style.opacity = '1'
+    primary.style.transform = 'none'
+  }
+  await new Promise((r) => requestAnimationFrame(r))
+
+  const cardEl = [...document.querySelectorAll('.data-card')].find((el) => el.dataset.id === id)
+  /**
+   * 落点：新建的空记录收回「记录」横条，老记录收回它自己的卡。
+   * 收回那张空卡的话，卡缩到一半就被 dropIfEmpty 删掉 —— 用户看到的是
+   * 「东西缩进一个随即消失的位置」，像是没落点（2026-11-23 反馈）。
+   */
+  const originEl = returnToBar ? document.querySelector('.add-bar') : cardEl
+  const src = readCardRects(originEl)
+  const dst = readDetailRects(sheetEl)
+  if (!src || !dst) {
+    // 没有落点就跑不了动画，但空记录仍然必须删掉（否则会留一张空卡）
+    if (dropId) recordsApi.dropIfEmpty(dropId)
+    return false
+  }
+
+  // 落点和副本素材都先取下来：下面可能把这条记录删掉，删了 DOM 就没了
+  const photoUrl = cardEl?.querySelector('.card-cover img')?.src || ''
+  const textHtml = cardTextHtml(cardEl)
+
+  /**
+   * 顶栏补偿：详情打开时顶栏被卸载、主内容区占满整屏；收完之后顶栏挂回来、
+   * 整个主内容下移 `--header-height`。落点不补这 55px，壳会缩到屏幕上方
+   * （实测：横条真实 top=69，量到 -4，差的 73 = 退后的 18 + 顶栏的 55）。
+   * 底栏是 fixed 浮岛、不占流，不用补。
+   */
+  const chromeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 0
+  for (const key of ['sheet', 'photo', 'text']) {
+    if (src[key]) src[key].t += chromeTop
+  }
+
+  /**
+   * **空记录先删、再收**（2026-11-23 第二次修「已经记录的卡片跳动」）。
+   *
+   * 留着它先收再删的话：列表在收起动画一开始就已经显形了，而那张空卡要等动画
+   * 结束才消失 —— 它一消失，下面每一张卡都要上移一整张卡的高度，用户看到的是
+   * 「别的卡跳了一下」。
+   *
+   * 而且它本来就没在列表里"出现过"：新建是从横条长出来的，收回也是回横条。
+   * 提前删掉等于这一趟没发生过 —— 不 await 是因为数组改动本身是同步的
+   * （await 的只是后面的图片回收，那是后台事）。
+   */
+  if (dropId) recordsApi.dropIfEmpty(dropId)
+
+  await zoom.close({
+    src,
+    dst,
+    photoUrl,
+    textHtml,
+    textTo: dst.textTo,
+    inner: dst.inner,
+    header: dst.header,
+    bar: dst.bar
+  })
+  return true
 }
 
 /** 详情页改名 */
@@ -303,6 +467,34 @@ function handleAddPic(imgId) {
   const updated = recordsApi.updateRecordPics(item.id, next)
   if (updated) openedItem.value = JSON.parse(JSON.stringify(updated))
   pendingNewId.value = null // 有内容了，不再算"待清理的空记录"
+}
+
+/**
+ * 删掉一张图（2026-11-23）。
+ *
+ * 顺序是有讲究的：**先从 pics 里摘掉、落库，再删 IndexedDB 里那份**。
+ * 反过来的话，图已经被删了但记录还指着它 —— 列表封面会先变成一块灰，
+ * 要等下一次任何更新才会补回来。
+ *
+ * `updateRecordPics` 返回更新后的记录，直接拿它换掉 openedItem：
+ * 详情页渲染的是**打开时那个快照**，不换，图上就还是"删不掉"。
+ */
+async function handleRemovePic(index) {
+  const item = openedItem.value
+  if (!item) return
+  const pics = Array.isArray(item.pics) ? [...item.pics] : []
+  const imgId = pics[index]
+  if (!imgId) return
+
+  pics.splice(index, 1)
+  const updated = recordsApi.updateRecordPics(item.id, pics)
+  if (updated) openedItem.value = JSON.parse(JSON.stringify(updated))
+
+  try {
+    await deleteImage(imgId)
+  } catch {
+    // 库里那份可能已经不在了 —— 记录侧的引用已经摘掉，这里失败不算错误
+  }
 }
 
 const handleDelete = (id) => {
@@ -335,7 +527,12 @@ const handleProfileUpdate = (updatedData) => {
 <style scoped>
 .app-container {
   display: flex; flex-direction: column; height: 100vh; height: 100dvh; width: 100vw;
-  background-color: var(--color-bg-primary); color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  /* 纸面 + 两团极淡色斑（2026-11-24 轻盈通透方向）。
+     不再用 background-attachment: fixed —— 这一层是 100dvh、本身不滚，
+     列表在自己的容器里滚，底色天然不动；fixed 在 iOS 上只会白烧一层合成。 */
+  background-image: var(--page-canvas-image);
+  color: var(--color-text-primary);
   font-family: var(--font-system); overflow: hidden; user-select: none;
   position: relative;
   /* 刘海/挖孔机：整块内容从状态栏下沿起算（A10） */
@@ -343,6 +540,13 @@ const handleProfileUpdate = (updatedData) => {
   padding-top: var(--safe-top);
 }
 .main-content { flex: 1; position: relative; overflow: hidden; }
+
+/* === 夜间画布（2026-11-24 删除）===
+   这里原来在 .is-night 下把 --deep-canvas-* 换成酒红黑 + 玫瑰网格，只服务详情页。
+   2026-11-24 详情页也换成纸面之后，这套令牌全库零引用，令牌本身已在 variables.css 删除，
+   这里的覆盖也跟着删 —— 留一段指向不存在令牌的 CSS，比没有更糟。
+   （要回退深色画布：换纸前那个提交里的 variables.css + 本文件 .is-night 两段一起取回。） */
+
 
 /* ===== 页面叠层容器 ===== */
 .page-stack {
@@ -356,8 +560,8 @@ const handleProfileUpdate = (updatedData) => {
      又据 HIG · Materials 的功能层/内容层分层 —— 所以位移量从整整一屏（-100%）
      缩到 10px，改用极小的后退（scale 0.99）表达"它在后面一层"。
      2026-11-22 从 0.36s/100% 改成 0.24s/10px，起因是用户反馈"过渡太生硬"。 */
-  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
-              opacity   0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform var(--slide-dur) var(--spring-glide),
+              opacity   var(--slide-dur) var(--spring-glide);
   transform-origin: center center;
 }
 .page-stack.is-pushed {
@@ -375,8 +579,8 @@ const handleProfileUpdate = (updatedData) => {
 }
 .crown-pane-enter-active,
 .crown-pane-leave-active {
-  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
-              opacity   0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform var(--slide-dur) var(--spring-glide),
+              opacity   var(--slide-dur) var(--spring-glide);
 }
 
 /* 顶部栏退场：只淡不抽高度（抽高度就是 Layout 动画，会抖） */
@@ -395,8 +599,8 @@ const handleProfileUpdate = (updatedData) => {
   perspective: 1000px;
 
   /* 接近 iOS 惯性的非线性曲线，持续 360ms */
-  transition: transform 0.36s cubic-bezier(0.2, 0.8, 0.2, 1.0),
-              opacity   0.36s cubic-bezier(0.2, 0.8, 0.2, 1.0);
+  transition: transform var(--slide-dur) var(--spring-glide),
+              opacity   var(--slide-dur) var(--spring-glide);
 }
 
 /* ---- 主面板（记录列表）：默认和离开态一致，避免归位闪烁 ---- */
@@ -404,19 +608,20 @@ const handleProfileUpdate = (updatedData) => {
   transform: translateY(-18px);
   opacity: 0;
 
-  /* 顶部边缘淡出（--head-fade，14px）：
-     顶栏改成"不垫底、不画线"的浮件之后，列表的裁切边裸露在页面底色上了
-     （以前被白色栏底盖住，看不见）。这一小段渐变让内容在顶栏下沿化开。
-     它必须小：顶栏还在文档流里、内容不从它底下过，给太大就会把第一张卡的首行也吃掉。
+  /* === 纸面上的卡片（2026-11-24 轻盈通透方向）===
+     作用域放在这一层而不是改 :root 的令牌：卡片材质只有记录页要换，
+     详情页 / 我的 / 王冠还在旧语言里，改全局会一起变。
+     换的是「重量」，不是「有没有」：卡还在、还分得清是一张一条，
+     但边从 1px 亮线降到半像素、影子从 8/24 降到 2/12 —— 内容才是主角。 */
+  --surface-card:           rgba(255, 254, 254, 0.78);
+  --surface-card-rim:       inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 0 0 0.5px rgba(90, 35, 55, 0.045);
+  --surface-card-shadow:    0 2px 12px rgba(90, 35, 55, 0.045), 0 1px 2px rgba(90, 35, 55, 0.025);
+  --surface-card-shadow-up: 0 10px 26px rgba(90, 35, 55, 0.08), 0 2px 5px rgba(90, 35, 55, 0.04);
 
-     底部**没有蒙版**（2026-11-22 二次修正，用户原话："不应该添加淡出的蒙版，
-     看起来是整个底部在淡出而不是卡片淡出"）。原因是手段不合：
-     mask 给**整片区域**削一层透明度，一张卡会被切成上半截实、下半截透明；
-     而且浮岛玻璃底下也被削空，材质没有内容可透（透色才是材质，削空就只是色板）。
-     底部改成**逐卡淡出**：每张卡自己带透明度，滚到浮岛那一段整张变淡，
-     屏幕上不存在"一条带"，淡化的主体是卡片本身。见 composables/useCardFade.js。 */
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, #000 var(--head-fade));
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, #000 var(--head-fade));
+  /* 2026-11-23：顶部那 14px 的渐变蒙版删掉了（用户要求：主页不要渐变）。
+     2026-11-24 渐变以另一种形式回来了 —— 不再是削在列表上的 mask，
+     而是 AppHeader 里一层独立的玻璃场（variables.css 的 .ambient，三层模糊 + 遮罩）：
+     内容整块穿过去被化开，不是"上半实、下半透"地被切。这一层自己仍然不挂任何 mask。 */
 }
 .primary-sheet.sheet-active {
   transform: translateY(0);
@@ -427,29 +632,33 @@ const handleProfileUpdate = (updatedData) => {
   opacity: 0;
 }
 
-/* ---- 详情面板：默认右移隐藏，进入时左滑入，离开时右滑出 ---- */
+/* ---- 详情面板：**不再自己滑入**（2026-11-23）
+   进场动效交给 useCardZoom（卡片自己长成整屏），这里只负责「在不在」。
+   留着 translateX 会跟转场打架：两段位移叠起来像从右上角斜着飞进来。
+   量不到矩形时（卡片已滚出视口 / 目标还没渲染）退化成直接出现 —— 没有动画，但不跳。 */
 .detail-sheet {
-  transform: translateX(100%);
+  transform: none;
   opacity: 1;
   z-index: 1;
+  /* ⚠ 关键：它不再靠 translateX 藏在屏幕外，而是**一直铺在列表上方**。
+     没有这个 pointer-events:none，没打开详情时它会吃掉列表的所有点击
+     （实测：elementFromPoint 命中的是 detail-sheet，卡片点不动、长按也弹不出来）。
+     打开时由 sheet-active 交还点击。 */
+  pointer-events: none;
 }
-.detail-sheet.sheet-active {
-  transform: translateX(0);
-}
-.detail-sheet.sheet-leave {
-  transform: translateX(30px);
-  opacity: 0;
-}
+.detail-sheet.sheet-active { pointer-events: auto; }
 
 /* ===== 主面板内容切换动画（tab 切换时重建，触发 enter 动画） ===== */
 .sheet-body {
-  /* 顶上让出 --head-fade：蒙版的前 14px 是"内容离开屏幕时化开"的过渡带，
-     静止时第一块内容（「记录一条」）必须落在它下面，否则它自己的顶边会被抹淡
-     —— 那是排版错误不是效果。滚动时内容照样穿过这条带，这正是要的。
-     min-height 用 calc(100% - 留白)：本项目没开全局 border-box，
-     不扣回来的话短列表会凭空多出 14px 可滚动高度。 */
-  padding-top: var(--head-fade);
-  min-height: calc(100% - var(--head-fade));
+  /* 2026-11-23：顶栏改成浮层后，这里补回让位高度 —— 但这次让的是「按钮本身」，
+     不是一条横带：滚动时内容会从两颗按钮后面穿过（上面 55px 不再被挖掉）。
+     用 var(--header-height) 而不是写死 55，免得两处对不上。
+
+     2026-11-24：再加一段 --sheet-top-gap。顶栏现在带着 148px 的纸色雾幕，
+     内容若仍从 55px 起，第一行正好长在雾最浓的位置（读起来像被水洗过）。
+     多让 44px，静止时第一条内容就站在雾已经淡开的地方；滚动时该穿过的照样穿过。 */
+  padding-top: calc(var(--header-height) + var(--sheet-top-gap));
+  min-height: calc(100% - var(--header-height) - var(--sheet-top-gap));
   animation: bodyEnter 0.36s cubic-bezier(0.2, 0.8, 0.2, 1.0);
 }
 

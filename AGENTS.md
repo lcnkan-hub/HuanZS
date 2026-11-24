@@ -16,14 +16,16 @@
 2. **卡片入场动画只能是"一次性事件"，不许写成 `.data-card` 的常驻 `animation`。**
    入口在 `WikiList`：模块级 `enteredOnce` 按 id 记住谁入过场，只给第一次出现的卡 `.is-entering`；
    `WikiCard` 在 `animationend` 时 emit `entered`，列表立刻摘标记。
-   理由：重播期间 CSS 动画优先级**高于**内联 `opacity`，会把逐卡淡出的状态盖掉。
+   理由：重播期间 CSS 动画优先级**高于**内联 `opacity`，会把内联写的透明度状态盖掉
+   （当年被盖掉的是逐卡淡出；那套已删，但"动画压内联"这条不会变）。
    ⚠ **`animationend` 里只能按前缀认动画名，不能写全等**：Vue 的 scoped 样式会给
    `@keyframes` 改名（实测 `cardFadeIn-373722f9`），写 `=== 'cardFadeIn'` 会让标记永远摘不掉，
    结果透明度又永久被那条 animation 管着 —— 同一个坑换个入口再踩一次。
    新加入场动画请复用这条通道，别再自己挂常驻 animation。
-3. **逐卡淡出（`useCardFade`）与入场动画共用 `opacity`，谁也别抢。**
-   淡出走内联 `style.opacity`（滚到浮岛那一段整张变淡）；动画必须靠 `.is-entering` 开、播完就收。
-   以后若要用内联 `opacity` / `transform` 做状态，先确认没有常驻动画会盖住它。
+3. **别用常驻动画去管"状态类"的透明度。**
+   逐卡淡出（`useCardFade`）已于 2026-11-24 整组删除（底部改由玻璃场负责"化开"），
+   但它留下的教训还在：内联 `style.opacity` / `transform` 表示状态时，先确认没有常驻
+   animation 会盖住它 —— CSS 动画的优先级高于内联值，症状是"状态设了却不生效"。
 
 ## 功能层（底栏浮岛）的规矩
 

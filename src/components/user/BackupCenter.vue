@@ -1,53 +1,50 @@
 <!--
-  备份中心积木（2026-10-10 新增 · 对应问题清单 I01「数据会丢」）
+  备份中心积木（2026-10-10 新增 · 对应问题清单 I01「数据会丢」；2026-11-23 改成「我的」的二级页）
   职责：把「能带走 + 能导回」做成用户点得到的东西
     - 导出全量备份（记录 / 王冠记忆 / 聊天记录 / 危机留痕 / 图片 / 用户档案）
     - 从备份文件导入（全量覆盖当前账号 + 导入前自动快照）
     - 回退到导入前（导错了能退回来）
   边界：不含 API 密钥、不含登录态、不含账号表；不引任何依赖；不碰危机逻辑
   交互：导入/回退完成后必须整页重载（业务积木的存储键在启动时就绑定了）
+
+  2026-11-23 删掉的三处（都是"替别的东西解释"，不是信息）：
+    · 「一个文件带走全部：记录 · 王冠记忆 · …」—— 导出成功的提示里已经报了真实条数
+    · 「手机 App 里导出会…电脑浏览器里就是下载」—— 平台运行细节，用户只要结果
+    · 「现在手机丢了，东西就真没了」—— 恐吓式常驻文案；未导出仍然是红的，但只说事实
 -->
 <template>
-  <div class="backup-section">
-    <h3><AppIcon name="shield" :size="16" /> 存储与备份</h3>
+  <div class="backup-card">
+    <!-- 导出 -->
+    <button class="bk-btn primary" type="button" :disabled="!!busy" @click="handleExport">
+      <AppIcon name="export" :size="14" />
+      {{ busy === 'export' ? '正在打包…' : '导出全量备份' }}
+    </button>
 
-    <div class="backup-card">
-      <!-- 导出 -->
-      <button class="bk-btn primary" type="button" :disabled="!!busy" @click="handleExport">
-        <AppIcon name="export" :size="14" />
-        {{ busy === 'export' ? '正在打包…' : '导出全量备份' }}
-      </button>
-      <p class="bk-hint">一个文件带走全部：记录 · 王冠记忆 · 聊天记录 · 图片 · 用户档案</p>
-      <p class="bk-last" v-if="lastAt">
-        上次导出：{{ fmtTime(lastAt) }}<span v-if="daysAgo !== null">（{{ daysAgo }} 天前）</span>
-      </p>
-      <p class="bk-last warn" v-else>还没导出过 —— 现在手机丢了，东西就真没了</p>
-      <!-- 容量体检（I15）：给的是同一份估算，界面一律写"约" -->
-      <p class="bk-size" v-if="usageText">
-        本机已用约 {{ usageText }}<span v-if="topUser"> · 最占地方的是{{ topUser }}</span>
-      </p>
+    <!-- 导入 -->
+    <button class="bk-btn ghost" type="button" :disabled="!!busy" @click="triggerImport">
+      <AppIcon name="import" :size="14" />
+      {{ busy === 'import' ? '正在导入…' : '从备份文件导入' }}
+    </button>
+    <input ref="fileEl" type="file" accept=".json,application/json" style="display: none" @change="handleFile" />
 
-      <!-- 导入 -->
-      <button class="bk-btn ghost" type="button" :disabled="!!busy" @click="triggerImport">
-        <AppIcon name="import" :size="14" />
-        {{ busy === 'import' ? '正在导入…' : '从备份文件导入' }}
-      </button>
-      <input ref="fileEl" type="file" accept=".json,application/json" style="display: none" @change="handleFile" />
+    <!-- 回退 -->
+    <button v-if="snap" class="bk-btn ghost" type="button" :disabled="!!busy" @click="handleRestore">
+      <AppIcon name="back" :size="14" /> 回退到导入前（{{ fmtTime(snap.ts) }}）
+    </button>
 
-      <!-- 回退 -->
-      <button v-if="snap" class="bk-btn ghost" type="button" :disabled="!!busy" @click="handleRestore">
-        <AppIcon name="back" :size="14" /> 回退到导入前（{{ fmtTime(snap.ts) }}）
-      </button>
+    <!-- 状态一行说完：上次导出 + 本机容量体检（I15，界面一律写"约"） -->
+    <p class="bk-state">
+      <template v-if="lastAt">上次导出 {{ fmtShort(lastAt) }}<template v-if="daysAgo !== null">（{{ daysAgo }} 天前）</template></template>
+      <template v-else><span class="warn">还没导出过</span></template>
+      <template v-if="usageText"> · 已用约 {{ usageText }}<template v-if="topUser">，最多的是{{ topUser }}</template></template>
+    </p>
 
-      <!-- 结果提示 -->
-      <p v-if="msg" class="bk-msg" :class="msgType">
-        <AppIcon :name="msgType === 'error' ? 'close' : 'check'" :size="13" />{{ msg }}
-      </p>
+    <!-- 结果提示 -->
+    <p v-if="msg" class="bk-msg" :class="msgType">
+      <AppIcon :name="msgType === 'error' ? 'close' : 'check'" :size="13" />{{ msg }}
+    </p>
 
-      <p class="bk-note">
-        备份里不含 API 密钥。手机 App 里导出会把文件写进手机并弹出系统「保存 / 分享」；电脑浏览器里导出就是直接下载。
-      </p>
-    </div>
+    <p class="bk-note">备份里不含 API 密钥。</p>
   </div>
 </template>
 
@@ -90,6 +87,15 @@ const fmtTime = (iso) => {
   if (isNaN(d.getTime())) return String(iso).slice(0, 16)
   const p = n => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+/** 状态行里的时间只留「月-日 时:分」：年份在这一屏没有判断价值 */
+const fmtShort = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return String(iso).slice(0, 16)
+  const p = n => String(n).padStart(2, '0')
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
 const say = (text, type = 'ok') => { msg.value = text; msgType.value = type }
@@ -206,18 +212,11 @@ const handleRestore = async () => {
 </script>
 
 <style scoped>
-.backup-section { margin-top: 22px; }
-.backup-section h3 {
-  display: flex; align-items: center; gap: 7px;
-  font-size: var(--text-13); font-weight: 600; color: var(--color-text-secondary);
-  margin-bottom: 10px;
-}
-
 .backup-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-3xl);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow);
   padding: 15px;
   display: flex; flex-direction: column; gap: 9px;
 }
@@ -225,20 +224,31 @@ const handleRestore = async () => {
 .bk-btn {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   min-height: 44px; width: 100%;
-  border-radius: var(--radius-lg); border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl); border: 1px solid var(--color-border);
   font-size: var(--text-14); font-weight: 500; font-family: var(--font-system);
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1.0), opacity 0.2s, background 0.2s;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              opacity 0.2s, background 0.2s;
 }
-.bk-btn:active { transform: scale(0.985); }
+.bk-btn:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
 .bk-btn:disabled { opacity: 0.55; }
 .bk-btn.primary { background: var(--color-accent); color: var(--color-text-on-accent); border-color: transparent; }
 .bk-btn.ghost   { background: var(--color-bg-card); color: var(--color-text-secondary); }
 
-.bk-hint { font-size: var(--text-12); color: var(--color-text-muted); text-align: center; line-height: 1.6; }
-.bk-last { font-size: var(--text-12); color: var(--color-text-muted); text-align: center; }
-.bk-last.warn { color: var(--color-danger); }
-.bk-size { font-size: var(--text-12); color: var(--color-text-muted); text-align: center; }
+/* 状态行：一条，居中，12 号。未导出那半句是红的 —— 只说「还没导出过」，不吓人 */
+.bk-state {
+  margin-top: 2px;
+  font-size: var(--text-12); line-height: 1.6;
+  color: var(--color-text-muted); text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.bk-state .warn { color: var(--color-danger); }
 
 .bk-msg {
   display: flex; align-items: flex-start; gap: 6px;
@@ -250,7 +260,7 @@ const handleRestore = async () => {
 .bk-note {
   margin-top: 3px; padding-top: 11px;
   border-top: 1px solid var(--color-border-light);
-  font-size: var(--text-12); line-height: 1.65; color: var(--color-text-muted);
+  font-size: var(--text-12); line-height: 1.6; color: var(--color-text-muted);
 }
 
 @media (prefers-reduced-motion: reduce) {

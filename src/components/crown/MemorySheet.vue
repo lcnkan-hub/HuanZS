@@ -139,7 +139,7 @@ const maskStyle = computed(() => {
      只有这里直接写 env()。值等价（令牌本身就是 env(...,0px)），但三处写法归一后才好一起改。 */
   padding-bottom: var(--safe-bottom);
   /* 常态 transition：下滑手势回弹用（入场由 enter-active 覆盖） */
-  transition: transform 0.25s ease-out;
+  transition: transform var(--pop-dur) var(--spring-pop);
 }
 
 /* 与「我的」卡片一字不差：40×5、两端半圆、同一灰度。
@@ -222,9 +222,16 @@ const maskStyle = computed(() => {
   font-size: var(--text-13);
   font-weight: 500;
   cursor: pointer;
-  transition: transform 0.15s ease-out, opacity 0.2s ease;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              opacity 0.2s ease;
 }
-.sheet-empty-cta:active { transform: scale(0.96); }
+.sheet-empty-cta:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
 
 .memory-list {
   list-style: none;
@@ -286,7 +293,7 @@ const maskStyle = computed(() => {
 .mask-fade-leave-to { opacity: 0; }
 
 .sheet-rise-enter-active,
-.sheet-rise-leave-active { transition: transform 0.3s ease-out, opacity 0.25s ease; }
+.sheet-rise-leave-active { transition: transform var(--slide-dur) var(--spring-pop), opacity 0.25s ease; }
 .sheet-rise-enter-from,
 .sheet-rise-leave-to { transform: translateY(100%); opacity: 0.5; }
 /* 模块3：离场动画必须比入场快（150~200ms），不占用户操作时间 */

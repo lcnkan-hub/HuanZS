@@ -9,6 +9,10 @@
  */
 import { ref } from 'vue'
 import { handleMessage } from '../services/crisisResponse'
+// 把「结构化提问」注册给 services 层（2026-11-24）：crisisDetection 的 L2 语义确认走这里，
+// 它自己不再 import 本文件 —— 那条 useChatAI → crisisResponse → crisisDetection → useChatAI
+// 的环就是被这个端口断开的。注册在文件末尾（askStructured 已定义之后）。
+import { registerAIClassifier } from '../services/aiClassifierPort'
 import { getAIConfig } from './useApiKey'
 import { AI_PROVIDERS } from '../constants/aiProviders'
 
@@ -254,3 +258,10 @@ export async function verifyAIConfig({ provider, apiKey }) {
     clearTimeout(timer)
   }
 }
+
+/*
+ * 注册到 AI 分类器端口（2026-11-24）
+ * 放在文件末尾 = askStructured 已经定义好，且本模块一旦被加载就完成注册；
+ * 谁先用到危机检测都拿得到实现。crisisDetection 那边没注册时只跑 L1，不会崩。
+ */
+registerAIClassifier(askStructured)

@@ -51,12 +51,11 @@ defineEmits(['action'])
   border: 1px solid var(--color-border-light);
   background: var(--color-bg-card);
   /* 入场只用 transform/opacity（项目动画规矩） */
-  animation: notice-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: noticeFade 0.16s linear backwards,
+             noticeIn var(--pop-dur) var(--spring-pop) backwards;
 }
-@keyframes notice-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+@keyframes noticeFade { from { opacity: 0 } }
+@keyframes noticeIn   { from { transform: translateY(-8px) } }
 .kind-error {
   background: var(--color-danger-bg);
   border-color: var(--color-danger-bg);

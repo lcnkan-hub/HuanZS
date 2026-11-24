@@ -1,97 +1,141 @@
 <!--
-  「我的」内容积木（2026-11-21 单层重构版）
-  职责：布局编排，数据计算和事件转发。容器是 MineSheet（右侧滑入的卡片），本组件只管里面放什么。
-  顺序：名片 → 本机锁 → 备份 → 王冠 → 修改资料。
-  2026-11-21 单人化：「我创建的」整块撤掉 —— 只有一个用户时，它是一个会说谎的数字。
-  足迹模块已按决策删除（只剩一个记录池，分类占比失去意义）。
+  「我的」内容积木（2026-11-21 单层重构版；2026-11-23 重排成「一张名片 + 三行 + 一行」）
+  职责：布局编排，数据计算和事件转发。容器是 MineSheet（底部浮层），本组件只管里面放什么。
+
+  为什么重排（排版 / 内容两条都是硬伤，原方案见 docs/screenshots/06-*）：
+    · 原页 ≈1370px、可用区 ≈620px —— 两屏多，首屏正好切在「导出全量备份」上；
+      而这张卡片 88% 高，内容却只有 466px，往上堆只会越堆越空。
+    · 一页里同一件事出现两次：用户出现两回、同一张头像画两遍、
+      「都在同一个文件里」与备份卡的 hint 重复。
+    · 红色的「锁定本机」比真正的主按钮（导出）更抓眼，语义还是错的（可逆动作穿警告色）。
+  现在：名片 →（王冠 / 收藏 / 数据）→ 锁定，四行各有去处，其余内容进二级页。
+
+  二级页由 MineSheet 的头部标题 + 返回箭头承载，页面状态在 MineSheet（它才知道自己多高）。
+  单人化：没有「我创建的」—— 只有一个用户时，它是一个会说谎的数字。
 -->
 <template>
   <div class="page-content mine-page-container">
-    <!-- 用户名片 -->
-    <UserProfileCard
-      :avatar="userProfile?.avatar"
-      :name="userProfile?.name"
-      :id="userProfile?.id"
-    />
+    <!-- ========== 首页 ========== -->
+    <template v-if="!page">
+      <!-- 名片：整张卡就是「修改资料」入口（原来是页面最底下一颗离对象 500px 的按钮） -->
+      <UserProfileCard
+        :avatar="userProfile?.avatar"
+        :name="userProfile?.name"
+        :meta="profileMeta"
+        @edit="$emit('edit-profile')"
+      />
 
-    <!-- 本机锁：只有一个人用，所以这里不是「账号管理」，只是「锁不锁」 -->
-    <AccountSection />
+      <!-- 三行入口：行只负责进页面，状态用副行说 -->
+      <div class="mine-card">
+        <MineRow icon="crown" label="王冠" :meta="crownMeta()" @click="$emit('navigate', 'crown')" />
+        <MineRow icon="bookmark" label="我的收藏" :value="favCount" @click="$emit('navigate', 'favorites')" />
+        <MineRow icon="shield" label="数据与备份" :meta="backupMeta()" @click="$emit('navigate', 'backup')" />
+      </div>
 
-    <!-- 备份中心：导出全量 / 导入 / 回退 -->
-    <BackupCenter />
+      <!-- 锁定：低频、可逆，放最底，不穿红 -->
+      <div class="mine-card mine-lock-card">
+        <LockRow />
+      </div>
+    </template>
 
-    <!-- 我的收藏：点一条直接打开那条记录（关掉浮层交给父级做） -->
+    <!-- ========== 二级页 ========== -->
+    <CrownSection v-else-if="page === 'crown'" @open-ai-settings="$emit('open-ai-settings')" />
+
     <MyFavoritesEntry
+      v-else-if="page === 'favorites'"
       :records="records"
       @open-item="(item) => $emit('open-item', item)"
     />
 
-    <!-- 王冠：主动开口开关 + 模型密钥 -->
-    <CrownSection @open-ai-settings="showAiSettings = true" />
-
-    <!-- 底部操作：修改资料（AI 设置已并入上方王冠卡） -->
-    <div class="profile-action-wrapper">
-      <button class="edit-data-trigger-btn" @click="showEditModal = true">
-        <AppIcon name="settings" :size="14" /> 修改资料
-      </button>
-    </div>
-
-    <!-- 修改资料弹窗 -->
-    <EditProfileModal
-      v-if="showEditModal"
-      :name="userProfile?.name"
-      :avatar="userProfile?.avatar"
-      @close="showEditModal = false"
-      @save="(data) => { $emit('save-profile', data); showEditModal = false }"
-    />
-
-    <!-- AI 设置弹窗（用户自带密钥，只存本机） -->
-    <AiSettingsModal v-if="showAiSettings" @close="showAiSettings = false" />
+    <BackupCenter v-else-if="page === 'backup'" />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import AppIcon from '../common/AppIcon.vue'
+import { computed } from 'vue'
 import UserProfileCard   from './UserProfileCard.vue'
-import BackupCenter      from './BackupCenter.vue'
-import AccountSection    from './AccountSection.vue'
+import MineRow           from './MineRow.vue'
+import LockRow           from './LockRow.vue'
 import CrownSection      from './CrownSection.vue'
 import MyFavoritesEntry  from './MyFavoritesEntry.vue'
-import EditProfileModal  from './EditProfileModal.vue'
-import AiSettingsModal   from './AiSettingsModal.vue'
+import BackupCenter      from './BackupCenter.vue'
+
+import { currentAccount } from '../../composables/useAccount'
+import { useFavorites } from '../../composables/useFavorites'
+import { isProactiveEnabled, proactiveMonthCount } from '../../composables/useProactive'
+import { PROACTIVE_QUOTA_PER_MONTH } from '../../constants/proactive'
+import { useAIConfig } from '../../composables/useApiKey'
+import { lastExportAt } from '../../composables/useBackup'
 
 defineProps({
   userProfile: { type: Object, default: null },
-  records:     { type: Array,  default: () => [] }
+  records:     { type: Array,  default: () => [] },
+  // 当前二级页：'' | 'crown' | 'favorites' | 'backup'（由 MineSheet 持有，它才知道标题该写什么）
+  page:        { type: String, default: '' }
 })
-// 事件：save-profile / open-item（收藏里点一条 → 交给 App 关浮层并打开记录）
-defineEmits(['save-profile', 'open-item'])
+// 事件：navigate（切二级页）/ edit-profile / open-ai-settings（两个弹窗挂在 MineSheet 上）/
+//       open-item（收藏里点一条 → 交给 App 关浮层并打开记录）
+defineEmits(['navigate', 'edit-profile', 'open-ai-settings', 'open-item'])
 
-const showEditModal = ref(false)
-const showAiSettings = ref(false)
+/* ---------- 名片副行：本机 + 创建日期（原来在「本机锁」卡里，现在并到名片上） ---------- */
+const account = currentAccount()
+const profileMeta = account && account.createdAt
+  ? `本机 · 创建于 ${slashDate(account.createdAt)}`
+  : '本机'
 
+/* ---------- 收藏数 ---------- */
+const { ids: favIds } = useFavorites()
+const favCount = computed(() => favIds.value.length)
+
+/* ---------- 王冠行 / 数据行的副行 ----------
+   用函数而不是 computed：这两行只在首页分支渲染，回到首页时会重新算一次，
+   刚在二级页里改过的开关 / 刚导出完的时间都能立刻反映出来（computed 不会重算）。 */
+const { config: aiConfig } = useAIConfig()
+
+function crownMeta() {
+  const keyOn = !!(aiConfig.value?.apiKey || '').trim()
+  if (!keyOn) return '密钥未配置'
+  const on = isProactiveEnabled()
+  const used = proactiveMonthCount()
+  return `${on ? '开启' : '已关掉'} · 本月 ${used}/${PROACTIVE_QUOTA_PER_MONTH} 次`
+}
+
+function backupMeta() {
+  const t = lastExportAt()
+  return t ? `只在本机 · 上次导出 ${monthDay(t)}` : '只在本机 · 还没导出过'
+}
+
+/** '2026-11-23T…' → '2026/11/23'（记录时间本来就用斜杠，界面上别两套分隔符） */
+function slashDate(iso) {
+  const s = String(iso || '').slice(0, 10)
+  return s.replace(/-/g, '/')
+}
+
+/** 导出时间只留「月-日」：首页这一行不该出现年份 */
+function monthDay(iso) {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return String(iso).slice(0, 10)
+  const p = n => String(n).padStart(2, '0')
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
 </script>
 
 <style scoped>
 /* 2026-11-21：容器从右侧抽屉换成底部卡片后，顶部留白由卡片的横杠+标题接管，
-   这里不再自留 20px，否则第一块名片会被顶下去一截（卡片高度只有 88%，首屏能放的东西少一件） */
-.page-content { padding: 4px 20px 20px; animation: fadeInContent 0.3s ease-out; }
-.mine-page-container { display: flex; flex-direction: column; }
+   这里不再自留 20px，否则第一块名片会被顶下去一截。
+   2026-11-23：原来这里的入场 animation 撤掉了 —— 淡入改由 MineSheet 的
+   <transition> 统一做，两处各淡一次会变成 0.48s 的拖沓。 */
+.page-content { padding: 4px 20px 20px; }
+.mine-page-container { display: flex; flex-direction: column; gap: 16px; }
 
-.profile-action-wrapper {
-  padding: 4px 0 10px 0;
-  display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;
+.mine-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-3xl);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow);
+  overflow: hidden;   /* 圆角要裁掉行自己的 hover 底色 */
 }
-.edit-data-trigger-btn {
-  background-color: var(--color-bg-card); color: var(--color-text-muted);
-  border: 1px solid var(--color-border-input); border-radius: var(--radius-lg);
-  padding: 8px 20px; min-height: 44px; font-size: var(--text-13); font-weight: 500; cursor: pointer;
-  transition: all 0.2s; display: flex; align-items: center; gap: 4px;
-}
-.edit-data-trigger-btn:active { background-color: #f4f9ff; transform: scale(0.98); }
-@keyframes fadeInContent {
-  from { opacity: 0; transform: translateY(5px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+
+/* 锁定与上面那组再拉开 8px（16 的组间距 + 8 = 24）：它不是一个普通入口 */
+.mine-lock-card { margin-top: 8px; }
 </style>

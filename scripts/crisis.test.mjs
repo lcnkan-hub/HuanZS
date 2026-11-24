@@ -8,10 +8,10 @@ import assert from 'node:assert/strict'
 // ── 被测对象（真实源码） ──
 const { detect, screenLocal } = await import('../src/services/crisisDetection.js')
 const {
-  getState, update: smUpdate, isRecoverySignal,
+  getState, update: smUpdate,
   __setStateForTest, RISK_STATES
 } = await import('../src/services/riskStateMachine.js')
-const { handleMessage, appendAudit, __clearStateForTest } =
+const { handleMessage, appendAudit } =
   await import('../src/services/crisisResponse.js')
 const crisisConst = await import('../src/constants/crisis.js')
 const patterns = await import('../src/constants/crisisContextPatterns.js')
@@ -76,7 +76,6 @@ for (const input of A_CASES) {
 }
 
 console.log('\n═══ B 类 · 中风险（≥8）═══')
-const stubMid = async () => ({ confidence: 0.9, signals: ['hopelessness'] })
 const B_CASES = [
   '活着真的没意思，每天都是煎熬',
   '感觉自己是多余的，消失了也没人发现',
@@ -255,7 +254,6 @@ await okAsync('兜底: 管线抛异常 → 固定安全文案 + fallback 日志'
   assert.ok(r, '故障时必须仍有回复')
   assert.equal(r.route, 'system_fallback')
   assert.ok(r.reply.includes(crisisConst.HOTLINES.PSY), '兜底文案必须含热线')
-  const log = adapter.readJSON ? undefined : undefined
   const audit = (await import('../src/services/storageAdapter.js')).readJSON('crown_crisis_audit_log', [])
   const last = audit[audit.length - 1]
   assert.equal(last.decision_type, 'system_failure_fallback')

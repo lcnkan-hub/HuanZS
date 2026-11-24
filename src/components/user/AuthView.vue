@@ -162,7 +162,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
   width: 100%; max-width: 360px;
   background: var(--color-bg-card);
   border-radius: var(--radius-3xl);
-  box-shadow: var(--shadow-card-md);
+  box-shadow: var(--surface-card-rim), var(--surface-card-shadow);
   padding: 26px 22px 20px;
 }
 
@@ -186,10 +186,17 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
   border: 1px solid var(--color-border); border-radius: 999px;
   background: var(--color-bg-subtle); color: var(--color-text-secondary);
   cursor: pointer; font-family: var(--font-system);
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1.0), opacity 0.2s, border-color 0.2s;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              opacity 0.2s, border-color 0.2s;
 }
 .chip-on { border-color: var(--color-accent); color: var(--color-accent); background: var(--color-accent-light); }
-.chip:active { transform: scale(0.96); }
+.chip:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
 
 /* ---- 表单 ---- */
 .auth-form { display: flex; flex-direction: column; gap: 13px; }
@@ -219,9 +226,15 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
   background: var(--color-accent); color: var(--color-text-on-accent);
   font-size: var(--text-15); font-weight: 500; font-family: var(--font-system);
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1.0), opacity 0.2s;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease), opacity 0.2s;
 }
-.auth-submit:active { transform: scale(0.985); }
+.auth-submit:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
 .auth-submit:disabled { opacity: 0.55; }
 
 /* ---- 切换 ---- */

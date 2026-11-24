@@ -23,6 +23,7 @@
       v-if="record.pics && record.pics.length"
       :pics="record.pics"
       @preview="(i) => $emit('preview-pic', i)"
+      @delete="(i) => $emit('delete-pic', i)"
     />
 
     <!-- 阅读态 -->
@@ -64,7 +65,7 @@ const props = defineProps({
   /** 落款文案（年月日 + 周几）。空串 = 不显示；只出现在阅读态末尾右下角 */
   metaText: { type: String, default: '' }
 })
-const emit = defineEmits(['save', 'add-pic', 'preview-pic'])
+const emit = defineEmits(['save', 'add-pic', 'preview-pic', 'delete-pic', 'editing-change'])
 
 const editing      = ref(!!props.autoEdit)
 const draft        = ref(props.autoEdit ? (props.record.wiki || '') : '')
@@ -111,6 +112,15 @@ onMounted(() => {
 })
 onBeforeUnmount(() => flush())
 
+/**
+ * 进出编辑态要告诉父级（2026-11-23）：详情页的底部工具栏**只在编辑态出现**。
+ *
+ * ⚠ 必须 immediate：新建记录进来时 `editing` 的初值就是 true（autoEdit），
+ *   没有"变化"可等 —— 不加 immediate 父级永远收不到第一次通知，
+ *   结果就是「点记录进编辑态了，工具栏却不在」（2026-11-23 实测反馈）。
+ */
+watch(editing, (v) => emit('editing-change', v), { immediate: true })
+
 function startEdit() {
   if (editing.value) return
   draft.value = props.record.wiki || ''
@@ -137,6 +147,49 @@ function flush() {
   if (editing.value && draft.value !== (props.record.wiki || '')) emit('save', draft.value)
 }
 
+/**
+ * 结束编辑、回到阅读态（底部「完成」键）。
+ * 先把没落库的草稿写下去再退 —— 不然 600ms 防抖还没到就退出，最后几个字会丢。
+ */
+function exitEdit() {
+  if (!editing.value) return
+  flush()
+  editing.value = false
+}
+
+/**
+ * 加粗（2026-11-23 取消标题系统后的「标题行」工具）。
+ *
+ * 正文是 textarea + markdown，所以加粗 = 插一对 `**…**`：
+ *   · 有选中文字 → 前后各补一个 `**`，光标落在包裹文字之后；
+ *   · 没选中 → 插 `****` 并把光标放进中间，接着打的字就是粗的（这就是用户要的
+ *     「点一下就能输入跟正文一样大、但比较粗的字」）。
+ *
+ * 为什么不做所见即所得：那是换编辑器的活（contenteditable + 富文本模型），
+ * 会连带动摇「正文只存纯文本」这个既有约定；先沿用全文一致的 markdown 口径。
+ */
+function insertBold() {
+  const wrap = () => {
+    const ta = textareaRef.value
+    if (!ta) return
+    const v = ta.value
+    const start = ta.selectionStart ?? v.length
+    const end = ta.selectionEnd ?? v.length
+    const sel = v.slice(start, end)
+    const marks = '**'
+    draft.value = v.slice(0, start) + marks + sel + marks + v.slice(end)
+    const caret = start + marks.length + sel.length + (sel ? marks.length : 0)
+    nextTick(() => ta.setSelectionRange(caret, caret))
+  }
+  if (!editing.value) {
+    startEdit()
+    // startEdit 自己有一层 nextTick（聚焦 + 光标到末尾），排到它之后再动选区
+    setTimeout(wrap, 0)
+    return
+  }
+  wrap()
+}
+
 // ========== 插图（2026-11-22 图片附件化：图存 IndexedDB，id 交给父级写进 record.pics） ==========
 
 /** 由底部工具栏调用：不在编辑态就先切进去再选图 */
@@ -160,7 +213,7 @@ async function handleImageSelected(event) {
   event.target.value = ''
 }
 
-defineExpose({ startEdit, insertImage, flush, isEditing: editing })
+defineExpose({ startEdit, exitEdit, insertImage, insertBold, flush, isEditing: editing })
 </script>
 
 <style scoped>
@@ -200,6 +253,16 @@ defineExpose({ startEdit, insertImage, flush, isEditing: editing })
   min-height: 320px;
   box-sizing: border-box;
   padding: 0;
+  /* 顶部留白由详情页给（--edit-top-pad，默认 0）：
+     纯文字编辑时它等于「顶栏高度 + 10」，textarea 就能顶到屏幕最上沿、
+     让正文从顶栏后面滚过去 —— 雾幕才盖得到字（2026-11-24）。
+     变量没定义时这条声明直接失效，padding: 0 的语义不变。 */
+  padding-top: var(--edit-top-pad);
+  /* 底部留白（2026-11-24）：详情页的 .detail-body 底部留白已经归零（滚动框要顶到屏幕最底），
+     但编辑态那条玻璃工具栏是**浮在正文之上**的 —— 没有这一段的话，滚到底时最后一行
+     永远压在工具栏底下。66 = 工具栏离底 14 + 自身 52，加安全区是因为工具栏也跟着上移。
+     注意它加在 textarea **内部**：滚动框本身仍然到底，只是最后一行停在栏上方。 */
+  padding-bottom: calc(66px + var(--safe-bottom));
   background: none;
   border: none;
   outline: none;

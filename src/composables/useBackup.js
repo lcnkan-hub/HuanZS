@@ -24,7 +24,7 @@ import { STORAGE_KEYS } from '../constants/categories'
 import { scopeKey, currentScope, GLOBAL_KEYS } from '../utils/storageScope'
 import { CORRUPT_SUFFIX } from './useLocalStorage'
 import { stripChildren, normalizePics } from './useRecords'
-import { IMAGE_DB_NAME, IMAGE_STORE_NAME, getImageDB, releaseAllImageUrls } from './useImageStore'
+import { IMAGE_STORE_NAME, getImageDB, releaseAllImageUrls } from './useImageStore'
 import { saveSnapshot, readSnapshot } from './useBackupStore'
 
 export const BACKUP_FORMAT = 'huanzhongshu-backup'

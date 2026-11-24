@@ -11,3 +11,6 @@ Thumbs.db
 
 # 本机 DSH 插件包（含 node_modules，只属于这台机器）
 .dsh-plugins/
+
+# IDE 本机状态（不跟着仓库走）
+.idea/
