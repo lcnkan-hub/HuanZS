@@ -31,12 +31,12 @@ export const IMAGE_STORE_NAME = STORE_NAME
  * 以后新增任何用到图片 id 的地方，一律 import 这里，别再手写正则。
  * 同时兼容更早数据里的纯数字 id。
  */
-export const IMAGE_ID_SOURCE = 'img-[0-9a-z_]+'
-
-/** 判断一个字符串是不是合法图片 id */
-export function isImageId(value) {
-  return new RegExp('^' + IMAGE_ID_SOURCE + '$').test(String(value || ''))
-}
+/**
+ * 图片 id 的合法形态 —— 定义已上收到 utils/imageId.js（2026-11-24）。
+ * 这里 re-export 只为保持既有 import 不断；新代码请直接 import '../utils/imageId'。
+ */
+import { IMAGE_ID_SOURCE, isImageId } from '../utils/imageId'
+export { IMAGE_ID_SOURCE, isImageId }
 
 let _imgCounter = 0
 let dbPromise = null

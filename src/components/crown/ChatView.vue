@@ -148,6 +148,7 @@ import { useAIConfig } from '../../composables/useApiKey'
 import { buildWikiContext } from '../../composables/useWikiContext'
 import AiSettingsModal from '../user/AiSettingsModal.vue'
 import { useKeyboard } from '../../composables/useKeyboard'
+import { readRaw, writeRaw } from '../../services/storageAdapter'
 
 // 键盘几何：kbOpen（底栏下沉 / 让位收回）、kbInset（列表底部留白）、kbShift（输入栏上浮量）
 const { kbInset, kbShift, kbOpen } = useKeyboard()
@@ -230,9 +231,8 @@ onMounted(() => {
   // 冷启动后第一次进王冠 → 播入场动画（内存态，热切换不播；杀 app 内存清空重置）
   if (!entrancePlayed) {
     entrancePlayed = true
-    let seen = false
-    try { seen = !!localStorage.getItem(INTRO_KEY) } catch {}
-    introQuick.value = seen
+    // 走适配器（2026-11-24）：这是全局键、「1」不是 JSON，用 readRaw 而不是 readJSON
+    introQuick.value = !!readRaw(INTRO_KEY)
     introMode.value = timeMode.value // 进入这一刻的时段定档（与背景板同源），播放中不再变
     showEntrance.value = true
   }
@@ -301,7 +301,7 @@ function focusInput() {
 /** 入场动画结束：卸载 overlay + 记录已看过（下次冷启动播精简版） */
 function handleEntranceDone() {
   showEntrance.value = false
-  try { localStorage.setItem(INTRO_KEY, '1') } catch {}
+  writeRaw(INTRO_KEY, '1')
 }
 
 /** 格式化时间：只显示 HH:mm */

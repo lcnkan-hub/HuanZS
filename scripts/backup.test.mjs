@@ -283,7 +283,8 @@ ok('无 DOM 环境 via 如实报 none', (await backup.downloadBackup({ includeIm
   // 落文件那条路是**手写拼串**的（为了不把整包拼成一个巨型字符串），最容易漏字段 ——
   // 所以直接对着源码断言，别让"payload 里有、文件里没有"这种漂移活下来。
   const { readFileSync } = await import('node:fs')
-  const backupSrc = readFileSync(new URL('../src/composables/useBackup.js', import.meta.url), 'utf8')
+  // 2026-11-24：useBackup.js 拆成 composables/backup/*，落文件组装搬到了 export.js
+  const backupSrc = readFileSync(new URL('../src/composables/backup/export.js', import.meta.url), 'utf8')
   ok('导出:落文件的 JSON 组装里也写上了 rescue（手写拼串容易漏）', backupSrc.includes('\',"rescue":\''), '')
 
   localStorage.removeItem(sk(STORAGE_KEYS.RECORDS) + '__corrupt')

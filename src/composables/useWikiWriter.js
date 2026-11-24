@@ -17,7 +17,7 @@
  * 保守底线不变：宁可漏记，也不让记录变垃圾桶。
  */
 import { STORAGE_KEYS } from '../constants/categories'
-import { scopeKey } from '../utils/storageScope'
+import { readJSON } from '../services/storageAdapter'
 import { getCurrentTimeString, generateUniqueId } from '../utils/uniqueId'
 import { useRecords } from './useRecords'
 
@@ -29,11 +29,9 @@ const MAX_APPEND_LEN = 2000   // 单次追加上限
 
 /** 取当前用户名当 creator —— 这样王冠记的内容也会出现在用户自己的「我创建的」里 */
 function currentUserName() {
-  try {
-    return JSON.parse(localStorage.getItem(scopeKey(STORAGE_KEYS.USER)) || '{}').name || '我'
-  } catch {
-    return '我'
-  }
+  // 走适配器（2026-11-24）：账号前缀与解析兜底都在 readJSON 里
+  const profile = readJSON(STORAGE_KEYS.USER, {})
+  return (profile && profile.name) || '我'
 }
 
 /**

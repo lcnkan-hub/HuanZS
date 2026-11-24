@@ -140,7 +140,8 @@ import { useKeyboard } from './composables/useKeyboard'
 import { useTimeMode } from './composables/useTimeMode'
 import { useCardZoom } from './composables/useCardZoom'
 import { readCardRects, readDetailRects, cardTextHtml } from './utils/cardZoomRects'
-import { useStorageHealth, formatMB } from './utils/storageHealth'
+import { useStorageHealth } from './composables/useStorageHealth'
+import { formatMB } from './utils/storageHealth'
 
 // ========== 登录闸门 ==========
 // 未登录 → 只渲染 AuthView；登录/注册成功后整页重载，

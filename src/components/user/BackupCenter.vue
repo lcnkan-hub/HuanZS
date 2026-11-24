@@ -53,7 +53,8 @@ import { ref, computed, onMounted } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import { downloadBackup, importBackup, restoreFromSnapshot, estimateSize, lastExportAt, humanError, SIZE_GATE_MB } from '../../composables/useBackup'
 import { snapshotInfo, clearSnapshot } from '../../composables/useBackupStore'
-import { refreshUsage, formatMB } from '../../utils/storageHealth'
+import { refreshUsage } from '../../composables/useStorageHealth'
+import { formatMB } from '../../utils/storageHealth'
 import { daysSince } from '../../utils/backupReminder'
 
 const fileEl = ref(null)

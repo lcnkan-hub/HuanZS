@@ -84,7 +84,8 @@ async function resolveReadImages() {
   if (!readRef.value) return
   await nextTick()
   try {
-    readRef.value.innerHTML = await resolveImagesAsync(readRef.value.innerHTML)
+    // 图片取法由这里注入（2026-11-24）：markdownParser 不再 import 图片库
+    readRef.value.innerHTML = await resolveImagesAsync(readRef.value.innerHTML, getImageUrl)
   } catch {
     // 图片解析失败不阻塞阅读（正文其余部分照常可看）
   }

@@ -1,0 +1,34 @@
+name: verify
+
+# 2026-11-24 新增：这个项目一直只有本机手跑的检查，改坏了只能靠自己记得去跑。
+# 现在 CI 只做一件事 —— 把关：静态检查、11 套断言、构建产得出包。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 静态检查（lint / 令牌 / 字号刻度）
+        run: |
+          npm run lint
+          npm run check:tokens
+          npm run check:ui
+
+      - name: 断言套件（11 套）
+        run: npm test
+
+      - name: 构建（含密钥扫描）
+        run: npm run build

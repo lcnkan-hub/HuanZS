@@ -15,7 +15,10 @@
 import { ref, watch } from 'vue'
 import { scopeKey } from '../utils/storageScope'
 import { onExternalChange } from '../utils/storageSync'
-import { reportWriteFailure, clearWriteFailure } from '../utils/storageHealth'
+import { reportWriteFailure, clearWriteFailure } from './useStorageHealth'
+// 存储统一走适配器（2026-11-24）：本文件是「Vue 响应式外壳」，
+// 读写仍然要经过 adapter —— 否则「换存储后端只改一个文件」不成立。
+import { readRaw, readRawScoped, tryWriteRaw } from '../services/storageAdapter'
 
 /**
  * 损坏原文救援副本的键后缀（A09）。
@@ -37,8 +40,8 @@ let writeAlerted = false
 function rescueCorrupt(key, raw) {
   try {
     // 已有副本就不再覆盖：第一次损坏的那份原文更可能是有用的
-    if (localStorage.getItem(key + CORRUPT_SUFFIX) === null) {
-      localStorage.setItem(key + CORRUPT_SUFFIX, raw)
+    if (readRaw(key + CORRUPT_SUFFIX) === null) {
+      tryWriteRaw(key + CORRUPT_SUFFIX, raw) // 写不进就算了，下面的报错照旧
     }
   } catch { /* 存不下副本 → 放弃，下面的报错照旧 */ }
   if (!corruptAlerted) {
@@ -56,7 +59,8 @@ export function useLocalStorage(key, defaultValue) {
   let initError = null
 
   try {
-    stored = localStorage.getItem(realKey)
+    // readRawScoped：按账号前缀读、且不吞异常 —— initError 要能拿到真实原因
+    stored = readRawScoped(key)
   } catch (e) {
     initError = e.message || 'localStorage 不可用'
     stored = null
@@ -95,7 +99,8 @@ export function useLocalStorage(key, defaultValue) {
       }
       try {
         const json = JSON.stringify(newVal)
-        localStorage.setItem(realKey, json)
+        // tryWriteRaw 返回 false = 没落盘（配额/隐私模式）→ 抛进下面的统一处理
+        if (!tryWriteRaw(realKey, json)) throw new Error('空间不足或访问被拒')
         // 这次真存进去了：把之前那笔「没存上」的账销掉（空间腾出来之后就恢复正常）
         clearWriteFailure(realKey)
       } catch (e) {
