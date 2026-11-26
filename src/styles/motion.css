@@ -53,5 +53,6 @@
     --release-dur: 1ms;
     --pop-dur:     1ms;
     --slide-dur:   1ms;
+    --search-dur:  1ms;
   }
 }

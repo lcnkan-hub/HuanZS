@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --paper: #F6F1F0;
+    --ink: #2A1B20;
+    --muted: #8A7B80;
+    --wine: #7E2340;
+    --slate: #4A6178;
+    --copper: #A8763E;
+    --danger: #A33A3A;
+    --line: rgba(126, 35, 64, .13);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 28px 30px 26px;
+    font-variant-numeric: tabular-nums;
+  }
+  .eyebrow {
+    font-size: 11px; letter-spacing: .18em; color: var(--muted);
+    display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); }
+  h1 {
+    font-size: 27px; line-height: 1.25; letter-spacing: -.02em;
+    margin: 0 0 6px; font-weight: 650;
+  }
+  .sub { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0 0 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px 34px; }
+  section { border-top: 1px solid var(--line); padding-top: 14px; }
+  h2 {
+    font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    margin: 0 0 10px; color: var(--wine);
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  h2 .no { font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: .1em; }
+  .chain {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px;
+  }
+  .chain span.node {
+    padding: 3px 7px; border-radius: 6px; background: #fff;
+    border: .5px solid var(--line); color: var(--slate);
+  }
+  .chain span.node.bad { color: var(--danger); border-color: rgba(163, 58, 58, .3); background: rgba(163, 58, 58, .05); }
+  .chain .arrow { color: var(--muted); font-size: 11px; }
+  .chain-note { margin-top: 8px; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+
+  /* 条形图 */
+  .bars { display: flex; flex-direction: column; gap: 7px; }
+  .bar-row { display: grid; grid-template-columns: 108px 1fr 46px; align-items: center; gap: 10px; }
+  .bar-name { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; color: var(--slate); }
+  .bar-track { display: block; height: 12px; background: rgba(126, 35, 64, .06); border-radius: 3px; overflow: hidden; }
+  .bar-fill { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #A33A3A, #C2614E); }
+  .bar-val { font-size: 11.5px; color: var(--muted); text-align: right; }
+
+  ul.tight { margin: 0; padding-left: 16px; }
+  ul.tight li { font-size: 12.5px; line-height: 1.85; color: #4A3A40; }
+  ul.tight li b { font-weight: 600; color: var(--ink); }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px; background: rgba(126, 35, 64, .07);
+    padding: 1px 5px; border-radius: 4px; color: var(--wine);
+  }
+  .stat-row { display: flex; gap: 26px; margin-top: 12px; }
+  .stat .n { font-size: 22px; font-weight: 650; color: var(--danger); line-height: 1.1; }
+  .stat .l { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  footer {
+    margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line);
+    font-size: 11px; color: var(--muted); line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+  <div class="eyebrow"><span class="dot"></span>BEFORE · 改制前</div>
+  <h1>五个一直在收利息的地方</h1>
+  <p class="sub">不是"代码不整齐"。是每次加功能、每次改一处，都会被它们多收一次账 —— 而且有几处是静默的。</p>
+
+  <div class="grid">
+    <section>
+      <h2><span class="no">01</span>一条真实的循环依赖</h2>
+      <div class="chain">
+        <span class="node">useChatAI</span><span class="arrow">→</span>
+        <span class="node">crisisResponse</span><span class="arrow">→</span>
+        <span class="node">crisisDetection</span><span class="arrow">→</span>
+        <span class="node bad">useChatAI</span>
+      </div>
+      <p class="chain-note">services 反向 import 了 composables。ESM 能跑，但初始化顺序靠运气；改这条链上任何一环，都得先背下整条链。</p>
+    </section>
+
+    <section>
+      <h2><span class="no">02</span>存储没有唯一入口</h2>
+      <p class="chain-note" style="margin-top:0">业务代码直接摸 <code>localStorage</code> 共 <b style="color:var(--danger)">26 处</b>：useAccount 10、useBackup 8、useRecords 4、其它 4。同时还有四个"门"并存（adapter / scope / sync / health）。换后端 = 动一片。</p>
+    </section>
+
+    <section>
+      <h2><span class="no">03</span>工具层反过来依赖框架</h2>
+      <ul class="tight">
+        <li><code>utils/markdownParser</code> → <code>composables/useImageStore</code></li>
+        <li><code>utils/storageHealth</code> → <code>import { ref } from 'vue'</code></li>
+      </ul>
+      <p class="chain-note">纯解析模块在 node 里跑不起来（要先备 IndexedDB / Vue 替身）。</p>
+    </section>
+
+    <section>
+      <h2><span class="no">04</span>四个巨型文件</h2>
+      <div class="bars">
+        <div class="bar-row"><span class="bar-name">useBackup.js</span><span class="bar-track"><span class="bar-fill" style="width:100%"></span></span><span class="bar-val">816</span></div>
+        <div class="bar-row"><span class="bar-name">ChatView.vue</span><span class="bar-track"><span class="bar-fill" style="width:97%"></span></span><span class="bar-val">792</span></div>
+        <div class="bar-row"><span class="bar-name">App.vue</span><span class="bar-track"><span class="bar-fill" style="width:83%"></span></span><span class="bar-val">675</span></div>
+        <div class="bar-row"><span class="bar-name">useRecords.js</span><span class="bar-track"><span class="bar-fill" style="width:54%"></span></span><span class="bar-val">439</span></div>
+      </div>
+      <p class="chain-note">每个文件里混着 4~6 件不同的事：改文件名要翻过图片事务，出 bug 分不清是"内容组装错"还是"落地方式选错"。</p>
+    </section>
+
+    <section>
+      <h2><span class="no">05</span>基建没有兜底</h2>
+      <ul class="tight">
+        <li>11 个 <code>test:*</code> 各跑各的，<b>没有一条命令跑全部</b>，没有 CI</li>
+        <li><code>test:browser</code> 已失效 —— 测的是重构前的三分类架构，跑出一片红</li>
+        <li>构建 Vite 5：<b>1.36s</b></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="no">06</span>常量住错了房间</h2>
+      <ul class="tight">
+        <li><code>STORAGE_KEYS</code>、<code>KEY_LABELS</code>、头像、导航项全挤在 <code>constants/categories.js</code> —— 文件名叫"分类"，实际是杂项柜</li>
+        <li>被 <b>88 处</b>引用；危机常量又分在三个文件里</li>
+      </ul>
+    </section>
+  </div>
+
+  <footer>数字全部来自 2026-11-24 当天的实测扫描（grep / wc / 构建计时），不是估计。</footer>
+</body>
+</html>

@@ -180,6 +180,10 @@ export const iconMemory = (size = 20) =>
 export const iconKey = (size = 20) =>
   svg(size, '密钥', '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>')
 
+/** 外观 — 白天 / 夜晚（2026-11-25） */
+export const iconAppearance = (size = 20) =>
+  svg(size, '外观', '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/>')
+
 // ========== 颜色标签（实心圆点，使用单独 fill 颜色） ==========
 
 export const iconColorBlue = (size = 20) =>
@@ -228,6 +232,7 @@ export const ICON_MAP = {
   shield: iconShield,
   stats: iconStats,
   crown: iconCrown,
+  appearance: iconAppearance,
   memory: iconMemory,
   key: iconKey,
   puzzle: iconPuzzle,

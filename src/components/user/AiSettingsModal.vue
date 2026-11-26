@@ -206,6 +206,6 @@ function handleClear() {
 /* 测试通过：按钮自己就是结果（浅绿底 + 深绿字，深绿是给浅底用的那一档） */
 .test-btn.ok { background: var(--color-success-bg); color: var(--color-success-deep); }
 .test-btn:disabled { opacity: 0.5; }
-.save-btn { background: var(--color-accent); color: var(--color-text-on-accent); }
+.save-btn { background: var(--color-accent-solid); color: var(--color-text-on-solid); }
 .save-btn:disabled { opacity: 0.5; }
 </style>

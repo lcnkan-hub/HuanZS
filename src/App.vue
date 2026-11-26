@@ -5,7 +5,7 @@
   2026-11-21 单层记录重构：底栏只剩「记录 / 王冠」，「我的」改为右上角按钮呼出的浮层
 -->
 <template>
-  <div class="app-container">
+  <div class="app-container" :class="appearanceClass">
     <!-- 未登录：本地账号门（注册 / 登录） -->
     <AuthView v-if="!loggedIn" @authed="handleAuthed" />
 
@@ -28,7 +28,11 @@
         :modelValue="searchQuery"
         @update:modelValue="(v) => searchQuery = v"
         @mine="openMine"
+        @search-state="(v) => searchOpen = v"
       />
+
+      <!-- 搜索遮罩：内容是压下面那层，不是自己变淡（理由见组件注释） -->
+      <SearchScrim v-if="!openedItem" :active="searchOpen" :night="isNight" />
 
       <!-- 主内容区（页面叠层，动画只操作 transform + opacity） -->
       <div class="main-content">
@@ -53,9 +57,6 @@
                  王冠还是全屏叠层页、记录页根本没换内容，那套 key 早就是误伤）。
                  要藏就藏动画，别拆 DOM。 -->
             <div class="sheet-body">
-              <!-- 添加：搜索框下占满一行 -->
-              <AddRecordBar @add="handleCreateRecord" />
-
               <WikiList
                 :items="filteredItems"
                 :emptyHint="emptyHint"
@@ -85,7 +86,7 @@
         <!-- 「我的」浮层：放在主内容区内，天然不盖顶栏与底栏，左侧露出记录页一小条 -->
         <MineSheet
           v-if="mineOpen"
-          :class="{ 'theme-deep': isNight }"
+          :class="appearanceClass"
           :userProfile="userProfile"
           :records="records"
           @close="closeMine"
@@ -103,9 +104,20 @@
       <BottomNav
         v-if="!openedItem"
         v-model="currentTab"
-        :class="{ 'theme-deep': isNight && currentTab === 'crown' }"
+        :class="appearanceClass"
         :sunk="mineOpen || (kbOpen && currentTab === 'crown')"
         :crownReady="crownReady"
+      />
+
+      <!-- 新建记录：右下角那颗实心圆钮（2026-11-25 从列表顶部搬下来）。
+           三种离开见组件注释；**详情页打开时不拆 DOM**，只压成透明 ——
+           返回时壳要从这颗钮的位置收回来，拆了就没有落点。
+           王冠页滑走、开「我的」跟浮岛一起下沉。 -->
+      <RecordFab
+        :sunk="mineOpen || (kbOpen && currentTab === 'crown')"
+        :off="currentTab !== 'record'"
+        :covered="!!openedItem"
+        @add="handleCreateRecord"
       />
     </template>
   </div>
@@ -118,8 +130,9 @@ import { ref, computed, watch, onMounted } from 'vue'
 import SplashScreen from './components/common/SplashScreen.vue'
 import NoticeBar    from './components/common/NoticeBar.vue'
 import AppHeader    from './components/layout/AppHeader.vue'
+import SearchScrim  from './components/layout/SearchScrim.vue'
 import BottomNav    from './components/layout/BottomNav.vue'
-import AddRecordBar from './components/wiki/AddRecordBar.vue'
+import RecordFab    from './components/wiki/RecordFab.vue'
 import WikiList     from './components/wiki/WikiList.vue'
 import WikiDetail   from './components/wiki/WikiDetail.vue'
 import MineSheet    from './components/user/MineSheet.vue'
@@ -136,8 +149,10 @@ import { startProactiveTrigger } from './composables/useProactiveTrigger'
 import { useAIConfig } from './composables/useApiKey'
 import { isLoggedIn, reloadApp } from './composables/useAccount'
 import { useKeyboard } from './composables/useKeyboard'
-// 昼夜判定：记录页/详情页与王冠共用同一个来源（useTimeMode，6:00–18:00 = 昼）
+// 昼夜判定：记录页/详情页与王冠共用同一个来源（useTimeMode，默认 6:00–18:00 = 昼）
 import { useTimeMode } from './composables/useTimeMode'
+// 外观（2026-11-26）：色系 × 明暗 合成一个类名，根容器与「我的」/ 底栏共用同一份
+import { useAppearance } from './composables/useAppearance'
 import { useCardZoom } from './composables/useCardZoom'
 // 2026-11-24 抽出去的两块（原来都堆在本文件里，共约 240 行）：
 // 转场机械 → composables/useDetailTransition.js；通知条 → composables/useAppNotice.js
@@ -150,6 +165,8 @@ import { useAppNotice } from './composables/useAppNotice'
 const loggedIn = ref(isLoggedIn())
 const timeMode = useTimeMode()   // 返回的就是一个 Ref<'day'|'night'>
 const isNight = computed(() => timeMode.value === 'night')
+// 外观类名（'palette-xxx' + 'theme-deep'）：只有这一处拼，三个挂载点共用
+const { appearanceClass } = useAppearance()
 
 const handleAuthed = () => {
   loggedIn.value = true
@@ -173,6 +190,8 @@ watch(currentTab, (val) => {
 const { kbOpen } = useKeyboard()
 // 搜索词（单层记录后只有一个搜索框）
 const searchQuery = ref('')
+/** 搜索态（由 AppHeader 外推，2026-11-25）：只决定内容区要不要压暗 */
+const searchOpen = ref(false)
 // 「我的」浮层
 const mineOpen = ref(false)
 
@@ -429,21 +448,29 @@ const handleProfileUpdate = (updatedData) => {
      详情页 / 我的 / 王冠还在旧语言里，改全局会一起变。
      换的是「重量」，不是「有没有」：卡还在、还分得清是一张一条，
      但边从 1px 亮线降到半像素、影子从 8/24 降到 2/12 —— 内容才是主角。 */
-  --surface-card:           rgba(255, 254, 254, 0.78);
-  --surface-card-rim:       inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 0 0 0.5px rgba(90, 35, 55, 0.045);
-  --surface-card-shadow:    0 2px 12px rgba(90, 35, 55, 0.045), 0 1px 2px rgba(90, 35, 55, 0.025);
-  --surface-card-shadow-up: 0 10px 26px rgba(90, 35, 55, 0.08), 0 2px 5px rgba(90, 35, 55, 0.04);
+  --surface-card:           rgba(255, 254, 254, 0.74);
+  --surface-card-rim:       inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 0 0 0.5px rgba(20, 19, 25, 0.045);
+  --surface-card-shadow:    0 2px 12px rgba(20, 19, 25, 0.045), 0 1px 2px rgba(20, 19, 25, 0.025);
+  --surface-card-shadow-up: 0 10px 26px rgba(20, 19, 25, 0.08), 0 2px 5px rgba(20, 19, 25, 0.04);
 
   /* 2026-11-23：顶部那 14px 的渐变蒙版删掉了（用户要求：主页不要渐变）。
      2026-11-24 渐变以另一种形式回来了 —— 不再是削在列表上的 mask，
      而是 AppHeader 里一层独立的玻璃场（variables.css 的 .ambient，三层模糊 + 遮罩）：
      内容整块穿过去被化开，不是"上半实、下半透"地被切。这一层自己仍然不挂任何 mask。 */
 }
+/* 夜间纸面：卡片换成"比纸亮一点点"的半透明白，白天的白卡在这里必须让位。
+   选择器比 .primary-sheet 多一级，才压得住它自己声明的四条 —— 不靠书写顺序赌。 */
+.app-container.theme-deep .primary-sheet {
+  --surface-card:           rgba(255, 255, 255, 0.07);
+  --surface-card-rim:       inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 0 0.5px rgba(255, 255, 255, 0.09);
+  --surface-card-shadow:    0 6px 18px rgba(0, 0, 0, 0.30), 0 1px 2px rgba(0, 0, 0, 0.20);
+  --surface-card-shadow-up: 0 12px 30px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+
 .primary-sheet.sheet-active {
   transform: translateY(0);
   opacity: 1;
-}
-.primary-sheet.sheet-leave {
+}.primary-sheet.sheet-leave {
   transform: translateY(-18px);
   opacity: 0;
 }

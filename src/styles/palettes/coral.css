@@ -1,0 +1,107 @@
+﻿/**
+ * 色系 3 · 珊瑚跑道（玫瑰灰纸 · 莓紫主色 · 琥珀点）
+ *
+ * 职责：只覆盖**颜色令牌**，不写结构、不写几何、不写材质配方（见 iridescent.css 顶部说明）。
+ *
+ * 两块必须成对出现：
+ *   .palette-coral              白天
+ *   .palette-coral.theme-deep   夜晚
+ * 缺一条 = 夜里那一处掉回默认色系的值；scripts/check-palettes.mjs 逐条比对。
+ *
+ * 取色来源：用户 2026-11-26 给的样板图「3 · 珊瑚跑道」，昼 12 色 / 夜 14 色。
+ */
+.palette-coral {
+  /* 纸面 · 卡片 · 输入 · 弹层 */
+  --color-bg-primary:    #F2ECF0;
+  --color-bg-card:       #FFFFFF;
+  --color-bg-input:      #EAE2E8;
+  --color-bg-modal:      #FFFDFE;
+  --color-bg-subtle:     #EFE7EC;
+
+  /* 文字四级（对纸 16.6 / 9.4 / 5.4） */
+  --color-text-primary:  #19171C;
+  --color-text-secondary:#463E4B;
+  --color-text-muted:    #6B5F6D;
+  --color-text-neutral:  #5A4A52;
+
+  /* 主色：莓紫 */
+  --color-accent:        #8E3E61;
+  --color-accent-solid:  #8E3E61;
+  --color-accent-light:  #F3E4EB;
+  /* 底栏选中药丸：白天莓紫，夜里近白（同虹彩雾） */
+  --nav-pill-bg:         #8E3E61;
+  --nav-pill-fg:         #FFFFFF;
+  --color-text-on-solid: #FFFFFF;
+  --color-text-on-accent:#FFFFFF;
+  --color-text-on-dark:  #FFFFFF;
+
+  --color-danger:        #A8332F;
+  --color-danger-bg:     #FAE6E4;
+  --color-success:       #1F7A68;
+  --color-success-deep:  #175F51;
+  --color-success-bg:    #E8F2EF;
+
+  --color-border:        #E6DCE3;
+  --color-border-light:  #F2E9EE;
+  --color-border-input:  #DED2DA;
+
+  --color-markdown-blue: #4F5FA8;
+  --color-markdown-brown:#8A5A2E;
+  --color-markdown-green:#1F7A68;
+
+  /* 纸面基色 + 四团极淡色斑（藕粉 / 琥珀 / 湖绿 / 蓝紫）。
+     ⚠ --page-rgb 必须与 --color-bg-primary 同色。 */
+  --page-rgb: 242, 236, 240;
+  --page-canvas-image: radial-gradient(60% 44% at 10% 6%, rgba(232, 153, 184, 0.30), transparent 70%), radial-gradient(54% 40% at 90% 12%, rgba(203, 136, 47, 0.20), transparent 72%), radial-gradient(56% 38% at 84% 92%, rgba(46, 139, 121, 0.18), transparent 72%), radial-gradient(52% 38% at 6% 86%, rgba(91, 109, 183, 0.18), transparent 70%);
+
+  --color-crown-lit:     #A8791F;
+  --crown-avatar-bg:     linear-gradient(135deg, #C25A80, #8E3E61);
+  --crown-avatar-shadow: 0 2px 6px rgba(142, 62, 97, 0.28);
+  --crown-avatar-icon:   #FFFFFF;
+  --crown-bg:            #FBF6F8;
+}
+
+.palette-coral.theme-deep {
+  --color-bg-primary:    #160F16;
+  --color-bg-card:       #241A22;
+  --color-bg-input:      rgba(255, 255, 255, 0.08);
+  --color-bg-modal:      #261B24;
+  --color-bg-subtle:     rgba(255, 255, 255, 0.04);
+
+  --color-text-primary:  #F0E7EC;
+  --color-text-secondary:#C4B9C1;
+  --color-text-muted:    #998F98;
+  --color-text-neutral:  #B3A8AF;
+
+  --color-accent:        #E49CB4;
+  --color-accent-solid:  #A64A6F;
+  --color-accent-light:  rgba(255, 255, 255, 0.06);
+  --nav-pill-bg:         #F0E7EC;
+  --nav-pill-fg:         #160F16;
+  --color-text-on-solid: #FFFFFF;
+  --color-text-on-accent:#160F16;
+  --color-text-on-dark:  #FFFFFF;
+
+  --color-danger:        #FF8F80;
+  --color-danger-bg:     rgba(255, 110, 110, 0.14);
+  --color-success:       #5FCFBC;
+  --color-success-deep:  #8FE0D2;
+  --color-success-bg:    rgba(95, 207, 188, 0.14);
+
+  --color-border:        rgba(255, 255, 255, 0.10);
+  --color-border-light:  rgba(255, 255, 255, 0.06);
+  --color-border-input:  rgba(255, 255, 255, 0.12);
+
+  --color-markdown-blue: #909FE5;
+  --color-markdown-brown:#DFB25A;
+  --color-markdown-green:#5FCFBC;
+
+  --page-rgb: 22, 15, 22;
+  --page-canvas-image: radial-gradient(60% 44% at 10% 6%, rgba(239, 181, 201, 0.10), transparent 70%), radial-gradient(54% 40% at 90% 12%, rgba(223, 178, 90, 0.07), transparent 72%), radial-gradient(56% 38% at 84% 92%, rgba(95, 207, 188, 0.07), transparent 72%), radial-gradient(52% 38% at 6% 86%, rgba(144, 159, 229, 0.07), transparent 70%);
+
+  --color-crown-lit:     #DFB25A;
+  --crown-avatar-bg:     linear-gradient(135deg, #E49CB4, #A64A6F);
+  --crown-avatar-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --crown-avatar-icon:   #FFFFFF;
+  --crown-bg:            #160F16;
+}

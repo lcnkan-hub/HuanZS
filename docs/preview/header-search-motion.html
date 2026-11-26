@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>寰中枢 · 顶栏「我的 / 搜索」动画提取</title>
+<!--
+  ============================================================================
+  寰中枢 · 顶栏搜索动画（单文件提取稿 · 2026-11-26）
+  ============================================================================
+  这份文件把项目主页顶栏那一组动画单独拎出来，**代码从原文件里原样搬**，
+  不引用任何项目依赖，双击就能跑。
+
+  来源对照（行号为写入本文件时 src/ 里的实际行号）：
+    · src/components/layout/AppHeader.vue   L17–66 模板 / L68–122 脚本 / L124–310 样式
+    · src/components/layout/SearchScrim.vue L21–68（搜索态压暗层）
+    · src/styles/variables.css              L18–274 设计令牌 / L328–379 玻璃场 / L391–446 夜间令牌
+    · src/styles/motion.css                 L45–57 无障碍收口
+    · src/constants/icons.js                L39/61/75（close / search / mine 三个图标）
+
+  标记约定：每一段 CSS 前面都标了 【动】还是 【静】
+    【动】= 会动的部分（transition / 位移 / 透明度 / 缩放）
+    【静】= 不会动的部分（布局、尺寸、颜色、玻璃材质、遮罩层位）
+
+  三处为了"单文件可跑"做的等价替换（不影响观感，也不改任何数值）：
+    1. Vue 的 :class / @click / ref  → 原生 classList / addEventListener
+    2. .search-scrim 的 position:fixed → absolute（项目里 app 是全屏；这里外面套了手机框）
+    3. 背景假卡片：只为看清"玻璃场化开内容"和"搜索态压暗"，不属于本次交付
+  ============================================================================
+-->
+<style>
+/* ==========================================================================
+   0. 演示外壳 —— 不是项目代码
+   ========================================================================== */
+html, body { margin: 0; height: 100%; }
+body {
+  background: #0C0909;
+  display: grid; place-items: center;
+  padding: 20px 16px; box-sizing: border-box;
+  font-family: var(--font-system);
+  color: #CBBABD;
+  overflow: hidden;
+}
+.stage { display: flex; flex-direction: column; align-items: center; gap: 12px; max-height: 100%; }
+
+.demo-bar {
+  display: flex; align-items: center; gap: 14px;
+  font-size: 13px; letter-spacing: .2px;
+}
+.demo-note { color: #8E7A7E; }
+.seg {
+  display: inline-flex; padding: 2px; gap: 2px;
+  border-radius: 999px; background: rgba(255, 235, 240, .07);
+  box-shadow: inset 0 0 0 1px rgba(255, 230, 238, .10);
+}
+.seg button {
+  border: 0; background: none; color: #A08C8F;
+  font: inherit; font-size: 12px; padding: 5px 12px; border-radius: 999px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.seg button.on { background: #B4436A; color: #fff; }
+
+.phone {
+  position: relative;
+  width: 390px;
+  height: min(844px, calc(100dvh - 110px));
+  flex: 0 0 auto;
+  border-radius: 44px;
+  overflow: hidden;
+  background: var(--color-bg-primary);
+  box-shadow: 0 0 0 10px #191214, 0 30px 80px rgba(0, 0, 0, .65);
+}
+@media (max-width: 460px) {
+  body { padding: 8px; }
+  .phone { width: 100%; height: calc(100dvh - 70px); border-radius: 0; box-shadow: none; }
+}
+
+/* ==========================================================================
+   1. 设计令牌（src/styles/variables.css 摘录 · 昼）
+   ========================================================================== */
+:root {
+  --color-bg-primary:    #F6F1F0;
+  --color-bg-input:      #EDE4E5;
+  --color-text-primary:  #1B1214;
+  --color-text-secondary:#463A3D;
+  --color-text-muted:    #6D5A5E;
+  --color-accent:        #7E2340;
+
+  --radius-3xl:  16px;
+  --radius-4xl:  24px;
+
+  /* —— 弹簧账本：三条曲线 + 四个时长（数值原样，别按手感改） ——
+     曲线是按阻尼振动采样 36 点生成的 linear()，采样窗口 = 目标时长。 */
+  --spring-press: linear(0, 0.009746 2.8%, 0.03557 5.6%, 0.07311 8.3%, 0.1188 11.1%, 0.1698 13.9%, 0.2239 16.7%, 0.2794 19.4%, 0.3348 22.2%, 0.3892 25.0%, 0.4418 27.8%, 0.492 30.6%, 0.5395 33.3%, 0.584 36.1%, 0.6255 38.9%, 0.664 41.7%, 0.6993 44.4%, 0.7317 47.2%, 0.7612 50.0%, 0.788 52.8%, 0.8123 55.6%, 0.8342 58.3%, 0.8538 61.1%, 0.8714 63.9%, 0.8872 66.7%, 0.9012 69.4%, 0.9137 72.2%, 0.9247 75.0%, 0.9345 77.8%, 0.9431 80.6%, 0.9507 83.3%, 0.9574 86.1%, 0.9632 88.9%, 0.9683 91.7%, 0.9728 94.4%, 0.9767 97.2%, 1);
+  --spring-pop: linear(0, 0.01694 2.8%, 0.06162 5.6%, 0.1259 8.3%, 0.2028 11.1%, 0.2869 13.9%, 0.3738 16.7%, 0.4598 19.4%, 0.5425 22.2%, 0.6199 25.0%, 0.6909 27.8%, 0.7546 30.6%, 0.8109 33.3%, 0.8596 36.1%, 0.9011 38.9%, 0.9357 41.7%, 0.964 44.4%, 0.9866 47.2%, 1.004 50.0%, 1.017 52.8%, 1.027 55.6%, 1.033 58.3%, 1.037 61.1%, 1.038 63.9%, 1.038 66.7%, 1.037 69.4%, 1.035 72.2%, 1.032 75.0%, 1.029 77.8%, 1.026 80.6%, 1.022 83.3%, 1.019 86.1%, 1.016 88.9%, 1.013 91.7%, 1.011 94.4%, 1.008 97.2%, 1);
+  --spring-glide: linear(0, 0.008797 2.8%, 0.03213 5.6%, 0.06608 8.3%, 0.1075 11.1%, 0.1539 13.9%, 0.2032 16.7%, 0.254 19.4%, 0.305 22.2%, 0.3554 25.0%, 0.4043 27.8%, 0.4514 30.6%, 0.4963 33.3%, 0.5388 36.1%, 0.5787 38.9%, 0.6161 41.7%, 0.6508 44.4%, 0.683 47.2%, 0.7127 50.0%, 0.74 52.8%, 0.7651 55.6%, 0.7881 58.3%, 0.809 61.1%, 0.8281 63.9%, 0.8454 66.7%, 0.8611 69.4%, 0.8754 72.2%, 0.8883 75.0%, 0.8999 77.8%, 0.9104 80.6%, 0.9199 83.3%, 0.9284 86.1%, 0.9361 88.9%, 0.9429 91.7%, 0.9491 94.4%, 0.9546 97.2%, 1);
+  --press-dur:   160ms;
+  --release-dur: 420ms;
+  --pop-dur:     320ms;
+  --slide-dur:   460ms;
+
+  --press-scale:    0.95;
+  --press-scale-sm: 0.92;
+  --press-scale-lg: 0.972;
+
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  --font-system: "PingFang SC", "PingFang TC", "Helvetica Neue", "Microsoft YaHei", "Hiragino Sans GB", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --text-11: 11px;
+  --text-13: 13px;
+  --text-15: 15px;
+  --text-16: 16px;
+  --text-17: 17px;
+
+  --header-height: 55px;
+  --sheet-top-gap: 44px;
+
+  /* 纸面 + 两团极淡色斑：玻璃要有颜色可透，才不会读成一块灰板 */
+  --page-rgb: 246, 241, 240;
+  --page-canvas-image:
+    radial-gradient(62% 46% at 88% 10%, rgba(212, 176, 194, 0.34), transparent 70%),
+    radial-gradient(58% 42% at 6% 84%, rgba(228, 204, 186, 0.38), transparent 72%);
+
+  /* 玻璃场（顶部/底部过渡层）*/
+  --fade-size: 56px;
+  --blur-wide: 18px;
+  --blur-mid: 24px;
+  --blur-core: 32px;
+  --glass-sat: 145%;
+  --fade-mask-wide: linear-gradient(to bottom, rgba(0, 0, 0, 0.34) 0%, rgba(0, 0, 0, 0.28) 30%, rgba(0, 0, 0, 0.15) 66%, transparent 100%);
+  --fade-mask-mid: linear-gradient(to bottom, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.40) 28%, rgba(0, 0, 0, 0.20) 62%, transparent 100%);
+  --fade-mask-core: linear-gradient(to bottom, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.46) 22%, rgba(0, 0, 0, 0.19) 53%, transparent 88%);
+  --fade-tint: rgba(var(--page-rgb), 0.28);
+  --fade-veil: linear-gradient(to bottom, rgba(var(--page-rgb), 0.154) 0%, rgba(var(--page-rgb), 0.067) 35%, transparent 100%);
+
+  /* 玻璃材质：功能层（两颗圆钮 / 搜索框）唯一配方 */
+  --glass-fill:      rgba(255, 249, 251, 0.66);
+  --glass-blur:      blur(28px) saturate(175%);
+  --glass-highlight: inset 0 1px 0 rgba(255, 253, 254, 0.80), inset 0 -1px 0 rgba(255, 249, 251, 0.34);
+  --glass-edge:      0 0 0 0.5px rgba(90, 35, 55, 0.06), inset 0 0 14px rgba(90, 35, 55, 0.035);
+}
+
+/* ==========================================================================
+   2. 玻璃场（src/styles/variables.css L328–379，原样）
+   【静】不产生位移动画；内容是"化开"不是"淡出"，靠三层 mask 错开
+   ========================================================================== */
+.ambient {
+  position: absolute; left: 0; right: 0;
+  height: var(--fade-size);
+  overflow: hidden;
+  pointer-events: none;
+}
+.ambient .layer {
+  position: absolute; inset: 0;
+  background-color: var(--fade-tint);
+  -webkit-backdrop-filter: saturate(var(--glass-sat));
+  backdrop-filter: saturate(var(--glass-sat));
+  will-change: backdrop-filter;
+}
+.ambient .layer.wide {
+  opacity: 0.55;
+  -webkit-backdrop-filter: blur(var(--blur-wide)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--blur-wide)) saturate(var(--glass-sat));
+  -webkit-mask-image: var(--fade-mask-wide);
+  mask-image: var(--fade-mask-wide);
+}
+.ambient .layer.mid {
+  opacity: 0.55;
+  -webkit-backdrop-filter: blur(var(--blur-mid)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--blur-mid)) saturate(var(--glass-sat));
+  -webkit-mask-image: var(--fade-mask-mid);
+  mask-image: var(--fade-mask-mid);
+}
+.ambient .layer.core {
+  opacity: 0.55;
+  -webkit-backdrop-filter: blur(var(--blur-core)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--blur-core)) saturate(var(--glass-sat));
+  -webkit-mask-image: var(--fade-mask-core);
+  mask-image: var(--fade-mask-core);
+}
+.ambient::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: var(--fade-veil);
+  pointer-events: none;
+}
+.ambient.is-up { transform: scaleY(-1); }
+
+/* 目标环境（iOS Safari / Android WebView）才有完整三层模糊；
+   桌面 Chromium 里 mask + backdrop-filter 会整层失效，只剩那层染色 —— 不是没写对。 */
+@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+  .ambient { display: none; }
+}
+
+/* ==========================================================================
+   3. 页面容器（App.vue 的 .app-container 摘录）
+   ========================================================================== */
+.app {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  padding-top: var(--safe-top);
+  background-color: var(--color-bg-primary);
+  background-image: var(--page-canvas-image);
+  color: var(--color-text-primary);
+  font-family: var(--font-system);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ==========================================================================
+   4. 顶栏（src/components/layout/AppHeader.vue L124–310）
+   ========================================================================== */
+
+/* 【静】浮层：absolute，不占布局高度；内容从两颗键后面穿过去。
+   pointer-events:none —— 空白区不吃点击、不挡滚动，只有两颗键自己是热区。 */
+.header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 20;
+  height: var(--header-height);
+  display: flex; align-items: center; gap: 6px; padding: 0 12px;
+  pointer-events: none;
+  /* 【动】切页时父级加 .is-offstage 让它淡出，不抽高度（抽高度 = 给 Layout 属性做动画） */
+  transition: opacity 0.18s ease-out;
+}
+.header .hbtn,
+.header .search-slot { pointer-events: auto; }
+
+/* 【静】玻璃场按在顶栏这一层：z-index:-1，父级已自成堆叠上下文 → 压在内容之上、按钮之下。
+   不画在按钮背景上 —— 渐变压在 44px 圆钮上会连玻璃一起染白。 */
+.header > .ambient { top: 0; z-index: -1; }
+
+/* 【静】两颗图标按钮：44×44 圆形玻璃（视觉即热区）
+   【动】transform 用"两段弹簧"变量；另外三条是退出搜索态要用的 width / opacity */
+.hbtn {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  background-color: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-highlight), var(--glass-edge), 0 2px 8px rgba(0, 0, 0, 0.06);
+  color: var(--color-text-primary);
+  border: none; border-radius: 50%;
+  cursor: pointer; padding: 0;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              background-color 0.16s ease,
+              width 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+              opacity 0.18s ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 【静】搜索键靠右：搜索位收起时宽 0 不占位，得靠这条把它顶到最右边 */
+.hbtn:last-child { margin-left: auto; }
+
+/* 【动】按下：缩一点 + 高光换成内阴影（读起来是"被按进去"）。
+   按下的 160ms / 松手的 420ms 两段节奏由变量在 :active 里切换。 */
+.hbtn:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale-sm));
+  box-shadow:
+    var(--glass-edge),
+    inset 0 2px 7px rgba(0, 0, 0, 0.10),
+    0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* 【动】★ 两颗按钮的"退出"：搜索一开，宽度收到 0 + 淡出 + 缩到 0.9。
+   收宽度而不是往左移 —— 位移会在整行里晃，收宽度读起来是"被抽走"。
+   280ms（不是 460ms）：按钮先让开，框再长出来，两段错开才有先后感。 */
+.header.is-searching .hbtn {
+  width: 0; opacity: 0; pointer-events: none; transform: scale(0.9);
+}
+
+/* 【静】搜索位：收起时 max-width:0（max-width 能过渡，flex-basis 到 auto 不能）
+   【动】★ 搜索框的"展开"：max-width 0 → 100%，460ms 滑翔曲线；透明度 180ms 跟上。
+   圆角必须跟胶囊一致：聚焦光环是 3px 外扩，槽若是直角，四个缺口会漏出四块黑。 */
+.search-slot {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  transition: max-width var(--slide-dur) var(--spring-glide),
+              opacity 0.18s ease-out;
+}
+.header.is-searching .search-slot { max-width: 100%; opacity: 1; }
+
+.search-box { position: relative; display: flex; align-items: center; }
+
+/* 【静】放大镜：absolute 只给了 left、没给 top —— 在 flex 容器里 absolute 元素的
+   纵向位置走 static position，会算到容器顶部、被 overflow:hidden 裁掉。
+   必须抬一层：它在 DOM 里排在 input 前面，input 有底色，同级按 DOM 顺序绘制。 */
+.s-ic {
+  position: absolute; left: 11px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted); pointer-events: none;
+  z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.s-ic svg { display: block; }
+
+/* 【静】框本体：半透明胶囊 + 一圈 1px 描边 + 一道外投影（比浮岛薄一档）。
+   去掉了 backdrop-filter：模糊会在两端圆角处采样到背后的网格，画出一道竖亮边。 */
+.search-box input {
+  width: 100%; height: 38px;
+  border: none;
+  background-color: var(--glass-fill);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.50),
+    0 2px 10px rgba(0, 0, 0, 0.05);
+  border-radius: 999px;
+  padding: 0 42px 0 34px;   /* 右 42 给 X 让位，左 34 给放大镜让位 */
+  font-size: var(--text-15); color: var(--color-text-primary);
+  -webkit-appearance: none; appearance: none;
+  outline: none;
+  /* 【动】聚焦时换阴影，没这条就会硬切一下 */
+  transition: box-shadow 0.2s ease-out;
+}
+
+/* 【静】聚焦：外面一圈很淡的酒红光（唯一能说明"打字会进这里"的线索）。
+   ⚠ 这圈 3px 外扩会被 .search-slot 的 999px 圆角整圈裁掉，屏幕上基本看不见；
+   留着是为了"框一旦搬出这个槽，提示还在"。 */
+.search-box input:focus {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.50),
+    0 0 0 3px rgba(126, 35, 64, 0.16),
+    0 2px 10px rgba(0, 0, 0, 0.05);
+}
+.search-box input::placeholder { color: var(--color-text-muted); }
+
+/* 【静】X：框内右端的独立圆钮（28×28，压在 38 高的胶囊里）
+   【动】按压同一套两段弹簧 */
+.clear-btn {
+  position: absolute; right: 5px;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%;
+  background-color: var(--color-bg-input);
+  color: var(--color-text-secondary);
+  cursor: pointer; padding: 0;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.clear-btn:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale-sm));
+}
+.clear-btn svg { display: block; }
+
+/* 【静】没有 backdrop-filter 的环境：玻璃退化成半实底（宁可厚一点，也不能读不清） */
+@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+  .hbtn { background-color: rgba(255, 252, 252, 0.94); }
+}
+
+/* ==========================================================================
+   5. 搜索遮罩（src/components/layout/SearchScrim.vue L38–67，原样）
+   【动】★ 展开时把下面内容压暗一档 —— 只压内容，搜索框自己保持清晰
+   层级 z-index:15：高于内容、低于顶栏(20)；pointer-events:none 不吃点击
+   ========================================================================== */
+.search-scrim {
+  position: absolute;   /* 项目里是 fixed（app 全屏）；演示容器是手机框，等价改 absolute */
+  inset: 0;
+  z-index: 15;
+  background: rgba(0, 0, 0, 0.16);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.22s var(--ease-out),
+              visibility 0s linear 0.22s;
+  will-change: opacity;
+}
+.search-scrim.is-night { background: rgba(0, 0, 0, 0.42); }
+.search-scrim.is-on {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.22s var(--ease-out),
+              visibility 0s linear 0s;
+}
+
+/* 【静】无障碍收口（src/styles/motion.css L50–57）：把时长令牌压到 1ms，
+   所有引用令牌的地方自动变成立即切换 —— 只收"会晃人的动"，不收入场氛围。 */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --press-dur:   1ms;
+    --release-dur: 1ms;
+    --pop-dur:     1ms;
+    --slide-dur:   1ms;
+  }
+}
+
+/* ==========================================================================
+   6. 背景内容 —— 只为看清动画（玻璃场化开 / 遮罩压暗），不属于本次交付
+   ========================================================================== */
+.sheet {
+  position: absolute; inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.sheet-body {
+  padding: calc(var(--header-height) + var(--sheet-top-gap)) 16px calc(64px + var(--safe-bottom));
+  display: flex; flex-direction: column; gap: 12px;
+}
+.card {
+  background: rgba(255, 254, 254, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 0 0 0.5px rgba(90, 35, 55, 0.045),
+    0 2px 12px rgba(90, 35, 55, 0.045),
+    0 1px 2px rgba(90, 35, 55, 0.025);
+  border-radius: var(--radius-3xl);
+  padding: 14px 16px;
+}
+.card h2 { margin: 0 0 6px; font-size: var(--text-16); font-weight: 600; }
+.card p { margin: 0; font-size: var(--text-13); line-height: 1.65; color: var(--color-text-secondary); }
+.card time { display: block; margin-top: 8px; font-size: var(--text-11); color: var(--color-text-muted); }
+
+/* ==========================================================================
+   7. 夜间令牌（src/styles/variables.css L391–446 摘录）
+   项目做法：.theme-deep 挂根节点，整棵子树自动换主题，组件一行都不用改
+   ========================================================================== */
+.theme-deep {
+  --color-bg-primary:     #17100F;
+  --color-bg-input:       rgba(255, 235, 240, 0.08);
+  --color-text-primary:   #F2E7E8;
+  --color-text-secondary: #CBBABD;
+  --color-text-muted:     #A08C8F;
+  --color-accent:         #E08BA6;
+  --glass-fill:      rgba(255, 230, 238, 0.075);
+  --glass-blur:      blur(20px) saturate(150%);
+  --glass-highlight: inset 0 1px 0 rgba(255, 236, 242, 0.55), inset 0 -1px 0 rgba(255, 236, 242, 0.13);
+  --glass-edge:      0 0 0 1px rgba(255, 230, 238, 0.16), inset 0 0 26px rgba(0, 0, 0, 0.18);
+  --fade-tint: rgba(255, 235, 240, 0.05);
+  --fade-veil: linear-gradient(to bottom, rgba(23, 16, 15, 0.45) 0%, rgba(23, 16, 15, 0.20) 35%, transparent 100%);
+  --page-rgb: 23, 16, 15;
+  --page-canvas-image:
+    radial-gradient(62% 46% at 88% 10%, rgba(224, 139, 166, 0.14), transparent 70%),
+    radial-gradient(58% 42% at 6% 84%, rgba(232, 180, 150, 0.07), transparent 72%);
+}
+/* 夜间：不要那圈白描边（暗底上一圈白线会把胶囊读成"两个套着的形状"），只留投影 */
+.theme-deep .search-box input { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28); }
+.theme-deep .search-box input:focus {
+  box-shadow:
+    0 0 0 3px rgba(214, 96, 128, 0.38),
+    0 4px 14px rgba(0, 0, 0, 0.28);
+}
+
+@supports not ((backdrop-filter: blur(2px)) or (-webkit-backdrop-filter: blur(2px))) {
+  .theme-deep .hbtn { background-color: rgba(36, 26, 28, 0.94); }
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="demo-bar">
+    <span class="demo-note">点右上角放大镜展开 · 点空白或 X 收起 · 按住圆钮看两段弹簧</span>
+    <div class="seg" role="group" aria-label="主题">
+      <button type="button" data-theme="day" class="on">白天</button>
+      <button type="button" data-theme="night">夜晚</button>
+    </div>
+  </div>
+
+  <div class="phone">
+    <div class="app" id="app">
+
+      <!-- ===== 顶栏（AppHeader.vue L18–65） ===== -->
+      <header class="header" id="header">
+        <div class="ambient" aria-hidden="true">
+          <i class="layer wide"></i>
+          <i class="layer mid"></i>
+          <i class="layer core"></i>
+        </div>
+
+        <button class="hbtn" type="button" aria-label="我的" id="mineBtn" tabindex="0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><title>我的</title><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </button>
+
+        <div class="search-slot">
+          <div class="search-box">
+            <span class="s-ic" aria-hidden="true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><title>搜索</title><circle cx="10.5" cy="10.5" r="6.75"/><line x1="15.4" y1="15.4" x2="20" y2="20"/></svg>
+            </span>
+            <input id="searchInput" type="text" placeholder="搜索记录…" aria-label="搜索记录">
+            <button class="clear-btn" type="button" aria-label="清除或收起" id="clearBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><title>关闭</title><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <button class="hbtn" type="button" aria-label="搜索" id="searchBtn" aria-expanded="false" tabindex="0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><title>搜索</title><circle cx="10.5" cy="10.5" r="6.75"/><line x1="15.4" y1="15.4" x2="20" y2="20"/></svg>
+        </button>
+      </header>
+
+      <!-- ===== 搜索遮罩（SearchScrim.vue L22–27） ===== -->
+      <div class="search-scrim" id="scrim" aria-hidden="true"></div>
+
+      <!-- ===== 背景假记录（只为看清玻璃场与压暗） ===== -->
+      <div class="sheet">
+        <div class="sheet-body">
+          <article class="card"><h2>周三的雨</h2><p>下午三点突然下起来，从图书馆出来没带伞，在檐下站了二十分钟。风把雨吹成斜的，像一层薄纱。</p><time>2026/11/25 21:04</time></article>
+          <article class="card"><h2>煮饭的水量</h2><p>米和水 1:1.1 是这几年试下来最稳的比例，新米可以再少一点。开锅后转小火十分钟，关火焖五分钟。</p><time>2026/11/24 19:32</time></article>
+          <article class="card"><h2>关于"慢下来"</h2><p>不是所有事都值得更快。写东西的时候，慢下来是唯一能让想法长出来的方法。</p><time>2026/11/23 08:15</time></article>
+          <article class="card"><h2>耳机左耳没声了</h2><p>清了一次触点还是断断续续。先记着，下次路过店里去问一下保修。</p><time>2026/11/22 22:47</time></article>
+          <article class="card"><h2>周末想去的书店</h2><p>老城区那家二层小楼，二楼靠窗有一排旧沙发。下午两点后人少。</p><time>2026/11/21 16:03</time></article>
+          <article class="card"><h2>一句话备忘</h2><p>把"以后再说"换成"下周三上午"。</p><time>2026/11/20 11:20</time></article>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==========================================================================
+   AppHeader.vue 的 <script setup> 逐行搬过来（Vue → 原生 DOM）：
+     open / openSearch / closeSearch / onClear / onDocPointerDown 逻辑完全一致，
+     连"点外部收起时字也清掉"和"X 有字清字、没字收起"这两条语义都保留。
+   ========================================================================== */
+(function () {
+  const header   = document.getElementById('header')
+  const scrim    = document.getElementById('scrim')
+  const input    = document.getElementById('searchInput')
+  const searchBtn = document.getElementById('searchBtn')
+  const mineBtn  = document.getElementById('mineBtn')
+
+  let open = false
+
+  function setTabindex(v) {
+    // 模板里 :tabindex="open ? -1 : 0"：展开时两颗键从 Tab 序列里退出
+    header.querySelectorAll('.hbtn').forEach(function (b) { b.tabIndex = v ? -1 : 0 })
+  }
+
+  function openSearch() {
+    if (open) return
+    open = true
+    header.classList.add('is-searching')
+    scrim.classList.add('is-on')
+    searchBtn.setAttribute('aria-expanded', 'true')
+    setTabindex(true)
+    document.addEventListener('pointerdown', onDocPointerDown, true)
+    requestAnimationFrame(function () { input.focus() })
+  }
+
+  /* 收起：框退回、文字一起清掉（点外部收起时字也清，不留空框） */
+  function closeSearch() {
+    if (!open) return
+    open = false
+    header.classList.remove('is-searching')
+    scrim.classList.remove('is-on')
+    searchBtn.setAttribute('aria-expanded', 'false')
+    setTabindex(false)
+    input.value = ''
+    document.removeEventListener('pointerdown', onDocPointerDown, true)
+    input.blur()
+  }
+
+  /* X 有两个意思：有字就清字，没字就收起（同 iOS 相册 / 备忘录） */
+  function onClear() {
+    if (input.value) {
+      input.value = ''
+      input.focus()
+      return
+    }
+    closeSearch()
+  }
+
+  /* 点搜索框以外任何地方 → 收起 + 清空。捕获阶段监听，先于按钮自己的 click */
+  function onDocPointerDown(e) {
+    const t = e.target
+    if (t && t.closest && t.closest('.search-slot')) return
+    closeSearch()
+  }
+
+  searchBtn.addEventListener('click', openSearch)
+  document.getElementById('clearBtn').addEventListener('click', function (e) {
+    e.stopPropagation()
+    onClear()
+  })
+  /* 项目里这里 emit('mine') → App.vue 的 openMine() 升起「我的」浮层（不在本次范围） */
+  mineBtn.addEventListener('click', function () {})
+
+  /* ---- 以下为演示用，不属于提取内容 ---- */
+  const app = document.getElementById('app')
+  document.querySelectorAll('.seg button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('.seg button').forEach(function (o) { o.classList.remove('on') })
+      b.classList.add('on')
+      const night = b.dataset.theme === 'night'
+      // 项目里 .theme-deep 只挂根节点；这里顶栏也挂一份，
+      // 是为了让上面那两条 .theme-deep .search-box 覆盖真的命中（项目现状见交付说明）
+      app.classList.toggle('theme-deep', night)
+      header.classList.toggle('theme-deep', night)
+      scrim.classList.toggle('is-night', night)
+    })
+  })
+
+  // 截图/预览用：?search=1 自动展开，?night=1 直接夜晚
+  const q = new URLSearchParams(location.search)
+  if (q.get('night') === '1') document.querySelector('.seg button[data-theme="night"]').click()
+  if (q.get('search') === '1') setTimeout(openSearch, 400)
+})()
+</script>
+</body>
+</html>

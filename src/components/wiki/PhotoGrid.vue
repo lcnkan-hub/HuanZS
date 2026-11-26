@@ -34,7 +34,14 @@
       <img v-if="p.url" :src="p.url" alt="" draggable="false" />
       <!-- 还没解析出来时的占位：比空白好，至少说明「这里有一张图」 -->
       <div v-else class="cell-void"></div>
-      <span v-if="moreCount && i === 4" class="cell-more">+{{ moreCount }}</span>
+      <button
+        v-if="moreCount && i === 4"
+        class="cell-more"
+        type="button"
+        :aria-label="`查看其余 ${moreCount} 张`"
+        @pointerdown.stop
+        @click.stop="emit('preview', MAX_CELLS)"
+      >+{{ moreCount }}</button>
     </div>
 
     <!-- 删除按钮：落在**长按那一点**（夹在那张图范围内），样式与「我的」长按菜单里的删除一致 -->
@@ -337,21 +344,44 @@ watch(() => urls.value.length, async (n, o) => {
   -webkit-appearance: none; appearance: none;
   -webkit-tap-highlight-color: transparent;
   outline: none;
+  /* 按下/松手两段弹簧（2026-11-24）：原来只有 :active 的缩放、没写 transition，
+     等于瞬间跳变 —— 这一颗之前是"局部改了但没接进账本"的漏网。 */
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease);
 }
-.del-btn:active { transform: translate(-50%, -50%) scale(var(--press-scale-sm)); }
+.del-btn:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: translate(-50%, -50%) scale(var(--press-scale-sm));
+}
 
-/* 超过 9 张：第 5 格右下角标 +N */
+/* 超过 9 张：第 5 格右下角标 +N。
+   2026-11-25 起它是个**按钮**：点它直接看第 10 张（第一张被藏起来的），
+   而点第 5 格本身仍然从第 5 张开始滑 —— 两件事各归各的，别互相抢。
+   视觉只有 24×18，热区用 ::after 外扩到约 40×40，不挡照片主体。 */
 .cell-more {
   position: absolute;
   right: 5px; bottom: 5px;
+  display: inline-flex; align-items: center; justify-content: center;
   padding: 1px 6px;
+  border: none;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.58);
   color: #fff;
+  font-family: inherit;
   font-size: var(--text-11, 11px);
   font-weight: 600;
   line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
 }
+.cell-more::after { content: ''; position: absolute; inset: -10px; }
+.cell-more:active { background: rgba(0, 0, 0, 0.72); }
+.cell-more:focus-visible { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9); }
 
 /* 1 张：整宽 **16:9** —— 必须与列表卡片的封面同一比例、同一宽度（都是正文宽 346），
    点开时图片才能只做垂直平移、尺寸一点不变。用 4:3 会让展开瞬间图「长大」31%（2026-11-23 修的）。 */

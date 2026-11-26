@@ -170,7 +170,8 @@ const activeIndex = computed(() => {
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  background-color: var(--color-text-primary);
+  /* 选中圆：颜色由色系给（昼/夜各一份值），这个组件不再自己推断颜色 */
+  background-color: var(--nav-pill-bg);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   /* 组件局部变量的默认值：真值由模板 :style 内联覆盖（activeIndex）。
      在这里定义是为了让「有没有定义」可查 —— 只在 var() 里写 fallback，
@@ -206,22 +207,19 @@ const activeIndex = computed(() => {
   --press-now-ease: var(--spring-press);
   transform: scale(var(--press-scale));
 }
-.nav-item.active { color: var(--color-text-on-accent); }
+.nav-item.active { color: var(--nav-pill-fg); }
 
 /* 王冠就绪：配好密钥后点亮。未激活时金、激活时白（激活块是深色，金色压不住）。 */
 .nav-item .nav-icon.is-crown.is-ready { color: var(--color-crown-lit); }
-.nav-item.active .nav-icon { color: var(--color-text-on-accent); }
+.nav-item.active .nav-icon { color: var(--nav-pill-fg); }
 
-/* 深色作用域下的反色药丸（2026-11-23）：
-   theme-deep 把 --color-text-primary 翻成了白色，药丸底跟着变白，
-   而图标吃的是 --color-text-on-accent（也是白）→ 白底白字，图标直接隐形。
-   这里把这一对换过来：白药丸 + 深色图标。写死颜色而不新增令牌，
-   是因为它只服务于这一个反色场景，多一个令牌没人看也不会有人维护。 */
-.bottom-nav.theme-deep .nav-pill { background-color: #F2E7E8; }
-.bottom-nav.theme-deep .nav-item.active { color: #17100F; }
-/* 图标是单独设色的（.nav-item.active .nav-icon 写的是 on-accent 白），
-   所以光改父级 color 不够 —— 这条必须再点一次 .nav-icon。 */
-.bottom-nav.theme-deep .nav-item.active .nav-icon { color: #17100F; }
+/* 反色药丸（2026-11-23 立 · 2026-11-26 收回令牌）：
+   原先药丸底写的是 --color-text-primary —— 白天是近黑、夜里被翻成近白，
+   再配一条写死的 #F2E7E8 / #17100F 才算把夜里救回来。
+   加第二套色系之后，"文字色"和"这颗药丸"已经不是同一个决定了
+   （雾面板夜里是紫、虹彩雾/珊瑚跑道夜里是近白），所以整对收回
+   --nav-pill-bg / --nav-pill-fg，昼/夜各一份值，组件不再自己推断。
+   ⚠ 浮岛的材质（玻璃 fill / blur / 高光 / 描边 / 投影）一个字都没动。 */
 
 /* 视觉上是纯图标，文字仍留在可访问性树里（屏读器要读得出这是「记录 / 王冠」） */
 .nav-text {

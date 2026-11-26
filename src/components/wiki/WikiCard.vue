@@ -21,7 +21,7 @@
     ref="rootEl"
     :data-id="item.id"
     class="data-card"
-    :class="{ 'has-cover': hasPics, 'is-entering': entering, 'is-pressing': pressing }"
+    :class="{ 'has-cover': hasPics, 'is-entering': entering, 'is-pressing': pressing, 'is-held': held }"
     role="button"
     @click="onClick"
     @pointerdown="onPointerDown"
@@ -76,6 +76,7 @@ const LONG_PRESS_MS   = 400
 const MOVE_TOLERANCE  = 10
 
 const pressing = ref(false)      // 长按已触发（卡片压低一点，表示「被按住了」）
+const held = ref(false)          // 手指正按着（任何一次点击都算，不等长按 —— 2026-11-24）
 const rootEl = ref(null)         // 转场要量这张卡的矩形，所以得拿到根元素
 let pressTimer = null
 let startX = 0
@@ -90,6 +91,7 @@ function clearTimer() {
 function onPointerDown(e) {
   // 只认主键 / 触摸；鼠标右键与中键交给浏览器
   if (e.pointerType === 'mouse' && e.button !== 0) return
+  held.value = true          // 按下就压，不等长按超时 —— 否则「点一下打开」全程没有反馈
   startX = e.clientX
   startY = e.clientY
   fired = false
@@ -113,6 +115,8 @@ function onPointerMove(e) {
   if (Math.abs(e.clientX - startX) > MOVE_TOLERANCE ||
       Math.abs(e.clientY - startY) > MOVE_TOLERANCE) {
     clearTimer()
+    // 滑出去就撤销按压：手指在滚列表，不是在点这张卡
+    held.value = false
     // 滑动过就记一笔：手指是在滚列表，不是在点这张卡 —— 松手那一下不能打开详情
     moved = true
   }
@@ -121,6 +125,7 @@ function onPointerMove(e) {
 function onPointerUp() {
   clearTimer()
   pressing.value = false
+  held.value = false
 }
 
 function onClick() {
@@ -194,7 +199,10 @@ watch(
   /* 长按不该弹系统菜单、也不该选中文字 */
   -webkit-touch-callout: none;
   -webkit-user-select: none; user-select: none;
-  transition: transform 0.16s ease-out, box-shadow 0.22s ease-out;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease),
+              box-shadow 0.22s ease-out;
 }
 /* 桌面端悬停：抬 1px、影子散开 —— 「这张可以点开」的预演。
    移动端没有 hover，用下面的按压态代替。 */
@@ -204,10 +212,21 @@ watch(
     box-shadow: var(--surface-card-rim), var(--surface-card-shadow-up);
   }
 }
-/* 长按触发后卡片自己压低一点：告诉用户「这一张被按住了」，菜单属于它。
-   写在 hover 之后，两者同时命中时以按压为准。 */
+/* 按下：**任何一次点击**都要有回应（2026-11-24）。
+   以前这块只有 .is-pressing，而它要等长按 400ms 超时才置位 ——
+   也就是说「点一下打开详情」这条最高频的路径上，卡片一点反馈都没有。
+   现在按下就压（.is-held），长按成立后再压深一档（.is-pressing）。
+   写在 hover 之后：鼠标按下去时以按压为准，不被 translateY(-1px) 顶掉。 */
+.data-card.is-held {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale-lg));
+}
+
+/* 长按触发后再压低一点：告诉用户「这一张被按住了」，菜单属于它。
+   写在 .is-held 之后，两者同时命中时以更深的那档为准。 */
 .data-card.is-pressing {
-  transform: scale(0.985);
+  transform: scale(0.96);
   box-shadow: var(--surface-card-rim), var(--surface-card-shadow-up);
 }
 

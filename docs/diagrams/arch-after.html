@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --paper: #F6F1F0;
+    --ink: #2A1B20;
+    --muted: #8A7B80;
+    --wine: #7E2340;
+    --slate: #4A6178;
+    --copper: #A8763E;
+    --good: #3F7357;
+    --line: rgba(126, 35, 64, .13);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    padding: 28px 30px 26px;
+    font-variant-numeric: tabular-nums;
+  }
+  .eyebrow {
+    font-size: 11px; letter-spacing: .18em; color: var(--muted);
+    display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+  h1 { font-size: 27px; line-height: 1.25; letter-spacing: -.02em; margin: 0 0 6px; font-weight: 650; }
+  .sub { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 0 0 22px; }
+
+  /* 顶部总账 */
+  .ledger {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+    padding: 14px 0 16px; border-top: 1.5px solid var(--wine); border-bottom: 1px solid var(--line);
+    margin-bottom: 24px;
+  }
+  .cell { text-align: left; }
+  .cell .k { font-size: 10.5px; color: var(--muted); letter-spacing: .04em; margin-bottom: 6px; }
+  .cell .v { display: flex; align-items: baseline; gap: 6px; }
+  .cell .old { font-size: 13px; color: #A88F96; text-decoration: line-through; text-decoration-thickness: 1px; margin-right: 5px; }
+  .cell .new { font-size: 21px; font-weight: 650; color: var(--good); line-height: 1; }
+  .cell .unit { font-size: 11px; color: var(--muted); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px 34px; }
+  section { border-top: 1px solid var(--line); padding-top: 14px; }
+  h2 {
+    font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    margin: 0 0 10px; color: var(--wine);
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  h2 .no { font-size: 11px; color: var(--muted); font-weight: 500; letter-spacing: .1em; }
+
+  /* 分层图 */
+  .layers { display: flex; flex-direction: column; gap: 5px; }
+  .layer {
+    display: flex; align-items: center; gap: 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px;
+  }
+  .layer .tag {
+    flex: 0 0 92px; padding: 4px 8px; border-radius: 5px; text-align: center;
+    background: #fff; border: .5px solid var(--line); color: var(--slate);
+  }
+  .layer .desc { color: var(--muted); font-size: 11px; }
+  .layer .arrowdown { color: var(--copper); font-size: 12px; margin-left: 42px; line-height: .8; }
+  .no-back { margin-top: 9px; font-size: 11px; color: var(--wine); }
+
+  ul.tight { margin: 0; padding-left: 16px; }
+  ul.tight li { font-size: 12.5px; line-height: 1.85; color: #4A3A40; }
+  ul.tight li b { font-weight: 600; color: var(--ink); }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px; background: rgba(126, 35, 64, .07);
+    padding: 1px 5px; border-radius: 4px; color: var(--wine);
+  }
+  .split { display: flex; gap: 22px; }
+  .split > div { flex: 1; }
+  .mini-title { font-size: 11px; color: var(--muted); margin-bottom: 6px; letter-spacing: .04em; }
+  .filelist { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; line-height: 1.9; color: var(--slate); }
+  .filelist em { color: var(--muted); font-style: normal; }
+
+  .check { color: var(--good); font-weight: 600; }
+  footer {
+    margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--line);
+    font-size: 11px; color: var(--muted); line-height: 1.75;
+  }
+  footer b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="eyebrow"><span class="dot"></span>AFTER · 改制后</div>
+  <h1>同样的功能，少了五笔利息</h1>
+  <p class="sub">对外一行没变：还是记录 + 王冠，还是纯本地。变的是「下次加功能要付多少代价」。</p>
+
+  <div class="ledger">
+    <div class="cell">
+      <div class="k">业务层直连存储</div>
+      <div class="v"><span class="old">26</span><span class="new">0</span><span class="unit">处</span></div>
+    </div>
+    <div class="cell">
+      <div class="k">循环依赖</div>
+      <div class="v"><span class="old">1</span><span class="new">0</span><span class="unit">条</span></div>
+    </div>
+    <div class="cell">
+      <div class="k">utils 依赖框架</div>
+      <div class="v"><span class="old">3</span><span class="new">0</span><span class="unit">处</span></div>
+    </div>
+    <div class="cell">
+      <div class="k">测试入口</div>
+      <div class="v"><span class="old">11 条</span><span class="new">1</span><span class="unit">条 · 2.1s</span></div>
+    </div>
+    <div class="cell">
+      <div class="k">构建（Vite 8）</div>
+      <div class="v"><span class="old">1.36s</span><span class="new">0.36s</span><span class="unit">3.8×</span></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2><span class="no">01</span>依赖只能朝一个方向</h2>
+      <div class="layers">
+        <div class="layer"><span class="tag">components</span><span class="desc">界面，取状态走 composables / props</span></div>
+        <div class="arrowdown">↓</div>
+        <div class="layer"><span class="tag">composables</span><span class="desc">Vue 状态与业务编排</span></div>
+        <div class="arrowdown">↓</div>
+        <div class="layer"><span class="tag">services</span><span class="desc">无界面能力（存储适配 / 危机管线 / 端口）</span></div>
+        <div class="arrowdown">↓</div>
+        <div class="layer"><span class="tag">utils</span><span class="desc">纯函数 —— 不 import vue</span></div>
+        <div class="arrowdown">↓</div>
+        <div class="layer"><span class="tag">constants</span><span class="desc">纯数据表，不 import 任何东西</span></div>
+      </div>
+      <p class="no-back">箭头反向 = 违规。守卫脚本扫 88 个文件：<span class="check">✓ 通过</span>（2 处已说明的例外）。</p>
+    </section>
+
+    <section>
+      <h2><span class="no">02</span>存储只剩一个门</h2>
+      <p class="tight" style="font-size:12.5px;line-height:1.85;margin:0 0 8px">
+        所有读写都过 <code>services/storageAdapter</code>，它对外 11 个方法，语义分得很清楚：
+      </p>
+      <ul class="tight">
+        <li><code>readJSON / writeJSON</code> —— 账号隔离 + 失败落内存</li>
+        <li><code>readRaw / writeRaw</code> —— 不加前缀、不解析</li>
+        <li><code>readRawScoped</code> —— <b>「没数据」与「数据坏了」能分开</b></li>
+        <li><code>tryWriteJSON / tryWriteRaw</code> —— <b>写失败如实返回 false</b>，不假装成功</li>
+        <li><code>resolveKey / listKeys / removeKey</code></li>
+      </ul>
+      <p class="no-back">换 IndexedDB / 上云端：只改这一个文件。</p>
+    </section>
+
+    <section>
+      <h2><span class="no">03</span>环断在端口上</h2>
+      <div class="layers">
+        <div class="layer"><span class="tag">useChatAI</span><span class="desc">模块加载时注册 askStructured ↓</span></div>
+        <div class="arrowdown">↓</div>
+        <div class="layer"><span class="tag">aiClassifierPort</span><span class="desc">只存一个函数槽（services 层）</span></div>
+        <div class="arrowdown">↑</div>
+        <div class="layer"><span class="tag">crisisDetection</span><span class="desc">用时取；没注册就只跑 L1 粗筛，不崩</span></div>
+      </div>
+      <p class="no-back">services 不再认识 composables，方向固定。</p>
+    </section>
+
+    <section>
+      <h2><span class="no">04</span>巨型文件各自归位</h2>
+      <div class="split">
+        <div>
+          <div class="mini-title">App.vue 675 → 491</div>
+          <div class="filelist">useDetailTransition <em>202</em><br>useAppNotice <em>55</em><br><em>剩下的是装配</em></div>
+          <div class="mini-title" style="margin-top:10px">ChatView 792 → 624</div>
+          <div class="filelist">ChatBubbleRow <em>166</em><br>useChatScroll <em>53</em></div>
+        </div>
+        <div>
+          <div class="mini-title">useBackup 816 → 40 门面</div>
+          <div class="filelist">keys <em>99</em> · images <em>170</em><br>rescue <em>70</em> · saveFile <em>130</em><br>export <em>142</em> · import <em>226</em></div>
+          <div class="mini-title" style="margin-top:10px">useRecords 439 → 165</div>
+          <div class="filelist">shape <em>79</em> · migrate <em>118</em><br>imageGc <em>145</em></div>
+        </div>
+      </div>
+      <p class="no-back">调用方一行没改：门面只做 re-export。</p>
+    </section>
+
+    <section>
+      <h2><span class="no">05</span>基建能兜住下一次改动</h2>
+      <ul class="tight">
+        <li><b>npm test</b> —— 11 套独立进程，2.1s（crisis 60 / backup 89 / image 25 / import 42 / storage 18 / sync 14 / proactive 70 / lasttab 11 / reminder 16 / retrieval 33 / silent 7）</li>
+        <li><b>CI</b> —— push main / PR 时跑 lint + 令牌 + 字号刻度 + npm test + build</li>
+        <li><b>守卫脚本</b> —— 分层方向可机器校验，不用靠记性</li>
+        <li><b>Vite 8</b>（Rolldown）—— 构建 1.36s → 0.36s，产物 gzip 91.9 → 87.7KB</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2><span class="no">06</span>接缝写成了清单</h2>
+      <ul class="tight">
+        <li>加存储键：四处登记（键 / 人话标签 / 作用域 / 备份），漏了会静默丢数据</li>
+        <li>加备份字段：<code>TEXT_SOURCES</code> 一行</li>
+        <li>加 AI 能力：<code>askStructured</code> 或注册到端口</li>
+        <li>换存储后端 / 换图片来源：各只有一个注入点</li>
+      </ul>
+      <p class="no-back">见 <code>docs/新功能接入指南.md</code> 与 <code>docs/composables-索引.md</code>。</p>
+    </section>
+  </div>
+
+  <footer>
+    诚实留白：<b>两件没做</b> —— ① composables 物理分组（要动约 60 处 import，收益只是"看着整齐"）；
+    ② ChatView 输入栏拆分（键盘让位必须真机验，我在你屏幕外验不了）。
+    动画 / 转场 / 滚动这类测试抓不到的东西，每一项都是靠「内联样式证据法」在浏览器里自证的，不是靠"编译过了"。
+  </footer>
+</body>
+</html>

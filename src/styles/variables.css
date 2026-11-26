@@ -16,60 +16,71 @@ html, body {
 }
 
 :root {
-  /* === 色彩系统 · 酒红丝绒（2026-11-23 换肤第二步：整库换成第 7 套，结构未动）===
-     取色逻辑：象牙粉灰纸底 + 三色分工（同一颜色不表达两件事）
-       主 · 酒红 #7E2340 —— 主动作、链接、用户气泡、实心按钮（白卡上 9.5，压白字 9.5）
-       辅 · 灰蓝 #4A6178 —— 王冠头像、身份锚点（6.4）
-       点 · 铜   #A8763E —— 一次性信号与就绪态（3.9，只做图形）
-     正文三级（对新底实测）：#1B1214 16.9 / #463A3D 9.1 / #6D5A5E 6.4（卡）· 5.5（底）
-     ⚠ 三色各守一职：酒红不当状态色，灰蓝不当按钮底，铜不当正文（3.9 只够图形）。 */
-  --color-bg-primary:    #F6F1F0;
+  /* === 色彩系统 · 雾面板（2026-11-26 · 第 4 套体系里的默认色系）===
+     取色逻辑：冷灰纸底 + 四团极淡雾 + 浮起的白卡 + 一颗近黑药丸。
+     三色各守一职（同一颜色不表达两件事）：
+       主 · 近黑 #151518 —— 主动作（完成 / 发送 / 新建）、正文强调（纸 16.9 / 压白字 18.2）
+       选 · 紫   #7360D0 —— 选中态与"记忆计数"这类可点的数（压白字 4.87）
+       号 · 珊瑚 #E2604A —— 王冠身份（头像 / 标签），**不当按钮底**
+     正文三级（对纸 #F6F6FA 实测）：#141418 17.0 / #3E4048 9.6 / #6E7078 4.6 · 卡上 4.9
+
+     ⚠ 这一套是「默认色系」，写在 :root 里；换色系时由 styles/palettes/*.css 用
+       .palette-xxx 覆盖同名令牌（新增色系 = 新增一个文件 + 注册表一行，别改这里）。 */
+  --color-bg-primary:    #F6F6FA;
   --color-bg-card:       #FFFFFF;
-  --color-bg-input:      #EDE4E5;
-  --color-bg-modal:      #FFFAFB;
-  --color-bg-subtle:     #F5EDEE;
+  --color-bg-input:      #EFEEF6;
+  --color-bg-modal:      #FFFFFF;
+  --color-bg-subtle:     #F1F0F7;
 
-  --color-text-primary:  #1B1214;
-  --color-text-secondary:#463A3D;
-  /* 次要文字。原值 #8e8e93 是 Apple 的 systemGray —— 它在四种底色上量出来是
-     2.86(输入框底) ~ 3.26(卡片) ，连 AA 要求的 4.5 都够不到，而它管着全库约四十处
-     时间戳、说明、脚注，字号多在 11~13。真机白天在户外看就是"糊成一片"。
-     换成 #6D5A5E（酒红丝绒纸底上的暖玫瑰灰）：卡片 6.4 / 页面 5.5 / 输入框底 5.1，
-     三处全过，并且与 secondary(9.1) 和 primary(16.9) 仍拉开三档，层级没有被压平。 */
-  --color-text-muted:    #6D5A5E;
-  /* 原 --color-text-light(#aeaeae) 已删：它只有 1.95~2.22，是全库唯一连 3:1 都不到的
-     文字色，四处用例（渲染占位、工具条提示、足迹理念句、条目入口提示）本来就是 muted
-     的语义，归到上面一档即可，不必再养一个读不出来的第四级灰。 */
+  --color-text-primary:  #141418;
+  --color-text-secondary:#3E4048;
+  /* 次要文字。它管着全库约四十处时间戳、说明、脚注，字号多在 11~13，
+     所以每一套色系都必须让它在纸底与卡底上都过 4.5（本套 4.6 / 4.9）。 */
+  --color-text-muted:    #6E7078;
+  --color-text-neutral:  #54545C;
 
-  /* 主色：酒红。白卡上 9.5、纸底 8.6，压白字 9.5 —— 全库唯一在四种语境都稳的强调色。
-     原 #007aff 只有 4.02，作正文/链接本来就不合格。 */
-  --color-accent:        #7E2340;
-  --color-accent-light:  #F7E7EC;
-  --color-danger:        #A32A2A;
-  --color-danger-bg:     #FAE8E9;
-  /* 成功 / 开启态。深一点的一支绿：四处里有三处是**文字**，亮绿当正文对比度不够。 */
-  --color-success:       #2E6B4C;
-  /* 成功的另外两级：同一支绿的三个亮度，对应三种对比场景，不是三套色 */
-  --color-success-deep:  #24543B;
-  --color-success-bg:    #E9F1EA;
-  /* 中性按钮文字（取消键） */
-  --color-text-neutral:  #5A4A4E;
+  /* 主色：近黑。主动作与正文强调共用一支 —— 这一套的"重"来自明度，不是色相。 */
+  --color-accent:        #151518;
+  /* 实心主色：白天就是主色本身；夜里翻成近白（见 .theme-deep）——
+     深底上再放一块黑按钮，按钮会消失。 */
+  --color-accent-solid:  #151518;
+  --color-text-on-solid: #FFFFFF;
+  --color-accent-light:  #ECEBF3;
+  --color-danger:        #B0382B;
+  --color-danger-bg:     #FBEAE6;
+  /* 成功 / 开启态。深青绿：三处用例里两处是**文字**，亮彩当正文对比度不够 */
+  --color-success:       #1C7A66;
+  --color-success-deep:  #155E4F;
+  --color-success-bg:    #E8F4F0;
   /* 实底上的前景色。分两个令牌：深色主题里强调底会提亮、其上文字要翻深色；
      图片遮罩/深色品牌块一直是深底白字，两者方向相反，不能共用一个令牌。 */
-  --color-text-on-accent: #ffffff;
-  --color-text-on-dark:   #ffffff;
+  --color-text-on-accent: #FFFFFF;
+  --color-text-on-dark:   #FFFFFF;
 
-  --color-border:        #E6DCDE;
-  --color-border-light:  #F0E8E9;
-  --color-border-input:  #E2D6D9;
+  --color-border:        #E6E4F0;
+  --color-border-light:  #F0EEF7;
+  --color-border-input:  #E0DDEC;
 
   /* 原 --color-progress-game / note / life 已随三分类一起删除（2026-11-21 单层记录重构） */
 
   /* markdown 里的三种强调字 = 主色的三个近亲（不是新增第四第五色）：
-     蓝→辅色、褐→主色加深、绿→成功色同族，语义与正文强调一致 */
-  --color-markdown-blue: #4A6178;
-  --color-markdown-brown:#8A3A2E;
-  --color-markdown-green:#2E6B4C;
+     蓝→笔记标签、褐→琥珀加深、绿→成功色同族，语义与正文强调一致。
+     样图给的是标签色（#5B8DD9 / #D9A233），作正文都不到 4.5，各自压深一档。 */
+  --color-markdown-blue: #3C6FBF;
+  --color-markdown-brown:#8A5A2E;
+  --color-markdown-green:#1C7A66;
+
+  /* === 从组件里收回来的四条"换色系会露馅"的色（2026-11-26）===
+     这几处原先直接写死 hex（搜索框聚焦圈、长按菜单收藏 chip、记忆面板抓手、
+     详情页工具栏投影的色相）。只有一套配色时值不变、看不出问题；
+     一加第二套色系，它们就是混进新配色里的旧颜色，所以各给一条带昼/夜的令牌。 */
+  --color-accent-soft: rgba(226, 96, 74, 0.14);
+  --color-handle:      rgba(20, 20, 24, 0.22);
+  --shadow-float:      0 12px 32px rgba(20, 20, 24, 0.14), 0 2px 6px rgba(20, 20, 24, 0.06);
+  /* 底栏那颗「选中」药丸：白天近黑、夜里在 .theme-deep 里翻成紫（样图里夜间的选中态）。
+     ⚠ 只换颜色 —— 浮岛的玻璃材质一个字没动。 */
+  --nav-pill-bg:       #151518;
+  --nav-pill-fg:       #FFFFFF;
 
   /* === 圆角 === */
   --radius-md:    8px;
@@ -84,6 +95,12 @@ html, body {
   /* === 阴影 === */
   --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.04);   /* 只剩王冠页两处还在用；记录页/我的页已换 --surface-card-* */
   --shadow-modal:   0 10px 30px rgba(0, 0, 0, 0.15);
+  /* 实心主色按钮的投影（2026-11-25 抽令牌）。
+     原来两处写死 `rgba(126, 35, 64, …)` = 昼色的 RGB，晚上钮已经换成
+     --color-accent-solid(#B4436A)，投影还停在昼色上，落在 #17100F 底上等于没有，
+     钮浮不起来、边缘发闷。投影跟着主色走才对。 */
+  --shadow-solid-accent:    0 4px 14px rgba(126, 35, 64, 0.34);
+  --shadow-solid-accent-sm: 0 2px 6px  rgba(126, 35, 64, 0.28);
   /* 原 --shadow-nav 已删：底栏改用 border-top + 半透明底 + 模糊做分层，全库零引用。
      注意 --radius-2xl 目前也零引用，但它在 sm/md/lg/xl/2xl/3xl 这套完整圆角刻度里 ——
      删了刻度就缺口，所以留着。 */
@@ -113,13 +130,25 @@ html, body {
   --pop-dur:     320ms;   /* 小件弹出：菜单、chip、指示器 */
   --slide-dur:   460ms;   /* 大件位移：底栏下沉、sheet 上滑 */
 
-  /* 按压缩放只留两个档：常规按钮、小图标（图标面积小，缩得少就看不出回应） */
+  /* 搜索框展开（2026-11-26）—— 唯一一处不取自弹簧账本的交互节奏。
+     来源是参考稿 search_refined.html：390ms、起手更急、收尾更稳（bezier 1 号控制点偏上）。
+     和 --slide-dur(460)+--spring-glide 的差别就是"短 70ms + 起步快"，读起来更脆。
+     ⚠ 只服务顶栏搜索位（AppHeader 的 .search-slot），别拿它去做页面位移 ——
+       大件位移仍走 --slide-dur，这是账本之外特批的一条。 */
+  --search-dur:  390ms;
+  --ease-search: cubic-bezier(0.22, 0.68, 0.18, 1);
+
+  /* 按压缩放三档：常规按钮 / 小图标 / 大面板。
+     图标面积小，同样的比例看着"没反应"，得缩得多；整张卡片面积大，
+     0.95 会晃眼（几百像素的东西缩 5%，读起来是"整页在动"），只给到 0.972。 */
   --press-scale:    0.95;
   --press-scale-sm: 0.92;
+  --press-scale-lg: 0.972;
 
-  /* === 旧曲线：仍在被引用，暂留；新代码请用上面三条弹簧 === */
+  /* === 旧曲线：--ease-out 还在零星几处颜色/位置过渡里用着，暂留 ===
+     --ease-pop 已于 2026-11-24 删除：所有按压都改成弹簧后它零引用了，
+     留着就是第二套"回弹"的真相，下次有人用它就会绕开账本。 */
   --ease-out:  cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-pop:  cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* === 间距 === */
   /* 刘海/挖孔机上沿安全区：Android(Capacitor) 与 iOS 都读同一条 env（A10） */
@@ -197,11 +226,11 @@ html, body {
      --page-rgb 是纸色的裸通道值，唯一用途是给下面的雾幕拼 rgba()。
      它必须与 --color-bg-primary(#F6F1F0) 是同一个颜色：CSS 没法从 hex 反推分量，
      所以这里是「一个颜色、两处书写」，改底色时两处一起改。 */
-  --page-rgb: 246, 241, 240;
+  --page-rgb: 246, 246, 250;
 
-  /* 两团极淡的色斑：右上玫瑰、左下暖沙。
-     作用不是装饰 —— 玻璃要有颜色可透，才不会读成一块灰板（和深色底那三团同一个道理）。 */
-  --page-canvas-image: radial-gradient(62% 46% at 88% 10%, rgba(212, 176, 194, 0.34), transparent 70%), radial-gradient(58% 42% at 6% 84%, rgba(228, 204, 186, 0.38), transparent 72%);
+  /* 四团极淡的雾：左上薰衣草、右上蜜桃、右下薄荷、左下天蓝（2026-11-26 雾面板）。
+     作用不是装饰 —— 玻璃要有颜色可透，才不会读成一块灰板（和深色底那几团同一个道理）。 */
+  --page-canvas-image: radial-gradient(62% 46% at 10% 6%, rgba(196, 186, 240, 0.40), transparent 70%), radial-gradient(54% 40% at 90% 10%, rgba(250, 206, 180, 0.38), transparent 72%), radial-gradient(60% 40% at 84% 94%, rgba(176, 222, 206, 0.36), transparent 72%), radial-gradient(54% 38% at 6% 86%, rgba(190, 214, 240, 0.40), transparent 70%);
 
   /* === 玻璃场（顶部 / 底部过渡层 · 2026-11-24 按 huanzhongshu_glass_homepage_full.html）===
      这一层只干一件事：让内容从屏幕边缘**化开**。按钮、玻璃条、卡片都不归它管。
@@ -253,7 +282,15 @@ html, body {
   --glass-fill:      rgba(255, 249, 251, 0.66);
   --glass-blur:      blur(28px) saturate(175%);
   --glass-highlight: inset 0 1px 0 rgba(255, 253, 254, 0.80), inset 0 -1px 0 rgba(255, 249, 251, 0.34);
-  --glass-edge:      0 0 0 0.5px rgba(90, 35, 55, 0.06), inset 0 0 14px rgba(90, 35, 55, 0.035);
+  /* 内暗角单独一条（2026-11-26 从 --glass-edge 里拆出来）：
+     大面积的玻璃（搜索框，366×38）只要这层厚度，不要外描边 ——
+     夜里 --glass-edge 是 1px 玫瑰白，压在 44px 圆钮上只是边缘，铺到 366px 宽就成了一整圈"画上去的框"。
+     拆开之后：圆钮/浮岛继续用 --glass-edge（描边 + 暗角），搜索框只用 --glass-vignette。 */
+  --glass-vignette:   inset 0 0 14px rgba(90, 35, 55, 0.035);
+  --glass-edge:      0 0 0 0.5px rgba(90, 35, 55, 0.06), var(--glass-vignette);
+  /* 浮层菜单的底色（详情页「⋯」菜单）：比 --glass-fill 实一档 —— 上面全是**要读的字**，
+     太透会让背后的正文透成一层灰影子。夜里必须跟着换，否则暗底上一块白板。 */
+  --popover-fill:    rgba(255, 252, 253, 0.86);
 
   /* === 内容层材质（卡片）= 亚克力，不是玻璃 ===
      卡片不挂 backdrop-filter：白底上采样纯色等于白烧一层合成，滚动几十张必掉帧。
@@ -267,17 +304,18 @@ html, body {
   /* 按下 / 悬停：影子散开、描边亮一档 —— 抬起来 2px 的读感 */
   --surface-card-shadow-up: 0 10px 28px rgba(90, 35, 55, 0.09), 0 2px 5px rgba(90, 35, 55, 0.045);
 
-  /* === 王冠主题 · 酒红丝绒（2026-11-23 换肤第二步）===
-     金色彻底退场：头像用主色的玫瑰→酒红渐变（同族两档，不抢主色），
-     "记忆信号 / 就绪态"交给点色铜 #A8763E。 */
-  --crown-avatar-bg: linear-gradient(135deg, #C25476, #7E2340);
-  --crown-avatar-shadow: 0 2px 6px rgba(126, 35, 64, 0.28);
-  --crown-avatar-icon: #ffffff;
-  /* 底栏王冠「已就绪」：配好 API 密钥后点亮用，是常驻状态指示，不是一次性信号。
-     用点色铜 #A8763E —— 于白卡 3.9、于纸底 3.6，作线条图标过 3:1（原金 #E8A317 只有 2.17）。 */
-  --color-crown-lit: #A8763E;
-  /* 王冠界面背景（深夜书房米白，与入场动画"照亮"后的暖氛围适配） */
-  --crown-bg: #F6F2F4;
+  /* === 王冠主题 · 雾面板（2026-11-26）===
+     头像用珊瑚 #E2604A（样图里"王冠标签 / 头像"那一颗）—— 它是这一套里
+     唯一的暖色，专门留给王冠身份，不当任何按钮底。
+     夜板（--crown-night-*）暂不动，王冠那一轮再换。 */
+  --crown-avatar-bg: linear-gradient(135deg, #F0876A, #E2604A);
+  --crown-avatar-shadow: 0 2px 6px rgba(226, 96, 74, 0.28);
+  --crown-avatar-icon: #FFFFFF;
+  /* 底栏王冠「已就绪」：琥珀 #D9A233 在白卡上只有 2.6，作线条图标不够 3:1，
+     按"保色相、只调明度"压到 #B07B1E（3.7）。 */
+  --color-crown-lit: #B07B1E;
+  /* 王冠界面背景（白天与记录页同一张纸，夜里由 --crown-night-bg 接管） */
+  --crown-bg: #F7F6FB;
 
   /* === 王冠玻璃材质（昼）—— 提取为变量：夜板只需换值，全页材质自动跟随 === */
   --crown-glass-bg:  rgba(255, 250, 251, 0.86); /* 顶部悬浮件（返回键 / 记忆胶囊） */
@@ -372,43 +410,82 @@ html, body {
      · 高光 0.55（顶）/ 0.13（底）+ 1px 发丝边 + 内侧 26px 暗边 —— demo 的厚度配方
      · 卡片 rgba(11,14,21,.62) 半透明实底 —— 深色底上「比背景亮一点点」才立得起来 */
 .theme-deep {
-  --color-bg-primary:     #17100F;               /* 酒红黑底 */
-  --color-bg-card:        #241A1C;               /* 卡/底 1.25：夜里能看出"卡在上面" */
-  --color-bg-input:       rgba(255, 235, 240, 0.08);
-  --color-bg-modal:       #2A2023;
-  --color-bg-subtle:      rgba(255, 235, 240, 0.04);
-  --color-text-primary:   #F2E7E8;               /* 底上 15.4 / 卡上 13.6 */
-  --color-text-secondary: #CBBABD;               /* 9.6 */
-  --color-text-muted:     #A08C8F;               /* 卡上 5.3 */
-  --color-text-neutral:   #BCA9AC;               /* 8.1 */
-  --color-border:         rgba(255, 228, 236, 0.10);
-  --color-border-light:   rgba(255, 228, 236, 0.06);
-  --color-border-input:   rgba(255, 228, 236, 0.12);
-  --color-accent-light:   rgba(255, 235, 240, 0.06);
-  /* 深色作用域必须显式覆盖强调色 —— 否则这里会继承昼态的酒红 #7E2340，
-     压在 #17100F 上只有 1.5，是最难读的一处错位。 */
-  --color-accent:         #E08BA6;
-  --color-text-on-accent: #1A0E12;
-  --color-danger:         #FF8A8A;
+  --color-bg-primary:     #141319;               /* 夜底（雾面板 · 样图「夜底 #141319」） */
+  --color-bg-card:        #22212A;               /* 卡/底 1.2：夜里能看出"卡在上面" */
+  --color-bg-input:       rgba(255, 255, 255, 0.08);
+  --color-bg-modal:       #232230;
+  --color-bg-subtle:      rgba(255, 255, 255, 0.04);
+  --color-text-primary:   #EFEFF4;               /* 底上 16.1 / 卡上 13.9 */
+  --color-text-secondary: #C3C6D4;               /* 10.9 */
+  --color-text-muted:     #9A9DAD;               /* 卡上 6.2 */
+  --color-text-neutral:   #B8BBC8;               /* 8.9 */
+  --color-border:         rgba(255, 255, 255, 0.10);
+  --color-border-light:   rgba(255, 255, 255, 0.06);
+  --color-border-input:   rgba(255, 255, 255, 0.12);
+  --color-accent-light:   rgba(255, 255, 255, 0.06);
+  /* 深色作用域必须显式覆盖强调色 —— 否则这里会继承昼态的近黑 #151518，
+     压在 #141319 上只有 1.1，等于按钮和文字一起消失。 */
+  --color-accent:         #EFEFF4;
+  --color-text-on-accent: #141319;
+  /* 实心主色（2026-11-25 起与文字色分开）：夜里主动作反成近白底 + 深字，
+     否则深底上再放一块黑按钮，按钮会消失。 */
+  --color-accent-solid:   #EFEFF4;
+  --color-text-on-solid:  #141319;
+  /* 夜里的实心投影：底变亮了，投影反而要更重才"压得住" */
+  --shadow-solid-accent:    0 4px 14px rgba(0, 0, 0, 0.42);
+  --shadow-solid-accent-sm: 0 2px 6px  rgba(0, 0, 0, 0.38);
+  --color-danger:         #FF8F7A;
   --color-danger-bg:      rgba(255, 110, 110, 0.14);
-  --color-success:        #8FD0AE;
-  --color-success-deep:   #B4E0C8;
-  --color-success-bg:     rgba(143, 208, 174, 0.14);
+  --color-success:        #5FD3B4;
+  --color-success-deep:   #8FE0C8;
+  --color-success-bg:     rgba(95, 211, 180, 0.14);
 
-  --glass-fill:      rgba(255, 230, 238, 0.075);
+  /* 材质配方（alpha / blur / 几何）不动，只把玫瑰色相换成中性白 ——
+     冷灰夜底上带一层玫瑰调，就是"旧颜色混进来了"。 */
+  --glass-fill:      rgba(255, 255, 255, 0.075);
   --glass-blur:      blur(20px) saturate(150%);
-  --glass-highlight: inset 0 1px 0 rgba(255, 236, 242, 0.55), inset 0 -1px 0 rgba(255, 236, 242, 0.13);
-  --glass-edge:      0 0 0 1px rgba(255, 230, 238, 0.16), inset 0 0 26px rgba(0, 0, 0, 0.18);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.13);
+  /* 夜间暗角更重一档（暗底上要"压得住"），同样从 --glass-edge 里拆出来 */
+  --glass-vignette:  inset 0 0 26px rgba(0, 0, 0, 0.18);
+  --glass-edge:      0 0 0 1px rgba(255, 255, 255, 0.16), var(--glass-vignette);
+  --popover-fill:    rgba(35, 34, 44, 0.94);
 
   /* 玻璃场在暗底上换一组值（2026-11-24）：亮色那组是"盖一层纸"，夜里会变成一层发白的板；
-     暗底要"压暗 + 提亮一档"，所以染色用玫瑰白 5%、面纱用酒红黑。 */
-  --fade-tint: rgba(255, 235, 240, 0.05);
-  --fade-veil: linear-gradient(to bottom, rgba(23, 16, 15, 0.45) 0%, rgba(23, 16, 15, 0.20) 35%, transparent 100%);
+     暗底要"压暗 + 提亮一档"，所以染色用白 5%、面纱用夜底色。 */
+  --fade-tint: rgba(var(--page-rgb), 0.06);
+  --fade-veil: linear-gradient(to bottom, rgba(var(--page-rgb), 0.45) 0%, rgba(var(--page-rgb), 0.20) 35%, transparent 100%);
 
-  --surface-card:          rgba(36, 26, 28, 0.62);
-  --surface-card-rim:      inset 0 1px 0 rgba(255, 236, 242, 0.07), 0 0 0 1px rgba(255, 230, 238, 0.09);
-  --surface-card-shadow:   0 8px 24px rgba(0, 0, 0, 0.38);
-  --surface-card-shadow-up: 0 14px 34px rgba(0, 0, 0, 0.52);
+  --surface-card:          rgba(255, 255, 255, 0.07);
+  --surface-card-rim:      inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 0 0 0.5px rgba(255, 255, 255, 0.09);
+  --surface-card-shadow:   0 6px 18px rgba(0, 0, 0, 0.30), 0 1px 2px rgba(0, 0, 0, 0.20);
+  --surface-card-shadow-up: 0 12px 30px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.28);
+
+  /* === 夜间纸面（2026-11-25 · 2026-11-26 换成雾面板的夜底）===
+     记录页 / 详情页是"纸 + 雾"的语言，夜里不能只换卡片颜色 —— 纸本身也要换。
+     --page-rgb 必须与 --color-bg-primary 同色（同一个颜色的两处书写，改一处必改另一处）。 */
+  --page-rgb: 20, 19, 25;
+  --page-canvas-image: radial-gradient(62% 46% at 10% 6%, rgba(196, 186, 240, 0.16), transparent 70%), radial-gradient(54% 40% at 90% 10%, rgba(250, 206, 180, 0.10), transparent 72%), radial-gradient(60% 40% at 84% 94%, rgba(176, 222, 206, 0.08), transparent 72%), radial-gradient(54% 38% at 6% 86%, rgba(190, 214, 240, 0.12), transparent 70%);
+
+  /* 底栏"反色药丸"：夜里药丸是近白底 + 深字（见 BottomNav 那条注释）。
+     写死过，换色系时会变成"墨绿底上一颗玫瑰白药丸"，所以收回令牌。 */
+  --nav-pill-bg: #7360D0;
+  --nav-pill-fg: #FFFFFF;
+
+  --color-accent-soft: rgba(239, 239, 244, 0.14);
+  --color-handle:      rgba(255, 255, 255, 0.22);
+  --shadow-float:      0 12px 32px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.28);
+
+  /* markdown 三种强调字在暗底上提亮（昼值压在 #141319 上只有 2~3） */
+  --color-markdown-blue: #8FB0F0;
+  --color-markdown-brown:#E0B87A;
+  --color-markdown-green:#5FD3B4;
+  --color-text-on-dark:  #FFFFFF;
+
+  /* 王冠身份色：夜里头像仍是珊瑚（它不随明暗变），就绪色提亮到琥珀 */
+  --color-crown-lit:     #D9A233;
+  --crown-avatar-bg:     linear-gradient(135deg, #F0876A, #E2604A);
+  --crown-avatar-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --crown-bg:            #141319;
 }
 
 /* ===== 全局：滚动条一律不显示 =====

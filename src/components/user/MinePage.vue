@@ -1,4 +1,4 @@
-<!--
+﻿<!--
   「我的」内容积木（2026-11-21 单层重构版；2026-11-23 重排成「一张名片 + 三行 + 一行」）
   职责：布局编排，数据计算和事件转发。容器是 MineSheet（底部浮层），本组件只管里面放什么。
 
@@ -30,6 +30,8 @@
         <MineRow icon="crown" label="王冠" :meta="crownMeta()" @click="$emit('navigate', 'crown')" />
         <MineRow icon="bookmark" label="我的收藏" :value="favCount" @click="$emit('navigate', 'favorites')" />
         <MineRow icon="shield" label="数据与备份" :meta="backupMeta()" @click="$emit('navigate', 'backup')" />
+        <!-- 外观（2026-11-25）：整台设备的昼夜偏好，放最后一行 —— 它是设置，不是内容 -->
+        <MineRow icon="appearance" label="外观" :meta="appearanceMeta()" @click="$emit('navigate', 'appearance')" />
       </div>
 
       <!-- 锁定：低频、可逆，放最底，不穿红 -->
@@ -48,6 +50,8 @@
     />
 
     <BackupCenter v-else-if="page === 'backup'" />
+
+    <AppearancePage v-else-if="page === 'appearance'" />
   </div>
 </template>
 
@@ -59,6 +63,7 @@ import LockRow           from './LockRow.vue'
 import CrownSection      from './CrownSection.vue'
 import MyFavoritesEntry  from './MyFavoritesEntry.vue'
 import BackupCenter      from './BackupCenter.vue'
+import AppearancePage    from './AppearancePage.vue'
 
 import { currentAccount } from '../../composables/useAccount'
 import { useFavorites } from '../../composables/useFavorites'
@@ -66,6 +71,9 @@ import { isProactiveEnabled, proactiveMonthCount } from '../../composables/usePr
 import { PROACTIVE_QUOTA_PER_MONTH } from '../../constants/proactive'
 import { useAIConfig } from '../../composables/useApiKey'
 import { lastExportAt } from '../../composables/useBackup'
+import { themeMode, mode } from '../../composables/useTimeMode'
+import { palette } from '../../composables/useAppearance'
+import { findPalette } from '../../constants/palettes'
 
 defineProps({
   userProfile: { type: Object, default: null },
@@ -103,6 +111,20 @@ function crownMeta() {
 function backupMeta() {
   const t = lastExportAt()
   return t ? `只在本机 · 上次导出 ${monthDay(t)}` : '只在本机 · 还没导出过'
+}
+
+/**
+ * 外观行副行：说"现在实际是什么"，而不是只说档位。
+ * 2026-11-26 起外观有两条轴，副行把两条都说出来：色系名在前、明暗在后。
+ * 跟随时间时不写死白天 —— 它是会被时间改掉的，进一次页面重算一次（同 crownMeta 的理由）。
+ */
+function appearanceMeta() {
+  const now = mode.value === 'day' ? '白天' : '夜晚'
+  const color = findPalette(palette.value).name
+  if (themeMode.value === 'day') return `${color} · 白天`
+  if (themeMode.value === 'night') return `${color} · 夜晚`
+  if (themeMode.value === 'system') return `${color} · 跟随系统`
+  return `${color} · 跟随时间 · ${now}`
 }
 
 /** '2026-11-23T…' → '2026/11/23'（记录时间本来就用斜杠，界面上别两套分隔符） */

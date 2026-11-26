@@ -1,6 +1,6 @@
 # 寰中枢 — 个人百科知识库
 
-> 更新：2026-11-21（v3.0 单层记录重构：游戏/笔记/生活/我的四页下线，底栏只剩「记录 / 王冠」，「我的」改为右上角呼出的浮层，记录正文首次有编辑入口）
+> 更新：2026-11-25（v3.6 多图添加 + 进库前压缩，见文末；v3.0 单层记录重构见下方）
 
 ## 技术栈
 - Vue 3（Composition API + `<script setup>`）
@@ -124,6 +124,7 @@ memories = [ { id, type, content, source, sentiment, status, created_at, ... } ]
 
 ## 测试
 - `npm run test:crisis` — 危机响应系统 A/B/C/D 用例矩阵（修改危机结构必跑，见 RULES.md 第 11 条）
+- `npm run test:compress` — 图片压缩阈值 / 等比尺寸 / 类型闸门（28 条纯函数断言）
 - `npm run check:secret` — 密钥泄漏闸门：扫 `dist/` 里的密钥形态与 `.env` 历史值；已串进 `npm run build`
 
 ## 2026-11-21 单层记录重构（v3.0）
@@ -398,6 +399,261 @@ Chromium 里，元素**或它的祖先**带 `mask` 时，`backdrop-filter` 整�
 - 验证：`build` / `check:ui` / `check:tokens` / `lint` 全绿；390×844 滚到底截图确认
   最后一张卡完整不透明、浮岛只压住它下沿的一小条。截图 `docs/screenshots/22-no-card-fade.png`。
 
+## 2026-11-25 新建入口搬到右下角 + 转场换成「弹簧进度」
+
+**入口**
+- 删掉列表顶部那条 390×46 的「＋ 记录」整行入口（`AddRecordBar.vue` 删除），
+  换成右下角 44×44 的实心圆钮 `RecordFab.vue`：右 16、底 `calc(14px + 安全区 + 7px)`
+  （44 的钮坐在 58 的浮岛带里，上下各让 7 → 圆心与浮岛同心，实测 801 = 801）。
+- 材质**沿用原来那颗**（`--color-accent` 实心 + 反白加号 + 一档投影），不是玻璃 ——
+  底部只有这一个"主动作"，它是整屏唯一一块实心色（与详情页「完成」同一族）。
+- 三种离开：`is-covered` 详情页打开（**不拆 DOM**，返回要从它的位置量落点）、
+  `is-sunk` 开「我的」/键盘（跟浮岛一起沉）、`is-off` 王冠页下滑消失。
+
+**转场（`useCardZoom` 重写）**
+- 从 WAAPI 一次性 440ms 改成 rAF + 弹簧积分：`p'' = -k(p-target) - c·p'`，
+  打开 ζ0.86（约 3.5% 过冲）/ 收起 ζ1.00（不回弹），RESPONSE 0.5s，4 子步长。
+- 壳从"每帧改 width/height + 阴影"改成 `clip-path: inset(… round …)` 的**裁剪窗口**；
+  照片与文字副本只走 `transform`，文字副本的宽度一次都不改（卡片正文与详情正文同宽）。
+- 壳的颜色跟着起点：卡片长出来是卡片的白，＋钮长出来是酒红（`SHELL_CARD` / `SHELL_FAB`）。
+- 跑着的时候点一下会**掉头**：`#hz-zoom-catcher` 接那一下，走的就是"返回"那条路
+  （`closeDetailAndCleanup`），空记录回收 / 列表显形都不另写一套。
+
+**修掉的 bug：点卡片后"正文开头往下飞"**
+`readDetailRects` 原来取正文里**第一个** `<strong>` 当文字副本的落点。旧数据（标题在 `name` 字段、
+正文开头没加粗）或长文中途才出现 `**重点**` 时，那个加粗在正文深处（实测 y=870），
+文字副本就从卡片（y=198）一路飞下去 —— 用户看到"正文开头被拽到屏幕下面"。
+现在只有**贴在正文顶部 6px 内**的加粗才算落点（`openingStrong`），取不到就退回正文容器本身。
+
+**验证（390×844 实机尺寸 headless）**
+- ＋钮：44×44、top 779、圆心 801 = 浮岛圆心 801；`background rgb(126,35,64)`。
+- ＋钮展开：clip 从 `inset(779px 16px 21px 330px round 22px)` 收到 `inset(0px)` 约 425ms；
+  内容在进度 0.78 开始显形，325ms 时到 1。
+- 卡片展开：文字副本 top 151 → 67（**往上**），不再飞向 y=781 的加粗。
+- 中途点一下：110ms 打断 → 900ms 后详情已关、列表 opacity 1、浮层与接收层都已摘掉。
+- 王冠页 `is-off`（opacity 0、translateY 84）、开「我的」`is-sunk`（translateY 84）。
+- `build`（含 check:secret）/ `check:ui` / `check:tokens` / `lint` 全绿；`npm test` 12/12。
+- 过程图：`docs/preview/record-fab-morph.png`。
 
 
+## 2026-11-25 多图添加 + 进库前压缩（v3.6）
 
+**为什么**：手机相册一次只能选一张，12 张图要点 12 次「插入图片」。用户要的是一次勾多张，
+并且**在手机上真的能跑**（不是只在桌面拖拽）。
+
+**用户 2026-11-25 定的规则（实现按这个来，别再自行加限制）**
+1. **单条记录不设图片上限**；单次选多少处理多少，进度逐张报。
+2. **只压新图**：长边 2048 + JPEG q=0.82；原图 ≤1.5MB 且长边 ≤2048 不重压；
+   PNG / WebP / GIF 原样（透明、动图不转码）；HEIC 能解码就转 JPEG，解不了原图兜底。
+3. **顺序按系统返回的 FileList** 追加，不猜拍摄时间（EXIF 会被压缩丢掉，按它排会自相矛盾）。
+4. **进度 / 结果用底部轻提示**，失败不弹 `alert`；单张失败不打断整批，最后汇总
+   「已添加 N 张，M 张失败」。
+5. **中途返回即停**：已加入的图保留，未处理的停掉（逐张落库，不做整批回滚）。
+6. 总数**跨过 9 张**时提示一次「图区显示前 9 张，点开可滑看全部」；
+   点 `+N` 角标**从第 10 张**开始看（点第 5 格仍从第 5 张开始）。
+7. **旧图、旧记录一个字节不动**：不重压、不截断、不改 `pics` 既有顺序。
+
+**新增 / 改动**
+- 新增 `utils/imageCompress.js`（纯函数阈值 + 浏览器解码/编码）：
+  `createImageBitmap(file, { imageOrientation: 'from-image' })` 解码（EXIF 方向转正），
+  `OffscreenCanvas.convertToBlob` 优先、失败退回 `<canvas>.toBlob`；
+  压完反而更大（已高度压缩的图）就保留原图；所有失败路径都返回原图，绝不丢图。
+- `ItemBodyEditor.vue`：`input` 加 `multiple`（**不加 `capture`**，加了 Android 会直接进相机、
+  只能拍一张）；逐张 `prepareImage → saveImage → emit('add-pic')`；`disposed` 在卸载时置位，
+  循环每张前检查；新增 `image-batch` 事件给详情页显示进度/结果。
+- `WikiDetail.vue`：新增固定在工具栏上方的状态胶囊（进度 `正在添加 3/12` / 结果 / 跨 9 提示），
+  不随正文滚走；键盘弹起时跟工具栏一起上浮。
+- `PhotoGrid.vue`：`+N` 从 `<span>` 改成 `<button>`，`@click.stop` 打开 `preview(9)`，
+  `@pointerdown.stop` 不触发长按删图；热区用 `::after` 外扩，不挡照片主体。
+- 新增 `scripts/image-compress.test.mjs` + `run-compress-tests.mjs`（28 条纯函数断言），
+  接入 `npm test`（12 套）。
+
+**验证（390×844 真 Chrome · DPR 3 · 真跑 change 事件）**
+- 9 张已有图 → 一次塞 3 个 `File` → 最终 `pics=12`、图区 9 格 + `+3`；
+  状态条「已添加 3 张 · 共 12 张 / 图区显示前 9 张，点开可滑看全部」。
+- 压缩实测：2600×1950 JPEG 96KB → **2048×1536 / 约 46KB**（三张都落在这个量级）。
+- 点 `+N` → 查看器停在 **10 / 12**（不是第 5 张）。
+- 慢速（CPU 降频）下批量到一半点返回 → 批量停在当前张，已加入的保留；
+  详情页正常关闭，没有回滚或半套数据。
+- `npm test` 12/12 套通过（compress 28/28、image 25/25）；`build`（含 `check:secret`）/
+  `check:ui` / `check:tokens` / `lint` 全绿。
+- 截图：`docs/screenshots/23-multi-image-progress.png`（进度）、
+  `docs/screenshots/24-multi-image-added.png`（结果 + `+3`）。
+
+**已知没做的 / 真机未验**
+- **真机未验**：iOS Safari / Android WebView 的原生相册多选面板、HEIC 解码、系统杀后台时
+  批量中断的行为。桌面 Chrome 的多选是 `DataTransfer` 模拟的，不等于系统相册 UI。
+- 压缩在主线程做（单张 12MP 约 0.2–0.5s）；批量每张之间让一帧、有进度，但低端机连续处理
+  十几张仍可能掉帧。要彻底顺滑需要搬进 Worker（Safari 对 `OffscreenCanvas` 支持不齐，暂不做）。
+- 没有「保留原图」开关；也没有「取消」按钮（返回即停）。
+- PNG 截图不压（保留透明），所以截图类大图不会因此变小。
+
+## 2026-11-25 外观：白天 / 夜晚（全站换肤，v3.7）
+
+**为什么**：在此之前昼夜只听表（`useTimeMode` 按 6:00–18:00 切），而且只有王冠、「我的」、
+底栏会变深，记录页 / 详情页 / 登录页 / 弹窗一直是纸面。用户要的是「整个 app 的白天晚上切换」。
+
+**做法：不新增主题系统，把 `.theme-deep` 升级成"整站夜间作用域"**
+- `variables.css` 的 `.theme-deep` 补齐纸面令牌：`--page-rgb`（23,16,15）、`--page-canvas-image`
+  （夜里的玫瑰 / 暖沙色斑）、`--surface-card*`（卡从白卡变 `rgba(255,235,240,.07)` 的半透明玫白）、
+  以及新的 `--color-accent-solid` / `--color-text-on-solid`。
+- ⚠ `--page-rgb` 与 `--color-bg-primary` 是同一个颜色的两处书写，改一处必须改另一处。
+- **实心色拆成两条令牌**：`--color-accent`（文字/图标，夜里提亮到 `#E08BA6`）与
+  `--color-accent-solid`（大面积填充，夜里深一档 `#B4436A` + 白字）。改用的组件：
+  `RecordFab` / `WikiDetail.done-btn` / `BackupCenter.bk-btn.primary` / `AuthView.auth-submit` /
+  `EditProfileModal.save-btn` / `AiSettingsModal.save-btn`。王冠页自己的 `.night` 仍把
+  `--color-text-on-accent` 翻成深墨（用户气泡/发送键走那条，本轮不动）。
+
+**判定源改成单例 + 三档**
+- `useTimeMode.js`：`auto`（6:00–18:00，默认，与旧行为完全一致）/ `day` / `night`。
+  模块级 `savedMode` + `clockMode` + 一个懒启动的分钟定时器，`useTimeMode()` 仍返回 `mode`
+  （ChatView / 入口动画 / 背景板一行没改）；另导出 `themeMode` / `setThemeMode()`。
+- 存储键 `huan_zhong_shu_theme_mode`（设备级，进 `GLOBAL_KEYS`，不按账号隔离）。
+- `App.vue`：根节点挂 `.theme-deep`；`.app-container.theme-deep .primary-sheet` 覆盖记录页
+  那四条卡片令牌（比 `.primary-sheet` 多一级，不靠书写顺序）；底栏 `theme-deep` 从
+  「夜间 + 王冠」放宽到「夜间」。
+
+**界面**
+- 「我的」新增第 4 行「外观」，副行说真实状态（`跟随时间 · 现在是白天` / `夜晚`）；
+  点进二级页 `AppearancePage.vue`（新积木，RULES 第 8 条），三选一 + 一行范围说明。
+- `constants/icons.js` 新增 `appearance` 图标（对比度半圆）。
+
+**验证（430×932 · DPR 2 headless，真点界面而不是注入）**
+- 白天启动 → 我的 → 外观 → 点「夜晚」：`localStorage` 写入 `night`，`mine-card` 与
+  `app-container` 背景都变成 `rgb(23,16,15)`；记录页 / 详情页 / 王冠 / 备份页同步变深。
+- 点回「跟随时间」：档位回到 `auto`，背景回到 `rgb(246,241,240)`，与改动前完全一致。
+- `npm test` 12/12；`build`（含 `check:secret`）/ `check:ui` / `check:tokens` / `lint` 全绿。
+- 截图：`docs/screenshots/25-appearance-entry.png`（新行）、`26-appearance-page.png`（白天）、
+  `27-appearance-page-night.png`（选夜晚后同一页）、`28-record-night.png`、`29-mine-night.png`。
+
+**已知没做的**
+- 王冠页 `ChatView` 的 `.night` 仍自带 `--color-text-on-accent: #1A0E12`（亮玫瑰底 + 深墨），
+  与其它页的「深玫瑰底 + 白字」不是同一套；统一它要动用户气泡，另开一轮。
+- 夜间截图是真机尺寸 headless 拍的，`backdrop-filter` 在桌面合成器不跑；
+  iOS Safari / Android WebView 上的雾幕与玻璃观感仍需真机确认。
+
+### 2026-11-25 补：三处「Teleport / 硬编码」漏掉的夜间
+
+用户报了两处（详情页「⋯」菜单、王冠「记住了 N 件事」），查同类问题时多修了一处（卡片长按菜单）。
+
+- **`.top-menu`（详情页）**：底色原来写死 `rgba(255,252,253,.86)`，夜里是一块白板。
+  抽出令牌 `--popover-fill`（昼 `rgba(255,252,253,.86)` / 夜 `rgba(42,32,35,.94)`，
+  比 `--glass-fill` 实一档 —— 上面全是字）；`:active` 底色从写死的黑 6% 换成 `--color-bg-subtle`。
+- **`MemorySheet` / `CardMenu`（都 `Teleport to="body"`）**：挂在 body 上，继承不到
+  `.app-container` 的 `theme-deep`，所以白天黑夜一个色。两处都自己挂一次
+  `theme-deep`（读 `useTimeMode()` 单例，与「我的」由父级挂类同一个道理）。
+  记忆表顺手把夜间四类 pastel 换成低透明底 + 提亮文字，卡片底从 `--color-bg-primary`
+  换成 `--color-bg-subtle`（primary 在夜里是整页底色，卡会"凹"下去）；长按菜单的「收藏」
+  chip 夜里用 `rgba(224,139,166,.16)`（`accent-light` 在暗底只有 6% 白，几乎看不见）。
+- 验证：430×932 夜间实拍，`.top-menu` 计算色 `rgba(42,32,35,.94)`、
+  记忆表 `rgb(36,26,28)` 且带 `theme-deep`；`build` / `check:ui` / `check:tokens` / `lint` 全绿；
+  `npm test` 12/12。截图 `docs/screenshots/30-detail-menu-night.png` /
+  `31-memory-sheet-night.png` / `32-card-menu-night.png`。
+
+### 2026-11-25 修：详情页「⋯」菜单三项点不动（层位 bug，与夜间无关）
+
+**症状**：菜单能展开、看着正常，但点「收藏 / 分享 / 删除」全都没反应，点一下菜单就关掉。
+
+**根因**：`.detail-header` 是 `position: absolute` + `z-index: 2`，**自成堆叠上下文**；
+菜单的 `z-index: 20` 只在这个上下文里排序。透明遮罩 `.menu-mask` 是它的兄弟节点、
+`z-index: 10` —— 两者比较的是 `2 vs 10`，所以遮罩透明地压在菜单上，把点击全吃掉了
+（`elementFromPoint` 在菜单项中心返回的是 `.menu-mask`）。
+
+**修法**：`.detail-header` 的层位 2 → 20（高于 mask 10、低于看图 300）。顶栏只有 55px 高、
+`pointer-events: none`，抬高不影响正文滚动与点击；菜单在顶栏内部，自然落在遮罩之上。
+
+**验证**（430×932，真实 `Input.dispatchMouseEvent`，不是 `el.click()`）：
+菜单项中心 `elementFromPoint` = 菜单内的 `<span>`；点「收藏」→ 收藏列表 `["r1","r3"] → ["r3"]`、
+菜单关闭；点「分享」→ 菜单关闭并走降级提示。`build` / `lint` / `check:tokens` 全绿。
+
+> 时间上是在夜间那轮之后被注意到的，但这行 `z-index: 2` 从 2026-11-24 顶栏改浮层起就在，
+> 遮罩的 10 也没动过 —— 夜间改动只换了菜单底色，没有碰层位。
+
+## 2026-11-26 顶栏搜索：右锚点展开 + 按钮淡出（v3.8）
+
+**来源**：用户给的参考稿 `search_refined.html`，原话是「按钮淡出而不挤压，搜索框从右侧锚点向左延展」。
+
+**只改了一处动画，没动数据与路由**
+- `AppHeader.vue`：`.search-slot` 从 flex 子项改成**绝对定位**（`right:12`，`width:44 → calc(100% - 24px)`），
+  展开时右端钉死在 378，只有左边缘在走；玻璃 / 描边 / 投影从 `<input>` 挪到槽上、输入框改透明 ——
+  这样长出来的是"整颗胶囊"，不是"一个透明容器里的框在拉长"。
+  `.search-box` 整组晚 120ms 淡入（先有形、字后到）；两颗键不再 `width:0`，只 `opacity` + `transform`
+  （「我的」左移 7px + 缩 .98，搜索键缩 .94）—— **整行零重排**，收/展两态里搜索键的位置不变。
+- `variables.css` 新增 `--search-dur: 390ms` / `--ease-search: cubic-bezier(.22,.68,.18,1)`：
+  账本（三曲线 + 四时长）之外**特批的一条**，只服务搜索位；`motion.css` 的 reduced-motion 同步补 `--search-dur: 1ms`。
+- 顺手修一处死代码：夜间那两条写的是 `.header.theme-deep`，而 `App.vue` 从没给顶栏挂过这个类
+  → 夜里搜索框一直带着白描边。改成 `.theme-deep .search-slot`（根节点有它就命中）。
+- 聚焦时机保持**立刻**（参考稿的 340ms 是桌面 demo，手机上没有软键盘那条时间线）。
+
+**当天追加：搜索框换成跟圆钮同一套材质**
+- 用户报「框外面还有一圈颜色」。两层原因：① 聚焦光环 `0 0 0 3px rgba(126,35,64,.16)` ——
+  它以前挂在 `<input>` 上被槽 `overflow:hidden` 裁掉，玻璃挪到槽上之后整圈露出来了；
+  ② 框本来就不是玻璃：只有 `--glass-fill` 底色，没有 `backdrop-filter`，边是 1px 白线、阴影是另一套。
+- 改法：删掉聚焦光环（要恢复只能用 `inset`，不能外扩）；框直接用圆钮那套令牌 ——
+  `backdrop-filter: var(--glass-blur)` + `box-shadow: var(--glass-highlight), var(--glass-edge), 0 2px 8px`。
+  夜间因此**不再需要单独覆盖**，`--glass-*` 在 `.theme-deep` 里本来就有夜间值。
+- ⚠ 记一笔"当年那条代价"：2026-11-23 摘掉模糊的理由是「两端圆角处一道竖亮边」，
+  那是深色网格底上的结论。换成纸面 + 色斑之后**没有再复现**（昼/夜各拍一张，两端像素干净）。
+  真复发的话正确解法是把模糊挪到内层矩形、外层只做裁剪 —— 不是又把框的模糊摘掉。
+- 验证：昼/夜两张计算样式对比，槽与圆钮的 `background-color / backdrop-filter / box-shadow` **逐字一致**
+  （只有 `border-radius` 999px vs 50% 不同）；`check:ui` / `check:tokens` / `lint` / `build` 全绿。
+- 截图：`.tmp-shots/mat-day-closed.png`、`mat-day-open.png`、`mat-night-closed.png`、`mat-night-open.png`（3× 放大）。
+
+**当场第二轮：夜间那圈外框**
+- 用户报「晚上这外面的一圈还有」。定位：不是聚焦光环（第一轮已删），是 `--glass-edge` 里的
+  `0 0 0 1px rgba(255,230,238,.16)` —— **同一枚令牌，44px 圆钮上读作边缘，366px 宽的搜索框上读作一圈"画上去的框"**。
+  白天那条是 `0.5px / 6% 酒红`，本来就看不见（所以只有夜里显形）。
+- 改法：把 `--glass-edge` 拆成 `--glass-vignette`（内暗角）+ 外描边两条令牌，
+  `--glass-edge: <描边>, var(--glass-vignette)` 保持原语义；搜索框改用 `var(--glass-vignette)`，
+  **厚度还在、外框没了**。圆钮 / 浮岛继续用 `--glass-edge`。
+- 验证：夜间槽的 `box-shadow` 里已无 `0 0 0 1px`（改为 `highlight + vignette + 2px 8px`），
+  10× 左端特写对比确认外框消失、顶光仍在；`check:tokens` / `check:ui` / `lint` / `build` 全绿。
+- 截图：`.tmp-shots/ring-01-left.png`（改前，有外框）→ `final-night-left.png`（改后）。
+
+**验证**（390×844 · DPR2 · 真 Chrome 走 CDP 点真按钮）
+- 展开：`44 → 366`，左右边 `334..378 → 12..378`；逐帧采样 t=0/99/182/284/452ms = `44/253.8/331.6/358.9/366`，
+  曲线确实是"快起慢收"，不是线性拉伸；两颗键 opacity ~180ms 归 0；「我的」终态 `translateX(-7px) scale(.98)`。
+- 收起：`366 → 44`、opacity 归 0、输入值清空、输入框失焦；按钮回到原位（宽高仍 44）。
+- 立刻聚焦 ✓（`document.activeElement` 就是输入框）。
+- `build`（含 check:secret）/ `check:ui` / `check:tokens` / `lint` 全绿；`npm test` 12/12。
+- 截图：`.tmp-shots/day-search-03-open.png`（展开态）。
+
+## 2026-11-26 多套色系（外观的第一条轴，v3.8）
+
+**为什么**：昼夜已经能切，但整站只有一套颜色。用户给了三张样板图（雾面板 / 虹彩雾 / 珊瑚跑道，
+每张含昼 + 夜），要求"只要颜色"——结构、几何、材质一个都不许动。
+
+**做法：给「一套配色」一个类，不给主题做引擎**
+- 默认色系（雾面板）直接写进 `variables.css` 的 `:root`（昼）与 `.theme-deep`（夜），**不挂类**；
+  其余两套各一个文件（`styles/palettes/iridescent.css` / `coral.css`），用
+  `.palette-xxx`（昼）与 `.palette-xxx.theme-deep`（夜）覆盖同名令牌。
+- 夜块用**复合选择器**（0,2,0）而不是靠书写顺序 —— 顺序赌输过一次（见 App.vue 那条注释）。
+- 「酒红丝绒」整组删除（用户 2026-11-26 定：直接删、不留退路）。要回退看
+  `git show <换色前提交>:src/styles/variables.css`。
+
+**新增积木**
+- `constants/palettes.js` —— 注册表：id / 名称 / 一句说明 / className，**不含色值**（色值只在 CSS）。
+- `composables/useAppearance.js` —— 单例：当前色系 + `appearanceClass`（'palette-xxx' + 'theme-deep'）。
+  全项目只有这一处拼类名，根容器 / 「我的」/ 底栏 / 两个 Teleport 弹层共用。
+- `scripts/check-palettes.mjs` —— ① 完整性：每套昼夜两块都要覆盖 REQUIRED 清单，
+  缺一条就是"两套色杂交"；② 对比度：正文类 ≥4.5、图形类 ≥3.0。已串进 `npm test`。
+
+**明暗轴加一档「跟随系统」**（`useTimeMode`）：`auto / system / day / night`，默认仍是 auto；
+system 读 `prefers-color-scheme` 并实时监听 `change`。`mode` 对外仍只有 day / night，消费者一行没改。
+
+**收回 5 处硬编码颜色**（换色系会当场露馅的那几处）：底栏药丸（`--nav-pill-bg/-fg`）、
+长按菜单收藏 chip（`--color-accent-soft`）、记忆面板抓手（`--color-handle`）、
+详情页「⋯」菜单投影（`--shadow-float`）、记录页与夜里的卡片阴影色相（玫瑰 → 中性）。
+**浮岛与右下角加号的材质一字未动**（用户 2026-11-26 明确）：只换了颜色。
+
+**验证**（390×844 · DPR2 · 真 Chrome 走 CDP）
+- 三套 × 昼夜实测：根类分别是 `''` / `palette-iridescent` / `palette-coral` + `theme-deep`；
+  纸色 `rgb(246,246,250)` / `rgb(243,242,250)` / `rgb(242,236,240)`，夜里 `rgb(20,19,25)` 等，与令牌一致。
+- 跟随系统：CDP 模拟 `prefers-color-scheme: dark` → 根类转 `theme-deep`、纸色 `rgb(20,19,25)`。
+- `check:palettes` / `check:tokens` / `check:ui` / `build`（含 check:secret）/ `lint` 全绿；`npm test` 12/12。
+- 截图：`.tmp-shots/palette-{fog,iridescent,coral}-{day,night}.png`。
+
+**已知没做的**
+- 王冠页只换了身份色（头像珊瑚 / 就绪琥珀 / 白天纸色），夜板与入场动画仍是酒红黑 —— 用户定"首页改完再说"。
+- 色卡上的"第一张卡自带染色"（紫面板 / 桃面板）没有对应机制，暂不实现。
+- 三张样板图里编号跳了 2（只有 1 和 3），若还有一套没发，补一个 CSS 文件 + 注册表一行即可。

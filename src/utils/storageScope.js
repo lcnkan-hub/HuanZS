@@ -20,7 +20,9 @@ export const SCOPE_SEP = '@u'
 export const GLOBAL_KEYS = new Set([
   STORAGE_KEYS.ACCOUNTS,
   STORAGE_KEYS.SESSION,
-  STORAGE_KEYS.AI_CONFIG
+  STORAGE_KEYS.AI_CONFIG,
+  STORAGE_KEYS.THEME_MODE,  // 外观是"这台设备"的偏好，换账号不该换个颜色
+  STORAGE_KEYS.PALETTE      // 色系同理：设备级
 ])
 
 /** 需要按账号隔离的业务数据键（首个账号「认领本机旧数据」时按这张表走） */
