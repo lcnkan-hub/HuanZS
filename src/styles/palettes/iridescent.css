@@ -1,0 +1,113 @@
+﻿/**
+ * 色系 2 · 虹彩雾（四团柔光纸 · 电光蓝主色）
+ *
+ * 职责：只覆盖**颜色令牌**，不写结构、不写几何、不写材质配方 ——
+ *       玻璃的 fill/blur、卡片阴影、间距圆角都由 variables.css 那一套统一给，
+ *       换色系时观感不变、只变颜色（用户 2026-11-26 定：原有材质不变）。
+ *
+ * 两块必须成对出现：
+ *   .palette-iridescent              白天
+ *   .palette-iridescent.theme-deep   夜晚（复合选择器 0,2,0 —— 不靠书写顺序压过白天块）
+ * 夜块少一条令牌 = 夜里那一处掉回默认色系的值，两套色会杂交。
+ * scripts/check-palettes.mjs 会拿 REQUIRED 清单逐条比对两边，缺一条就报错。
+ *
+ * 取色来源：用户 2026-11-26 给的样板图「1 · 虹彩雾」，昼 13 色 / 夜 14 色，
+ * 色点是按像素采样出来的原值；文字类的深/浅档是按对比度补的（原色作正文不够 4.5）。
+ */
+.palette-iridescent {
+  /* 纸面 · 卡片 · 输入 · 弹层 */
+  --color-bg-primary:    #F3F2FA;
+  --color-bg-card:       #FFFFFF;
+  --color-bg-input:      #EAE9F5;
+  --color-bg-modal:      #FFFFFF;
+  --color-bg-subtle:     #EEEDF8;
+
+  /* 文字四级（对纸 17.0 / 9.6 / 5.3，卡 5.7） */
+  --color-text-primary:  #141321;
+  --color-text-secondary:#3A3A52;
+  --color-text-muted:    #60607A;
+  --color-text-neutral:  #464A5E;
+
+  /* 主色：电光蓝。实心填充与文字用同一个值 —— 深底上它自己够亮，不需要分档 */
+  --color-accent:        #1F52C7;
+  --color-accent-solid:  #1F52C7;
+  --color-accent-light:  #E3E9FA;
+  /* 底栏选中药丸：白天电光蓝，夜里近白（样图「主页·夜」那颗白圈） */
+  --nav-pill-bg:         #1F52C7;
+  --nav-pill-fg:         #FFFFFF;
+  --color-text-on-solid: #FFFFFF;
+  --color-text-on-accent:#FFFFFF;
+  --color-text-on-dark:  #FFFFFF;
+
+  --color-danger:        #B0322E;
+  --color-danger-bg:     #FBE9E7;
+  /* 成功 = 样图里那支青绿，但作正文要压深一档（原 #119FAD 只有 3.0） */
+  --color-success:       #0E7C72;
+  --color-success-deep:  #0A655D;
+  --color-success-bg:    #E6F4F2;
+
+  --color-border:        #E2E2F0;
+  --color-border-light:  #EFEFF8;
+  --color-border-input:  #DCDCEB;
+
+  --color-markdown-blue: #2452B8;
+  --color-markdown-brown:#8A5A2E;
+  --color-markdown-green:#0E7C72;
+
+  /* 纸面基色 + 四团柔光（青 / 电光蓝 / 湖绿 / 藕粉）。
+     ⚠ --page-rgb 必须与 --color-bg-primary 是同一个颜色：两处书写，改一处必改另一处。 */
+  --page-rgb: 243, 242, 250;
+  --page-canvas-image: radial-gradient(58% 44% at 8% 6%, rgba(124, 212, 231, 0.34), transparent 70%), radial-gradient(64% 46% at 92% 10%, rgba(58, 93, 211, 0.26), transparent 72%), radial-gradient(56% 40% at 86% 92%, rgba(17, 159, 173, 0.26), transparent 72%), radial-gradient(52% 38% at 6% 86%, rgba(195, 92, 163, 0.26), transparent 70%);
+
+  /* 王冠身份（头像）—— 白天跟色系，夜里那一套留给王冠那一轮 */
+  --color-crown-lit:     #B07B1E;
+  --crown-avatar-bg:     linear-gradient(135deg, #5B7BF0, #1F52C7);
+  --crown-avatar-shadow: 0 2px 6px rgba(31, 82, 199, 0.28);
+  --crown-avatar-icon:   #FFFFFF;
+  --crown-bg:            #F5F4FB;
+}
+
+.palette-iridescent.theme-deep {
+  --color-bg-primary:    #0F0F19;
+  --color-bg-card:       #1E1E2C;
+  --color-bg-input:      rgba(255, 255, 255, 0.08);
+  --color-bg-modal:      #20202F;
+  --color-bg-subtle:     rgba(255, 255, 255, 0.04);
+
+  --color-text-primary:  #E7EAF7;
+  --color-text-secondary:#B4BBD7;
+  --color-text-muted:    #8A91AD;
+  --color-text-neutral:  #A9B0CB;
+
+  --color-accent:        #8EA6FE;
+  --color-accent-solid:  #3B48B0;
+  --color-accent-light:  rgba(255, 255, 255, 0.06);
+  --nav-pill-bg:         #EFEFF4;
+  --nav-pill-fg:         #0F0F19;
+  --color-text-on-solid: #FFFFFF;
+  --color-text-on-accent:#0F0F19;
+  --color-text-on-dark:  #FFFFFF;
+
+  --color-danger:        #FF8F8A;
+  --color-danger-bg:     rgba(255, 110, 110, 0.14);
+  --color-success:       #5BD2D0;
+  --color-success-deep:  #8FE0F1;
+  --color-success-bg:    rgba(91, 210, 208, 0.14);
+
+  --color-border:        rgba(255, 255, 255, 0.10);
+  --color-border-light:  rgba(255, 255, 255, 0.06);
+  --color-border-input:  rgba(255, 255, 255, 0.12);
+
+  --color-markdown-blue: #8EA6FE;
+  --color-markdown-brown:#E8BC65;
+  --color-markdown-green:#5BD2D0;
+
+  --page-rgb: 15, 15, 25;
+  --page-canvas-image: radial-gradient(58% 44% at 8% 6%, rgba(143, 224, 241, 0.10), transparent 70%), radial-gradient(64% 46% at 92% 10%, rgba(113, 129, 240, 0.14), transparent 72%), radial-gradient(56% 40% at 86% 92%, rgba(91, 210, 208, 0.08), transparent 72%), radial-gradient(52% 38% at 6% 86%, rgba(242, 153, 197, 0.08), transparent 70%);
+
+  --color-crown-lit:     #E8BC65;
+  --crown-avatar-bg:     linear-gradient(135deg, #8EA6FE, #3B48B0);
+  --crown-avatar-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --crown-avatar-icon:   #FFFFFF;
+  --crown-bg:            #0F0F19;
+}

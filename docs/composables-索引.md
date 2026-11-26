@@ -63,5 +63,5 @@ composables/
   ui/        useKeyboard useTimeMode usePageRouter useCardZoom useDetailTransition useSheetDrag useAppNotice
 ```
 
-代价预估：约 60 处 import 要跟着改（组件、App.vue、11 套断言脚本里的 `import('../src/composables/xxx.js')`）。
+代价预估：约 60 处 import 要跟着改（组件、App.vue、12 套断言脚本里的 `import('../src/composables/xxx.js')`）。
 做的时候**必须**：改完先重启 dev server 再验收（Vite 的 HMR 图在大规模移动后会失效，模块会返回空壳、页面白屏），然后跑 `npm test` + `npm run build`。

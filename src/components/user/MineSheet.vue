@@ -102,7 +102,7 @@ const open = ref(false)
 
 /* ---------- 二级页 ---------- */
 const page = ref('')   // '' | 'crown' | 'favorites' | 'backup'
-const PAGE_TITLES = { crown: '王冠', favorites: '我的收藏', backup: '数据与备份' }
+const PAGE_TITLES = { crown: '王冠', favorites: '我的收藏', backup: '数据与备份', appearance: '外观' }
 const title = computed(() => PAGE_TITLES[page.value] || '我的')
 function goBack() { page.value = '' }
 

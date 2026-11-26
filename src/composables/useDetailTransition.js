@@ -21,7 +21,8 @@
  * @param {import('vue').ComputedRef<string>} deps.profileName  新建记录时的 creator
  */
 import { nextTick } from 'vue'
-import { readCardRects, readDetailRects, cardTextHtml } from '../utils/cardZoomRects'
+import { readCardRects, readDetailRects, cardTextHtml, readOriginRadius } from '../utils/cardZoomRects'
+import { SHELL_CARD, SHELL_FAB } from './useCardZoom'
 
 export function useDetailTransition({
   openedItem, pendingNewId, recordsApi, zoom, openDetail, closeDetail, profileName
@@ -54,7 +55,11 @@ export function useDetailTransition({
       textTo: dst.textTo,
       inner: dst.inner,
       header: dst.header,
-      bar: dst.bar
+      bar: dst.bar,
+      radius: readOriginRadius(cardEl),
+      shell: SHELL_CARD,
+      // 跑到一半点一下 → 掉头回卡片（走的就是"返回"那条路，空记录回收等逻辑一并复用）
+      onTap: () => closeDetailAndCleanup()
     })
   }
 
@@ -69,7 +74,7 @@ export function useDetailTransition({
    *    而且返回时马上会被回收。用横条当起点，进出才对称：从哪儿发起，就回哪儿去。
    */
   async function handleCreateRecord() {
-    const barEl = document.querySelector('.add-bar')
+    const barEl = document.querySelector('.record-fab')
     const src = readCardRects(barEl)
 
     const item = recordsApi.addRecord('', profileName.value)
@@ -88,7 +93,12 @@ export function useDetailTransition({
       textHtml: '',
       inner: dst.inner,
       header: dst.header,
-      bar: dst.bar
+      bar: dst.bar,
+      // ＋钮是圆的：壳的第一帧必须也是那个圆，否则开头会是一个圆角方块
+      radius: readOriginRadius(barEl),
+      // 颜色跟着起点走：这颗钮是酒红的，长出去就是酒红
+      shell: SHELL_FAB,
+      onTap: () => closeDetailAndCleanup()
     })
   }
 
@@ -148,7 +158,7 @@ export function useDetailTransition({
      * 收回那张空卡的话，卡缩到一半就被 dropIfEmpty 删掉 —— 用户看到的是
      * 「东西缩进一个随即消失的位置」，像是没落点（2026-11-23 反馈）。
      */
-    const originEl = returnToBar ? document.querySelector('.add-bar') : cardEl
+    const originEl = returnToBar ? document.querySelector('.record-fab') : cardEl
     const src = readCardRects(originEl)
     const dst = readDetailRects(sheetEl)
     if (!src || !dst) {
@@ -162,15 +172,15 @@ export function useDetailTransition({
     const textHtml = cardTextHtml(cardEl)
 
     /**
-     * 顶栏补偿：详情打开时顶栏被卸载、主内容区占满整屏；收完之后顶栏挂回来、
-     * 整个主内容下移 `--header-height`。落点不补这 55px，壳会缩到屏幕上方
-     * （实测：横条真实 top=69，量到 -4，差的 73 = 退后的 18 + 顶栏的 55）。
-     * 底栏是 fixed 浮岛、不占流，不用补。
+     * 顶栏补偿（2026-11-25 **删掉**，它是过期规则，也是个 bug）。
+     *
+     * 旧逻辑：详情打开时顶栏被卸载、收完再挂回来，于是给落点整体 +55px（--header-height）。
+     * 但顶栏从 2026-11-23 起就是 `position: absolute` 的**浮层**，卸载它根本不动布局 ——
+     * 实测（390×844，详情开着、列表临时复位后量）：卡片 top 138 → 138，一格都没变。
+     * 于是这 55px 变成纯粹的偏移：每次收起，壳都落到真实位置下方 55px。
+     * 卡片是白的、壳也是白的，这个错位看不出来；＋钮在屏幕底边，落点被推到 834，
+     * 下半截被视口裁掉 —— 用户看到的就是"按钮变扁"（一条 44×10 的横片）。
      */
-    const chromeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height')) || 0
-    for (const key of ['sheet', 'photo', 'text']) {
-      if (src[key]) src[key].t += chromeTop
-    }
 
     /**
      * **空记录先删、再收**（2026-11-23 第二次修「已经记录的卡片跳动」）。
@@ -193,7 +203,9 @@ export function useDetailTransition({
       textTo: dst.textTo,
       inner: dst.inner,
       header: dst.header,
-      bar: dst.bar
+      bar: dst.bar,
+      radius: readOriginRadius(originEl),
+      shell: returnToBar ? SHELL_FAB : SHELL_CARD
     })
     return true
   }

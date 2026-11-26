@@ -90,6 +90,7 @@
         @delete-pic="(i) => $emit('remove-pic', i)"
         @preview-pic="openPhoto"
         @editing-change="isEditing = $event"
+        @image-batch="onImageBatch"
       />
 
       <!-- 分享的一行小提示（2.6 秒自己消失） -->
@@ -114,6 +115,21 @@
       <button class="done-btn" type="button" aria-label="完成" @click="handleDone">
         <AppIcon name="check" :size="19" />
       </button>
+    </div>
+
+    <!-- 批量加图的进度 / 结果（2026-11-25）：固定在工具栏上方，不随正文滚走。
+         进度时带一颗小转圈；结束后变成「已添加 N 张」或「已添加 N 张，M 张失败」，
+         若这次让总数跨过 9 张，再补一句「图区显示前 9 张…」——只说一次，之后靠 +N 自己说明。 -->
+    <div
+      v-if="imageStatus"
+      class="image-status"
+      :class="{ 'is-busy': imageStatus.busy }"
+      :style="{ transform: kbShift ? `translateX(-50%) translateY(${kbShift}px)` : '' }"
+      role="status"
+      aria-live="polite"
+    >
+      <span v-if="imageStatus.busy" class="image-status-spin" aria-hidden="true"></span>
+      <span class="image-status-text">{{ imageStatus.text }}</span>
     </div>
 
     <!-- 看图浮层：点图区里任意一张放大。
@@ -190,6 +206,10 @@ const bodyRef   = ref(null)
 const menuOpen  = ref(false)
 const shareHint = ref('')
 
+/** 批量加图的进度 / 结果胶囊（2026-11-25）；null = 不显示 */
+const imageStatus = ref(null)
+let imageStatusTimer = null
+
 /* ===== 顶部雾幕的开关（2026-11-24）=====
    顶雾只在「上面还有内容没滚过去」时显形：停在顶部 → 隐去，第一行不被纸色洗白。
    底雾不做这个判断（它常驻，见样式里的说明）。
@@ -231,7 +251,10 @@ onMounted(() => {
   ro.observe(el)
   if (el.firstElementChild) ro.observe(el.firstElementChild)
 })
-onBeforeUnmount(() => { if (ro) { ro.disconnect(); ro = null } })
+onBeforeUnmount(() => {
+  if (ro) { ro.disconnect(); ro = null }
+  if (imageStatusTimer) { clearTimeout(imageStatusTimer); imageStatusTimer = null }
+})
 
 /** 是否在编辑正文 —— 底部工具栏的显隐完全跟着它走（阅读态整条不渲染） */
 const isEditing = ref(false)
@@ -339,6 +362,47 @@ function hint(msg) {
 }
 
 /**
+ * 批量加图的状态（2026-11-25）。
+ *
+ * 进度态不自动消失；结束态给 2.6 秒（跨 9 张那条给 4.2 秒，字更多、要读完）。
+ * 文案只回答两个问题：现在到第几张、最后成功几张失败几张 —— 不解释技术细节。
+ */
+function onImageBatch(e) {
+  if (!e) return
+  if (imageStatusTimer) { clearTimeout(imageStatusTimer); imageStatusTimer = null }
+
+  if (e.phase === 'progress') {
+    imageStatus.value = {
+      busy: true,
+      text: e.total > 1 ? `正在添加 ${e.done}/${e.total}` : '正在添加图片'
+    }
+    return
+  }
+
+  let text
+  if (!e.added && e.failed) {
+    text = `没有添加成功（${e.failed} 张失败${e.rejected ? `，${e.rejected} 个不是图片` : ''}）`
+  } else {
+    const bits = []
+    if (e.added) bits.push(`已添加 ${e.added} 张`)
+    if (e.failed) bits.push(`${e.failed} 张失败`)
+    if (e.rejected) bits.push(`${e.rejected} 个不是图片`)
+    text = bits.length ? bits.join('，') : '没有可添加的图片'
+  }
+  if (e.crossed) {
+    // 换行而不是硬挤：第一行说结果，第二行说「多的图在哪」。
+    // 一行塞 30 多个字会在 390 宽的手机上把「（共 12 张）」单独甩到下一行，很难看。
+    text = `${text} · 共 ${e.count} 张\n图区显示前 9 张，点开可滑看全部`
+  }
+
+  imageStatus.value = { busy: false, text }
+  imageStatusTimer = setTimeout(() => {
+    imageStatus.value = null
+    imageStatusTimer = null
+  }, e.crossed ? 4200 : 2600)
+}
+
+/**
  * 「完成」：结束编辑、回阅读态（工具栏随之收起），**不离开详情页**。
  *
  * 编辑态下有两个出口，各管一件事：底部「完成」= 我写完了，看；顶栏返回 = 我走了。
@@ -401,7 +465,12 @@ function handleClose() {
 .detail-header {
   position: absolute;
   top: 0; left: 0; right: 0;
-  z-index: 2;                  /* 高于雾幕：按钮不能被纸色染白 */
+  /* 20 —— 必须高于 .menu-mask 的 10（2026-11-25 修）。
+     原来写 2（"高于雾幕"就够了），但 header 是 absolute + z-index，自成堆叠上下文：
+     菜单的 z-index 20 只在这个上下文里有效，跟外面的 mask（兄弟节点、z 10）比的是 header 的 2 —— 
+     mask 透明地盖在菜单上，所有点击都被它吃掉，菜单看着打开、点哪都没反应。
+     现在的层位：雾幕 1 < 正文 < mask 10 < 顶栏 20（菜单在顶栏里面，自然在 mask 之上）< 看图 300。 */
+  z-index: 20;
   height: var(--header-height);
   display: flex; align-items: center;
   padding: 0 12px;
@@ -456,14 +525,13 @@ function handleClose() {
   width: 136px; padding: 5px;
   display: flex; flex-direction: column; gap: 2px;
   border-radius: var(--radius-lg);
-  background-color: rgba(255, 252, 253, 0.86);
+  background-color: var(--popover-fill);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow:
     var(--glass-highlight),
     var(--glass-edge),
-    0 12px 32px rgba(90, 35, 55, 0.14),
-    0 2px 6px rgba(90, 35, 55, 0.06);
+    var(--shadow-float);
   transform-origin: top right;
   animation: menuFade 0.14s linear both,
              menuIn var(--pop-dur) var(--spring-pop) both;
@@ -483,7 +551,7 @@ function handleClose() {
   -webkit-tap-highlight-color: transparent;
   transition: background-color 0.16s ease;
 }
-.menu-item:active { background-color: rgba(0, 0, 0, 0.06); }
+.menu-item:active { background-color: var(--color-bg-subtle); }
 .menu-item.del { color: var(--color-danger); }
 
 /* 点任何地方关菜单。放在菜单之下（z-index 10 < 20） */
@@ -573,6 +641,56 @@ function handleClose() {
   color: var(--color-text-muted);
 }
 
+/* 批量加图的状态胶囊（2026-11-25）
+   位置钉在底部工具栏上方：正文滚到哪都看得见「3/12」。
+   材质与工具栏同一族（--glass-fill + --glass-blur），尺寸小一档，不抢工具栏。
+   ⚠ 入场动画不写 fill-mode —— 动画结束后 transform 要交还给内联的键盘位移，
+    否则键盘弹起时这条会被动画锁在原位（和 AGENTS 第 3 条同一个坑）。 */
+.image-status {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: calc(14px + var(--safe-bottom) + 52px + 10px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-highlight), var(--glass-edge), 0 8px 24px rgba(0, 0, 0, 0.10);
+  color: var(--color-text-secondary);
+  font-size: var(--text-12);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  animation: imageStatusIn 0.18s ease-out;
+  transition: transform var(--slide-dur) var(--spring-glide);
+}
+.image-status.is-busy { color: var(--color-text-primary); }
+.image-status-text { white-space: pre-line; }
+
+/* 一颗 12px 的转圈：只在进度态出现。用 border 画，不额外引 SVG */
+.image-status-spin {
+  width: 12px; height: 12px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  animation: imageStatusSpin 0.8s linear infinite;
+}
+@keyframes imageStatusIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.98); }
+}
+@keyframes imageStatusSpin {
+  to { transform: rotate(360deg); }
+}
+
 /* 底部工具栏：半透明 + 模糊，浮在内容之上；内容从它底下滚过去。
    不写实心背景色 —— 那是"给控件垫一块"，HIG 明确不这么做。 */
 .detail-toolbar {
@@ -605,6 +723,10 @@ function handleClose() {
    视觉 40、热区 44（::after 外扩）——HIG 要的是热区 ≥44，不是看着像 44。 */
 .tool-circle {
   width: 40px; height: 40px;
+  /* 按下/松手两段弹簧（2026-11-24 换掉 toolPop keyframe）：
+     keyframe 从 1 压到 .88 再冲 1.06 只播一次，**按住不放它 0.32s 后自己就复位了** ——
+     等于动画替用户"松了手"，按压这个信号是假的。改成：按住期间保持在 .92，
+     松手才用长弹簧弹回来（过冲 3.8% ≈ 1.038，幅度比原来的 1.06 略收）。 */
   position: relative;
   display: flex; align-items: center; justify-content: center;
   border: none; border-radius: 50%;
@@ -615,40 +737,46 @@ function handleClose() {
   -webkit-appearance: none; appearance: none;
   -webkit-tap-highlight-color: transparent;
   outline: none;
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease);
 }
 .tool-circle::after { content: ''; position: absolute; inset: -2px; }
-.tool-circle:active { animation: toolPop var(--pop-dur) ease-out; }
+.tool-circle:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
 .tool-circle:focus { outline: none; }
 .tool-circle:focus-visible { box-shadow: inset 0 0 0 2px var(--color-accent); }
-
-/* 跳动：压扁 → 弹过一点 → 落回。0.3s 打完才像「按钮的回应」，
-   再慢就变成「动画在演」（HIG：反馈动画要简短精确）。 */
-@keyframes toolPop {
-  0%   { transform: scale(1); }
-  30%  { transform: scale(0.88); }
-  65%  { transform: scale(1.06); }
-  100% { transform: scale(1); }
-}
 
 .bold-glyph { font-size: var(--text-17); font-weight: 800; line-height: 1; }
 
 .tool-spacer { flex: 1; }
 
 /* 完成：整页唯一的实心色块 —— 高频动作里最该被一下点到的那个。
-   尺寸跟圆圈按钮同一档（42），跳动也用同一条 keyframes，三种按钮一套手感。 */
+   尺寸跟圆圈按钮同一档（42），按压手感也走同一条账本（2026-11-24 起不用 keyframes）。 */
 .done-btn {
   width: 42px; height: 42px;
   display: flex; align-items: center; justify-content: center;
   border: none; border-radius: 50%;
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
+  background: var(--color-accent-solid);
+  color: var(--color-text-on-solid);
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(126, 35, 64, 0.34);
+  box-shadow: var(--shadow-solid-accent);
   -webkit-tap-highlight-color: transparent;
   outline: none;
+  /* 与 .tool-circle 同一套按压手感（同一条账本，不再各写一份 keyframes） */
+  --press-now-dur: var(--release-dur);
+  --press-now-ease: var(--spring-pop);
+  transition: transform var(--press-now-dur) var(--press-now-ease);
 }
-.done-btn:active { animation: toolPop var(--pop-dur) ease-out; }
-.done-btn:focus-visible { box-shadow: inset 0 0 0 2px #fff, 0 4px 14px rgba(126, 35, 64, 0.34); }
+.done-btn:active {
+  --press-now-dur: var(--press-dur);
+  --press-now-ease: var(--spring-press);
+  transform: scale(var(--press-scale));
+}
+.done-btn:focus-visible { box-shadow: inset 0 0 0 2px #fff, var(--shadow-solid-accent); }
 
 /* 详情页底色：已并入上面的 .detail-page-wrapper（2026-11-24 与记录页统一成纸面）。
    原来这里是「自己再铺一份网格 + 色斑」的第二条同名规则（走 --deep-canvas-*），

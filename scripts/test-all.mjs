@@ -1,14 +1,14 @@
 /**
  * 统一测试入口（2026-11-24）
  *
- * 为什么需要：项目里有 11 个断言套件，分两种启动方式（run-xxx-tests.mjs 包装 / 直接 .test.mjs），
- * 以前只有 11 个 `npm run test:xxx` 各跑各的 —— 没有「一次跑完、一个退出码」的入口，
+ * 为什么需要：项目里有 12 个断言套件，分两种启动方式（run-xxx-tests.mjs 包装 / 直接 .test.mjs），
+ * 以前每个套件只有一个 `npm run test:xxx` 各跑各的 —— 没有「一次跑完、一个退出码」的入口，
  * 于是 CI 没法接，人也会只跑自己记得的那两三个。
  *
  * 设计取舍：
  *   · **每个套件一个独立进程**：套件之间会改 globalThis.localStorage / indexedDB 替身，
  *     同进程跑必然互相污染（而且它们没法安全地反复 import）。
- *   · 判据只看**退出码**：11 个套件都已经在失败时 exit(1) 或置 process.exitCode=1（已逐个核对）。
+ *   · 判据只看**退出码**：12 个套件都已经在失败时 exit(1) 或置 process.exitCode=1（已逐个核对）。
  *   · 成功只打一行摘要，失败才把那一段输出倒出来 —— 失败信息全倒会把终端刷没。
  *
  * 用法：
@@ -22,6 +22,7 @@ const SUITES = [
   { name: 'crisis',    file: 'scripts/run-crisis-tests.mjs' },
   { name: 'backup',    file: 'scripts/run-backup-tests.mjs' },
   { name: 'image',     file: 'scripts/run-image-tests.mjs' },
+  { name: 'compress',  file: 'scripts/run-compress-tests.mjs' },
   { name: 'import',    file: 'scripts/run-import-tests.mjs' },
   { name: 'proactive', file: 'scripts/run-proactive-tests.mjs' },
   { name: 'lasttab',   file: 'scripts/run-lasttab-tests.mjs' },

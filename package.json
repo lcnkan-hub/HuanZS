@@ -14,6 +14,7 @@
     "test:crisis": "node scripts/run-crisis-tests.mjs",
     "test:backup": "node scripts/run-backup-tests.mjs",
     "test:image": "node scripts/run-image-tests.mjs",
+    "test:compress": "node scripts/run-compress-tests.mjs",
     "test:import": "node scripts/run-import-tests.mjs",
     "test:proactive": "node scripts/run-proactive-tests.mjs",
     "test:lasttab": "node scripts/run-lasttab-tests.mjs",
@@ -24,6 +25,7 @@
     "test:retrieval": "node scripts/retrieval.test.mjs",
     "check:secret": "node scripts/check-no-secret.mjs",
     "check:tokens": "node scripts/check-tokens.mjs",
+    "check:palettes": "node scripts/check-palettes.mjs",
     "check:ui": "node scripts/check-ui.mjs",
     "lint": "eslint ."
   },

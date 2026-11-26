@@ -13,6 +13,11 @@
   4. **图片不再进正文**（图片附件化）：图存在 IndexedDB，记录上只留 `pics` 数组，
      正文永远是纯文字。所以编辑时看不到 `![alt](id://…)` 那种源码，图固定在正文上方。
 
+  2026-11-25 多图添加：
+  5. 选图框加 `multiple`，一次可以勾多张；每张先压缩（见 utils/imageCompress.js）再入库；
+     逐张 emit `add-pic`，中途返回时已加入的保留；进度/结果通过 `image-batch` 交给详情页显示。
+  6. 失败不再弹 alert —— 单张失败不打断整批，最后汇总「已添加 N 张，M 张失败」。
+
   暴露给父级（底部工具栏要用）：startEdit / insertImage / flush / isEditing
 -->
 <template>
@@ -44,7 +49,9 @@
         class="body-input"
         placeholder=""
       ></textarea>
-      <input ref="fileInputRef" type="file" accept="image/*" hidden @change="handleImageSelected" />
+      <!-- multiple：手机相册一次勾多张（2026-11-25）。不加 capture ——
+           加了 Android 会直接进相机、只能拍一张，相册多选反而没了。 -->
+      <input ref="fileInputRef" type="file" accept="image/*" multiple hidden @change="handleImageSelected" />
     </template>
   </div>
 </template>
@@ -56,6 +63,7 @@ import {
   resolveImagesAsync
 } from '../../utils/markdownParser'
 import { saveImage, getImageUrl } from '../../composables/useImageStore'
+import { prepareImage, isImageFile } from '../../utils/imageCompress'
 import PhotoGrid from './PhotoGrid.vue'
 
 const props = defineProps({
@@ -65,13 +73,18 @@ const props = defineProps({
   /** 落款文案（年月日 + 周几）。空串 = 不显示；只出现在阅读态末尾右下角 */
   metaText: { type: String, default: '' }
 })
-const emit = defineEmits(['save', 'add-pic', 'preview-pic', 'delete-pic', 'editing-change'])
+const emit = defineEmits(['save', 'add-pic', 'preview-pic', 'delete-pic', 'editing-change', 'image-batch'])
 
 const editing      = ref(!!props.autoEdit)
 const draft        = ref(props.autoEdit ? (props.record.wiki || '') : '')
 const readRef      = ref(null)
 const textareaRef  = ref(null)
 const fileInputRef = ref(null)
+
+/** 一批图是否正在处理：处理期间再点「插入图片」不该叠第二批 */
+let batchRunning = false
+/** 组件是否已卸载：批量循环每一张之前都查它，用户按返回就停，已加入的保留 */
+let disposed = false
 
 /** 自动保存的防抖计时器：停手 600ms 再落库，边打边存但不每敲一个字就写一次盘 */
 let saveTimer = null
@@ -111,7 +124,10 @@ onMounted(() => {
     })
   }
 })
-onBeforeUnmount(() => flush())
+onBeforeUnmount(() => {
+  disposed = true   // 批量加图循环看到它就停（已加入的图已经逐张落库，不会回滚）
+  flush()
+})
 
 /**
  * 进出编辑态要告诉父级（2026-11-23）：详情页的底部工具栏**只在编辑态出现**。
@@ -193,25 +209,89 @@ function insertBold() {
 
 // ========== 插图（2026-11-22 图片附件化：图存 IndexedDB，id 交给父级写进 record.pics） ==========
 
-/** 由底部工具栏调用：不在编辑态就先切进去再选图 */
+/** 由底部工具栏调用：不在编辑态就先切进去再选图；一批没处理完时不再开第二批 */
 function insertImage() {
+  if (batchRunning) return
   if (!editing.value) startEdit()
   nextTick(() => fileInputRef.value?.click())
 }
 
+/** 让浏览器先画一帧：进度文字要看得见，不能等下一张解码完才刷出来 */
+function nextFrame() {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve())
+    else setTimeout(resolve, 0)
+  })
+}
+
+/**
+ * 多图添加（2026-11-25）。
+ *
+ * 用户 11-25 定下的四条规则：
+ *   1. 单条记录不设上限：选多少加多少，进度逐张报；
+ *   2. 逐张「压缩 → 入库 → 记到 pics」：中途返回时已加入的保留、未处理的停掉，
+ *      不会出现"整批回滚"或"图进了库但记录不认识它"；
+ *   3. 单张失败不打断整批，最后汇总「已添加 N 张，M 张失败」；
+ *   4. 失败不弹 alert（WebView 里原生弹窗本来就不可靠），交给详情页的轻提示条。
+ *
+ * 事件 `image-batch` 给父级显示进度/结果：
+ *   { phase:'progress', done, total, added, failed }
+ *   { phase:'done', total, added, failed, rejected, crossed, count }
+ */
 async function handleImageSelected(event) {
-  const file = event.target.files?.[0]
-  if (!file || !file.type.startsWith('image/')) { alert('请选择图片文件'); return }
-  try {
-    const imgId = await saveImage(file)
-    await getImageUrl(imgId) // 预热一次，图区立即能显示
-    // 2026-11-22 起不再往正文里插 `![alt](id://xxx)`：
-    // 图片改为附件（record.pics），正文只存文字。父级负责把它写进记录。
-    emit('add-pic', imgId)
-  } catch {
-    alert('图片保存失败')
+  const input = event.target
+  const picked = Array.from(input.files || [])
+  input.value = '' // 先清空：同一批图删掉再加时，change 才会再次触发
+  if (!picked.length || batchRunning) return
+
+  // 误选进来的非图片先摘掉；全部不是图时给一句结果，不弹窗
+  const images = picked.filter(isImageFile)
+  const rejected = picked.length - images.length
+  const before = Array.isArray(props.record.pics) ? props.record.pics.length : 0
+  if (!images.length) {
+    emit('image-batch', { phase: 'done', total: 0, added: 0, failed: 0, rejected, crossed: false, count: before })
+    return
   }
-  event.target.value = ''
+
+  batchRunning = true
+  let added = 0
+  let failed = 0
+  emit('image-batch', { phase: 'progress', done: 0, total: images.length, added, failed })
+
+  for (let i = 0; i < images.length; i++) {
+    if (disposed) break
+    // 先让「正在添加 i/N」画出来，再开始下一张的解码/压缩；否则连拍大图时进度会一直停在 0
+    await nextFrame()
+    if (disposed) break
+    try {
+      // 压缩失败会原图返回（见 imageCompress.prepareImage），这里只兜「入库失败」
+      const file = await prepareImage(images[i])
+      if (disposed) break
+      const imgId = await saveImage(file)
+      if (disposed) break
+      // 先记账再预热：反过来的话，预热期间用户退出就会留下一张"库里有、记录不认"的孤儿图
+      emit('add-pic', imgId)
+      added++
+      try { await getImageUrl(imgId) } catch { /* 读不出来时图区显示占位，不影响入库 */ }
+    } catch {
+      failed++
+    }
+    emit('image-batch', { phase: 'progress', done: i + 1, total: images.length, added, failed })
+  }
+
+  batchRunning = false
+  if (disposed) return
+
+  emit('image-batch', {
+    phase: 'done',
+    total: images.length,
+    added,
+    failed,
+    rejected,
+    // 只有「这次加完从 ≤9 跨到 >9」才提示，避免每次加图都念一遍
+    crossed: added > 0 && before <= 9 && before + added > 9,
+    count: before + added
+  })
 }
 
 defineExpose({ startEdit, exitEdit, insertImage, insertBold, flush, isEditing: editing })

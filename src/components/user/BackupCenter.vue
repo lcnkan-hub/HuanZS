@@ -239,7 +239,7 @@ const handleRestore = async () => {
   transform: scale(var(--press-scale));
 }
 .bk-btn:disabled { opacity: 0.55; }
-.bk-btn.primary { background: var(--color-accent); color: var(--color-text-on-accent); border-color: transparent; }
+.bk-btn.primary { background: var(--color-accent-solid); color: var(--color-text-on-solid); border-color: transparent; }
 .bk-btn.ghost   { background: var(--color-bg-card); color: var(--color-text-secondary); }
 
 /* 状态行：一条，居中，12 号。未导出那半句是红的 —— 只说「还没导出过」，不吓人 */

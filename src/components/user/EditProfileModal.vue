@@ -81,5 +81,5 @@ const handleSave = () => {
 }
 .modal-input:focus { outline: none; border-color: var(--color-accent); background: var(--color-bg-card); }
 .cancel-btn { background: var(--color-border-light); color: var(--color-text-neutral); }
-.save-btn   { background: var(--color-accent); color: var(--color-text-on-accent); }
+.save-btn   { background: var(--color-accent-solid); color: var(--color-text-on-solid); }
 </style>

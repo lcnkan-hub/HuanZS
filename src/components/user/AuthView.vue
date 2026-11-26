@@ -223,7 +223,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 .auth-submit {
   height: 44px; margin-top: 3px;
   border: none; border-radius: var(--radius-lg);
-  background: var(--color-accent); color: var(--color-text-on-accent);
+  background: var(--color-accent-solid); color: var(--color-text-on-solid);
   font-size: var(--text-15); font-weight: 500; font-family: var(--font-system);
   cursor: pointer;
   --press-now-dur: var(--release-dur);

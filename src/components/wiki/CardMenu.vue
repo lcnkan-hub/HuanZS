@@ -15,7 +15,7 @@
     <!-- 遮罩：吞掉这一次点击，顺便关菜单。点在菜单自己身上不会走到这里（@click.self） -->
     <div class="card-menu-mask" @click.self="$emit('close')"></div>
 
-    <div class="card-menu" :style="posStyle" role="menu">
+    <div class="card-menu" :class="appearanceClass" :style="posStyle" role="menu">
       <button class="cm-item fav" type="button" role="menuitem" @click="onFav">
         <AppIcon name="bookmark" :size="14" /> {{ favorited ? '取消收藏' : '收藏' }}
       </button>
@@ -29,6 +29,11 @@
 <script setup>
 import { computed } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
+import { useAppearance } from '../../composables/useAppearance'
+
+/* 这张菜单 Teleport 到 body，继承不到 .app-container 上的外观类
+   （色系 + 夜间作用域）；不自己挂一次，夜里/换色系时它会停在默认那套。 */
+const { appearanceClass } = useAppearance()
 
 const props = defineProps({
   /** 长按点（视口坐标） */
@@ -115,4 +120,6 @@ function onDelete() {
 }
 .cm-item.fav { background: var(--color-accent-light); color: var(--color-accent); }
 .cm-item.del { background: var(--color-danger-bg); color: var(--color-danger); }
+/* 夜间：accent-light 在暗底上只有 6% 白，chip 会几乎看不见 —— 换成带色相的玫瑰底 */
+.card-menu.theme-deep .cm-item.fav { background: var(--color-accent-soft); }
 </style>

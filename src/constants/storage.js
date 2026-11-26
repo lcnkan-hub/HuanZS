@@ -46,7 +46,13 @@ export const STORAGE_KEYS = {
   LAST_TAB: 'huan_zhong_shu_last_tab', // 上次停留的 Tab（键不存在 = 首次进来 → 王冠）
 
   // —— 备份提醒（I14）——
-  BACKUP_SNOOZE: 'huan_zhong_shu_backup_snooze' // 「今天先不提醒」的到期时刻（只压一天，不永久消失）
+  BACKUP_SNOOZE: 'huan_zhong_shu_backup_snooze', // 「今天先不提醒」的到期时刻（只压一天，不永久消失）
+
+  // —— 外观（2026-11-25 · 2026-11-26 拆成两条轴）——
+  // 'auto' | 'system' | 'day' | 'night'；设备级：外观是"这台设备"的偏好，跟哪个账号无关
+  THEME_MODE: 'huan_zhong_shu_theme_mode',
+  // 色系 id（constants/palettes.js 的注册表）；设备级、不进备份 —— 换手机重选一次即可
+  PALETTE: 'huan_zhong_shu_palette'
 }
 
 /**
@@ -77,5 +83,7 @@ export const KEY_LABELS = {
   [STORAGE_KEYS.PROACTIVE_ENABLED]: '主动开口开关',
   [STORAGE_KEYS.LAST_TAB]: '上次停留的页面',
   [STORAGE_KEYS.BACKUP_SNOOZE]: '备份提醒暂缓',
+  [STORAGE_KEYS.THEME_MODE]: '外观（白天 / 夜晚）',
+  [STORAGE_KEYS.PALETTE]: '外观（色系）',
   [STORAGE_KEYS.FAVORITES]: '收藏'   // 2026-11-24 补登记：这个键一直有，标签一直缺
 }

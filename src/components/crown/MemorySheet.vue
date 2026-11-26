@@ -12,7 +12,7 @@
     </transition>
     <!-- 面板（支持下滑关闭，模块2 手势规范） -->
     <transition name="sheet-rise">
-      <div v-if="open" class="memory-sheet" :style="dragStyle" role="dialog" aria-modal="true" aria-label="王冠记住的事">
+      <div v-if="open" class="memory-sheet" :class="appearanceClass" :style="dragStyle" role="dialog" aria-modal="true" aria-label="王冠记住的事">
         <!-- 横杠：整条 32px 高都能按住拖（视觉上只有 5px），尺寸与「我的」卡片一致；
              不再留 X —— 出口只有下拉和点遮罩两条 -->
         <div
@@ -54,6 +54,11 @@
 import { computed, watch } from 'vue'
 import AppIcon from '../common/AppIcon.vue'
 import { useSheetDrag } from '../../composables/useSheetDrag'
+import { useAppearance } from '../../composables/useAppearance'
+
+/* 这张面板 Teleport 到 body，不在 .app-container 里 —— 根上的外观类（色系 + 夜间）
+   传不下来，所以它自己取一次，挂在自己身上（与「我的」浮层由父级挂类同一个道理）。 */
+const { appearanceClass } = useAppearance()
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -247,7 +252,8 @@ const maskStyle = computed(() => {
   align-items: flex-start;
   gap: 10px;
   padding: 12px 14px;
-  background: var(--color-bg-primary);
+  /* 用 subtle 而不是 primary：primary 在夜里是整页底色，卡会"凹"下去 */
+  background: var(--color-bg-subtle);
   border-radius: var(--radius-3xl);
   min-height: 44px;
 }
@@ -260,6 +266,15 @@ const maskStyle = computed(() => {
   font-weight: 500;
   margin-top: 1px;
 }
+/* 夜间：四类 pastel 在暗底上会变成四张亮贴纸 —— 换成同色系的低透明底 + 提亮文字。
+   只在同一张表上覆盖局部令牌，不动全局（这套 pastel 只服务这张卡）。 */
+.memory-sheet.theme-deep {
+  --tag-fact-bg: rgba(120, 180, 240, 0.16);  --tag-fact-text: #A9CBF2;
+  --tag-goal-bg: rgba(120, 200, 150, 0.16);  --tag-goal-text: #A8D9BC;
+  --tag-event-bg: rgba(230, 170, 110, 0.16); --tag-event-text: #E8C49A;
+  --tag-pref-bg: rgba(170, 140, 220, 0.16);  --tag-pref-text: #C6B0EA;
+}
+.memory-sheet.theme-deep .sheet-handle { background: var(--color-handle); }
 .type-fact   { background: var(--tag-fact-bg);   color: var(--tag-fact-text); }
 .type-goal   { background: var(--tag-goal-bg);   color: var(--tag-goal-text); }
 .type-event  { background: var(--tag-event-bg);  color: var(--tag-event-text); }
